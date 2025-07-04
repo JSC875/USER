@@ -1,82 +1,84 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image, ScrollView } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
+import polyline from '@mapbox/polyline';
 
 const { width, height } = Dimensions.get('window');
 
-// Mocked pickup/drop and vehicles
-const pickup = {
-  latitude: 17.444, longitude: 78.382, address: '423, Ayyappa Society',
-};
-const drop = {
-  latitude: 17.4418, longitude: 78.38, address: 'HUDA Techno Enclave',
-};
-const routeCoords = [pickup, drop];
+// Add this at the top of the file or in a declarations.d.ts file if you have one
+// declare module '@mapbox/polyline';
 
-const mockVehicles = [
-  { id: 1, latitude: 17.443, longitude: 78.381, heading: 45 },
-  { id: 2, latitude: 17.442, longitude: 78.383, heading: 90 },
-  { id: 3, latitude: 17.445, longitude: 78.384, heading: 120 },
-  { id: 4, latitude: 17.440, longitude: 78.379, heading: 200 },
-  { id: 5, latitude: 17.4435, longitude: 78.378, heading: 300 },
-];
-
-const rideOptions = [
-  {
-    id: 'bike',
-    icon: 'motorbike',
-    label: 'Bike',
-    eta: '2 mins',
-    dropTime: 'Drop 9:14 am',
-    price: 33,
-    tag: 'FASTEST',
-    tagColor: '#22c55e',
-  },
-  {
-    id: 'scooty',
-    icon: 'scooter',
-    label: 'Electric Scooty',
-    eta: '3 mins',
-    dropTime: 'Drop 9:16 am',
-    price: 35,
-    tag: 'NEW',
-    tagColor: '#3b82f6',
-  },
-  {
-    id: 'auto',
-    icon: 'rickshaw',
-    label: 'Auto',
-    eta: '2 mins',
-    dropTime: 'Drop 9:14 am',
-    price: 59,
-  },
-  {
-    id: 'cab',
-    icon: 'car',
-    label: 'Cab Non AC',
-    eta: '2 mins',
-    dropTime: 'Drop 9:14 am',
-    price: 120,
-    tag: 'FASTEST',
-    tagColor: '#22c55e',
-  },
-  {
-    id: 'cabac',
-    icon: 'car-coolant-temperature',
-    label: 'Cab AC',
-    eta: '2 mins',
-    dropTime: 'Drop 9:14 am',
-    price: 140,
-  },
-];
-
-export default function RideOptionsScreen({ navigation }: any) {
+export default function RideOptionsScreen({ navigation, route }: any) {
   const [selected, setSelected] = useState('bike');
   const bottomSheetRef = useRef<BottomSheet>(null);
-  const snapPoints = useMemo(() => ['40%', '80%'], []);
+  const mapRef = useRef<MapView>(null);
+  const snapPoints = useMemo(() => ['50%', '90%'], []);
+  const [routeCoords, setRouteCoords] = useState([]);
+
+  // Use params from navigation
+  const pickup = route?.params?.pickup || { latitude: 17.444, longitude: 78.382, address: 'Pickup Location' };
+  const drop = route?.params?.drop || { latitude: 17.4418, longitude: 78.38, address: 'Drop Location' };
+
+  const mockVehicles = [
+    { id: 1, latitude: 17.443, longitude: 78.381, heading: 45 },
+    { id: 2, latitude: 17.442, longitude: 78.383, heading: 90 },
+    { id: 3, latitude: 17.445, longitude: 78.384, heading: 120 },
+    { id: 4, latitude: 17.440, longitude: 78.379, heading: 200 },
+    { id: 5, latitude: 17.4435, longitude: 78.378, heading: 300 },
+    // Add more for more icons
+  ];
+
+  const rideOptions = [
+    {
+      id: 'bike',
+      icon: 'motorbike' as any,
+      label: 'Bike',
+      eta: '2 mins',
+      dropTime: 'Drop 9:14 am',
+      price: 33,
+      tag: 'FASTEST',
+      tagColor: '#22c55e',
+    },
+    {
+      id: 'scooty',
+      icon: 'scooter' as any,
+      label: 'Electric Scooty',
+      eta: '3 mins',
+      dropTime: 'Drop 9:16 am',
+      price: 35,
+      tag: 'NEW',
+      tagColor: '#3b82f6',
+    },
+    {
+      id: 'auto',
+      icon: 'car' as any,
+      label: 'Auto',
+      eta: '2 mins',
+      dropTime: 'Drop 9:14 am',
+      price: 59,
+    },
+    {
+      id: 'cab',
+      icon: 'car' as any,
+      label: 'Cab Non AC',
+      eta: '2 mins',
+      dropTime: 'Drop 9:14 am',
+      price: 120,
+      tag: 'FASTEST',
+      tagColor: '#22c55e',
+    },
+    {
+      id: 'cabac',
+      icon: 'car' as any,
+      label: 'Cab AC',
+      eta: '2 mins',
+      dropTime: 'Drop 9:14 am',
+      price: 140,
+    },
+  ];
 
   // Animated vehicle marker (rotation)
   const animatedMarkers = mockVehicles.map((v) => {
@@ -101,112 +103,197 @@ export default function RideOptionsScreen({ navigation }: any) {
     // navigation.navigate('RideSummary', { rideType: selected });
   };
 
+  // Fit map to route on mount
+  useEffect(() => {
+    if (mapRef.current && pickup && drop) {
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates([pickup, drop], {
+          edgePadding: { top: 120, right: 60, bottom: 320, left: 60 },
+          animated: true,
+        });
+      }, 500);
+    }
+  }, [pickup, drop]);
+
+  useEffect(() => {
+    const fetchRouteDirections = async () => {
+      const apiKey = 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU'; // <-- Replace with your actual API key
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${pickup.latitude},${pickup.longitude}&destination=${drop.latitude},${drop.longitude}&key=${apiKey}`;
+      try {
+        const response = await fetch(url);
+        const json = await response.json();
+        console.log('Directions API response:', json);
+        if (json.routes && json.routes.length) {
+          const points = polyline.decode(json.routes[0].overview_polyline.points);
+          const coords = points.map((point: [number, number]) => ({ latitude: point[0], longitude: point[1] }));
+          setRouteCoords(coords);
+        } else {
+          setRouteCoords([]);
+        }
+      } catch (error) {
+        console.error('Error fetching directions:', error);
+        setRouteCoords([]);
+      }
+    };
+    fetchRouteDirections();
+  }, [pickup, drop]);
+
+  console.log('rideOptions:', rideOptions);
+
   return (
     <View style={styles.container}>
-      {/* Map Section */}
-      <MapView
-        provider={PROVIDER_GOOGLE}
-        style={styles.map}
-        initialRegion={{
-          latitude: (pickup.latitude + drop.latitude) / 2,
-          longitude: (pickup.longitude + drop.longitude) / 2,
-          latitudeDelta: 0.01,
-          longitudeDelta: 0.01,
-        }}
-        showsUserLocation
-      >
-        {/* Route Polyline */}
-        <Polyline
-          coordinates={routeCoords}
-          strokeColor="#222"
-          strokeWidth={4}
-        />
-        {/* Pickup Marker */}
-        <Marker coordinate={pickup} pinColor="green">
-          <Ionicons name="location" size={32} color="#22c55e" />
-        </Marker>
-        {/* Drop Marker */}
-        <Marker coordinate={drop} pinColor="red">
-          <Ionicons name="location" size={32} color="#ef4444" />
-        </Marker>
-        {/* Animated Vehicle Markers */}
-        {animatedMarkers.map((v) => (
-          <Marker key={v.id} coordinate={v} anchor={{ x: 0.5, y: 0.5 }}>
-            <Animated.View style={v.style}>
-              <MaterialCommunityIcons name="motorbike" size={32} color="#fbbf24" />
-            </Animated.View>
+      {/* Map Section at the Top */}
+      <View style={styles.mapContainer}>
+        <MapView
+          ref={mapRef}
+          provider={PROVIDER_GOOGLE}
+          style={styles.map}
+          initialRegion={{
+            latitude: (pickup.latitude + drop.latitude) / 2,
+            longitude: (pickup.longitude + drop.longitude) / 2,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
+          showsUserLocation
+        >
+          {/* Render the real route */}
+          {routeCoords.length > 0 && (
+            <Polyline
+              coordinates={routeCoords}
+              strokeColor="#222"
+              strokeWidth={4}
+            />
+          )}
+          {/* Pickup Marker */}
+          <Marker coordinate={pickup} pinColor="green">
+            <Ionicons name="location" size={32} color="#22c55e" />
           </Marker>
-        ))}
-      </MapView>
-      {/* Floating Chips */}
-      <View style={styles.chipContainer} pointerEvents="box-none">
-        <View style={[styles.chip, { left: width * 0.25, top: 60 }]}> 
-          <Text numberOfLines={1} style={styles.chipText}>{pickup.address}</Text>
-          <TouchableOpacity onPress={handleEditPickup} style={styles.chipEdit}>
-            <Ionicons name="pencil" size={16} color="#222" />
-          </TouchableOpacity>
+          {/* Drop Marker */}
+          <Marker coordinate={drop} pinColor="red">
+            <Ionicons name="location" size={32} color="#ef4444" />
+          </Marker>
+          {/* Animated Vehicle Markers */}
+          {animatedMarkers.map((v) => (
+            <Marker key={v.id} coordinate={v} anchor={{ x: 0.5, y: 0.5 }}>
+              <Animated.View style={v.style}>
+                <MaterialCommunityIcons name="motorbike" size={32} color="#fbbf24" />
+              </Animated.View>
+            </Marker>
+          ))}
+        </MapView>
+        {/* Chips overlay */}
+        <View style={styles.chipContainer} pointerEvents="box-none">
+          <View style={[styles.chip, { left: width * 0.25, top: 30 }]}> 
+            <Text numberOfLines={1} style={styles.chipText}>{pickup.address}</Text>
+            <TouchableOpacity onPress={handleEditPickup} style={styles.chipEdit}>
+              <Ionicons name="pencil" size={16} color="#222" />
+            </TouchableOpacity>
+          </View>
+          <View style={[styles.chip, { left: width * 0.55, top: 80 }]}> 
+            <Text numberOfLines={1} style={styles.chipText}>{drop.address}</Text>
+            <TouchableOpacity onPress={handleEditDrop} style={styles.chipEdit}>
+              <Ionicons name="pencil" size={16} color="#222" />
+            </TouchableOpacity>
+          </View>
         </View>
-        <View style={[styles.chip, { left: width * 0.55, top: 120 }]}> 
-          <Text numberOfLines={1} style={styles.chipText}>{drop.address}</Text>
-          <TouchableOpacity onPress={handleEditDrop} style={styles.chipEdit}>
-            <Ionicons name="pencil" size={16} color="#222" />
+       
+      </View>
+      {/* Bottom Sheet and rest of the UI */}
+      <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#fff' }}>
+        <View style={{
+          backgroundColor: '#fff',
+          borderTopLeftRadius: 24,
+          borderTopRightRadius: 24,
+          paddingBottom: 24,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: -2 },
+          shadowOpacity: 0.08,
+          shadowRadius: 8,
+          elevation: 8,
+        }}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 16, maxHeight: height * 0.45 }}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: height * 0.45 }}>
+              {rideOptions.map((opt) => (
+                <TouchableOpacity
+                  key={opt.id}
+                  style={[
+                    styles.rideOption,
+                    selected === opt.id && styles.rideOptionSelected,
+                    selected === opt.id && styles.rideOptionShadow,
+                  ]}
+                  onPress={() => setSelected(opt.id)}
+                  activeOpacity={0.8}
+                >
+                  {/* Use distinct icons for each ride type */}
+                  {opt.id === 'bike' && <MaterialCommunityIcons name="motorbike" size={32} color="#222" style={{ marginRight: 16 }} />}
+                  {opt.id === 'scooty' && <MaterialCommunityIcons name="scooter" size={32} color="#3b82f6" style={{ marginRight: 16 }} />}
+                  {opt.id === 'auto' && <MaterialCommunityIcons name="car" size={32} color="#f59e42" style={{ marginRight: 16 }} />}
+                  {opt.id === 'cab' && <MaterialCommunityIcons name="car" size={32} color="#222" style={{ marginRight: 16 }} />}
+                  {opt.id === 'cabac' && <MaterialCommunityIcons name="car" size={32} color="#38bdf8" style={{ marginRight: 16 }} />}
+                  <View style={{ flex: 1 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                      <Text style={styles.rideLabel}>{opt.label}</Text>
+                      {/* Person icon and seat count */}
+                      <Ionicons name="person" size={16} color="#222" style={{ marginLeft: 6, marginRight: 2 }} />
+                      <Text style={{ fontWeight: '600', color: '#222', fontSize: 14 }}>1</Text>
+                    </View>
+                    {/* Subtitle */}
+                    {opt.id === 'bike' && <Text style={styles.rideSubtitle}>Quick Bike rides</Text>}
+                    {opt.id === 'auto' && <Text style={styles.rideSubtitle}>Auto rickshaw rides</Text>}
+                    {opt.id === 'cab' && <Text style={styles.rideSubtitle}>Non AC Cab rides</Text>}
+                    {opt.id === 'cabac' && <Text style={styles.rideSubtitle}>AC Cab rides</Text>}
+                    {opt.id === 'scooty' && <Text style={styles.rideSubtitle}>Electric Scooty rides</Text>}
+                    {/* Details */}
+                    <Text style={styles.rideMeta}>{opt.eta} • {opt.dropTime}</Text>
+                  </View>
+                  {opt.tag && (
+                    <View style={[styles.tag, { backgroundColor: opt.tagColor || '#fbbf24' }]}> 
+                      <Text style={styles.tagText}>{opt.tag}</Text>
+                    </View>
+                  )}
+                  <Text style={styles.ridePrice}>₹{opt.price}</Text>
+                  {/* Checkmark for selected */}
+                  {selected === opt.id && <Ionicons name="checkmark" size={22} color="#22c55e" style={{ marginLeft: 8 }} />}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+          {/* Divider */}
+          <View style={{ height: 1, backgroundColor: '#f3f4f6', marginHorizontal: 16, marginTop: 8, marginBottom: 0, borderRadius: 1 }} />
+          {/* Sticky Bar */}
+          <View style={styles.stickyBar}>
+            <TouchableOpacity style={[styles.stickyBtn, { flex: 1, borderRightWidth: 1, borderRightColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }]} activeOpacity={0.7}>
+              <Ionicons name="cash-outline" size={22} color="#222" style={{ marginRight: 8 }} />
+              <Text style={styles.stickyBtnText}>Cash</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.stickyBtn, { flex: 1, alignItems: 'center', justifyContent: 'center' }]} activeOpacity={0.7}>
+              <Ionicons name="pricetag-outline" size={22} color="#22c55e" style={{ marginRight: 8 }} />
+              <Text style={[styles.stickyBtnText, { color: '#22c55e' }]}>% Offers</Text>
+            </TouchableOpacity>
+          </View>
+          {/* Book Button - make sure this is OUTSIDE the ScrollView and stickyBar */}
+          <TouchableOpacity style={styles.bookBtnFullGreen} onPress={handleBook} activeOpacity={0.85}>
+            <Text style={styles.bookBtnTextFullGreen}>
+              Book Ride {rideOptions.find(o => o.id === selected)?.label || 'Bike'}
+            </Text>
           </TouchableOpacity>
         </View>
       </View>
-      {/* Bottom Sheet */}
-      <BottomSheet
-        ref={bottomSheetRef}
-        index={0}
-        snapPoints={snapPoints}
-        enablePanDownToClose={false}
-        style={styles.sheet}
-        backgroundStyle={{ borderTopLeftRadius: 24, borderTopRightRadius: 24 }}
-        handleIndicatorStyle={{ backgroundColor: '#d1d5db', width: 60 }}
-      >
-        <View style={styles.sheetContent}>
-          {rideOptions.map((opt) => (
-            <TouchableOpacity
-              key={opt.id}
-              style={[styles.rideOption, selected === opt.id && styles.rideOptionSelected]}
-              onPress={() => setSelected(opt.id)}
-              activeOpacity={0.8}
-            >
-              <MaterialCommunityIcons name={opt.icon} size={32} color="#222" style={{ marginRight: 16 }} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.rideLabel}>{opt.label}</Text>
-                <Text style={styles.rideMeta}>{opt.eta} • {opt.dropTime}</Text>
-              </View>
-              {opt.tag && (
-                <View style={[styles.tag, { backgroundColor: opt.tagColor || '#fbbf24' }]}> 
-                  <Text style={styles.tagText}>{opt.tag}</Text>
-                </View>
-              )}
-              <Text style={styles.ridePrice}>₹{opt.price}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {/* Sticky Bar */}
-        <View style={styles.stickyBar}>
-          <TouchableOpacity style={styles.stickyBtn}>
-            <Ionicons name="cash-outline" size={20} color="#222" style={{ marginRight: 6 }} />
-            <Text style={styles.stickyBtnText}>Cash</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.stickyBtn}>
-            <Ionicons name="pricetag-outline" size={20} color="#22c55e" style={{ marginRight: 6 }} />
-            <Text style={[styles.stickyBtnText, { color: '#22c55e' }]}>% Offers</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.bookBtn} onPress={handleBook}>
-            <Text style={styles.bookBtnText}>Book {rideOptions.find(o => o.id === selected)?.label || 'Bike'}</Text>
-          </TouchableOpacity>
-        </View>
-      </BottomSheet>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  map: { flex: 1 },
+  mapContainer: {
+    width: '100%',
+    height: '40%',
+    position: 'relative',
+  },
+  map: {
+    width: '100%',
+    height: '100%',
+  },
   chipContainer: { position: 'absolute', width: '100%', zIndex: 10 },
   chip: {
     position: 'absolute',
@@ -226,21 +313,51 @@ const styles = StyleSheet.create({
   },
   chipText: { fontWeight: '600', color: '#222', flex: 1, marginRight: 8 },
   chipEdit: { padding: 4 },
-  sheet: { position: 'absolute', left: 0, right: 0, bottom: 0 },
-  sheetContent: { paddingHorizontal: 16, paddingTop: 12, paddingBottom: 80 },
+  sheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.08,
+    shadowRadius: 8,
+    elevation: 8,
+    zIndex: 20,
+  },
+  sheetContent: {
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 80,
+  },
   rideOption: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#fff',
+    backgroundColor: '#f8fafc',
     borderRadius: 16,
-    padding: 16,
-    marginBottom: 12,
+    padding: 18,
+    marginBottom: 14,
     borderWidth: 1,
     borderColor: '#f3f4f6',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.04,
+    shadowRadius: 2,
+    elevation: 1,
   },
   rideOptionSelected: {
     borderColor: '#22c55e',
+    backgroundColor: '#e7fbe9',
+    shadowOpacity: 0.10,
+    elevation: 2,
+  },
+  rideOptionShadow: {
+    borderColor: '#22c55e',
     backgroundColor: '#f0fdf4',
+    borderWidth: 2,
   },
   rideLabel: { fontWeight: '700', fontSize: 16, color: '#222' },
   rideMeta: { color: '#64748b', fontSize: 13, marginTop: 2 },
@@ -255,40 +372,66 @@ const styles = StyleSheet.create({
   },
   tagText: { color: '#fff', fontWeight: '700', fontSize: 11 },
   stickyBar: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    padding: 16,
+    padding: 18,
+    marginTop: 0,
+    marginBottom: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.08,
-    shadowRadius: 8,
-    elevation: 8,
+    shadowOpacity: 0.10,
+    shadowRadius: 10,
+    elevation: 10,
     zIndex: 20,
   },
   stickyBtn: {
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    marginRight: 12,
+    backgroundColor: '#fff',
+    borderRadius: 0,
+    paddingHorizontal: 0,
+    paddingVertical: 14,
+    justifyContent: 'center',
   },
-  stickyBtnText: { fontWeight: '700', color: '#222', fontSize: 15 },
-  bookBtn: {
-    flex: 1,
-    backgroundColor: '#fde047',
-    borderRadius: 16,
+  stickyBtnText: { fontWeight: '700', color: '#222', fontSize: 17 },
+  bookBtnFullGreen: {
+    width: '90%',
+    alignSelf: 'center',
+    backgroundColor: '#22c55e',
+    borderRadius: 32,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 20,
+    marginTop: 24,
+    marginBottom: 18,
+    shadowColor: '#22c55e',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.18,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  bookBtnText: { fontWeight: '700', color: '#222', fontSize: 18 },
+  bookBtnTextFullGreen: {
+    fontWeight: 'bold',
+    color: '#fff',
+    fontSize: 21,
+    letterSpacing: 0.5,
+  },
+  addStopBar: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    top: 0,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    padding: 16,
+    zIndex: 10,
+  },
+  addStopBackBtn: { padding: 4 },
+  addStopText: { fontWeight: '700', color: '#222', fontSize: 15, marginLeft: 8 },
+  rideSubtitle: { color: '#64748b', fontSize: 13, marginTop: 2 },
+  bottomAreaWrapper: { flex: 1, justifyContent: 'flex-end' },
 }); 

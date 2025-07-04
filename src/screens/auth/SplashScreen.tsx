@@ -13,7 +13,7 @@ const screens = [
     key: 'booking',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={require('../../../assets/images/appacella-logo-blue.png')} style={{ width: 270, height: 270, resizeMode: 'contain' }} />
+        <Image source={require('../../../assets/images/splash5.png')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
       </View>
     ),
     title: 'Quick & Easy Booking',
@@ -23,7 +23,7 @@ const screens = [
     key: 'affordable',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={require('../../../assets/images/appacella-logo-blue.png')} style={{ width: 270, height: 270, resizeMode: 'contain' }} />
+        <Image source={require('../../../assets/images/splash14.png')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
       </View>
     ),
     title: 'Affordable Rides',
@@ -33,7 +33,7 @@ const screens = [
     key: 'safe',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={require('../../../assets/images/appacella-logo-blue.png')} style={{ width: 270, height: 270, resizeMode: 'contain' }} />
+        <Image source={require('../../../assets/images/splash13.png')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
       </View>
     ),
     title: 'Safe & Reliable',
@@ -43,7 +43,7 @@ const screens = [
     key: 'eco',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={require('../../../assets/images/appacella-logo-blue.png')} style={{ width: 270, height: 270, resizeMode: 'contain' }} />
+        <Image source={require('../../../assets/images/splash12.jpg')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
       </View>
     ),
     title: 'she-to-she',

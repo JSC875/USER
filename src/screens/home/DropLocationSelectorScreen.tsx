@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInp
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
+import MapView, { Marker } from 'react-native-maps';
 
 const { width } = Dimensions.get('window');
 
@@ -11,41 +12,57 @@ const RECENT_LOCATIONS = [
     id: '1',
     name: 'DSR Tranquil',
     address: '901, KTR Colony, Mega Hills, Madhapur…',
+    latitude: 17.4497,
+    longitude: 78.3802,
   },
   {
     id: '2',
     name: 'Durgam Cheruvu Metro Station',
     address: 'Hitech City Road, Sri Sai Nagar, Madhapur…',
+    latitude: 17.4369,
+    longitude: 78.4031,
   },
   {
     id: '3',
     name: 'MIG-59',
     address: 'Dharma Reddy Colony Phase I, Kukatpally…',
+    latitude: 17.4945,
+    longitude: 78.3996,
   },
   {
     id: '4',
     name: 'Madhapur Metro Station',
     address: 'Road Number 36, Aditya Enclave, Venkatagiri…',
+    latitude: 17.4448,
+    longitude: 78.3498,
   },
   {
     id: '5',
     name: 'Raju Gari Biryani',
     address: '60 Feet Road, Mega Hills, Madhapur…',
+    latitude: 17.4448,
+    longitude: 78.3498,
   },
   {
     id: '6',
     name: '6-2-73',
     address: 'Sanjeevaiah Colony, Raju Colony, Bala Nagar…',
+    latitude: 17.4448,
+    longitude: 78.3498,
   },
   {
     id: '7',
     name: 'Asian Mukta Cinemas A2 (Konark)',
     address: 'Konark Theatre Lane, Madhura Puri Colony…',
+    latitude: 17.4448,
+    longitude: 78.3498,
   },
   {
     id: '8',
     name: 'Dharma Reddy Colony Phase 1',
     address: 'Kukatpally, Hyderabad, Telangana, India',
+    latitude: 17.4448,
+    longitude: 78.3498,
   },
 ];
 
@@ -82,6 +99,21 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
     };
   }, [searchQuery, editing]);
+
+  useEffect(() => {
+    console.log('dropLocation changed:', dropLocation);
+  }, [dropLocation]);
+
+  useEffect(() => {
+    if (!currentLocation) {
+      setCurrentLocation({
+        latitude: 17.4448, // Example: Hyderabad
+        longitude: 78.3498,
+        address: 'Default Current Location',
+        name: 'Current Location',
+      });
+    }
+  }, []);
 
   const searchPlaces = async (query: string) => {
     setIsSearching(true);
@@ -174,7 +206,21 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   );
 
   const renderLocation = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.locationItem} onPress={() => handleLocationSelect(item)}>
+    <TouchableOpacity
+      style={styles.locationItem}
+      onPress={() => {
+        setDropLocation({
+          ...item,
+          latitude: item.latitude,
+          longitude: item.longitude,
+        });
+        setEditing('drop');
+        setSearchQuery(item.address || item.name || '');
+        setSearchResults([]);
+        setNoResults(false);
+        Keyboard.dismiss();
+      }}
+    >
       <Ionicons name="time-outline" size={22} color={Colors.gray400} style={{ marginRight: 14 }} />
       <View style={{ flex: 1 }}>
         <Text style={styles.locationName}>{item.name}</Text>
