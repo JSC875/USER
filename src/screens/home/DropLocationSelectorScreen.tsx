@@ -29,41 +29,9 @@ const RECENT_LOCATIONS = [
     latitude: 17.4945,
     longitude: 78.3996,
   },
-  {
-    id: '4',
-    name: 'Madhapur Metro Station',
-    address: 'Road Number 36, Aditya Enclave, Venkatagiri…',
-    latitude: 17.4448,
-    longitude: 78.3498,
-  },
-  {
-    id: '5',
-    name: 'Raju Gari Biryani',
-    address: '60 Feet Road, Mega Hills, Madhapur…',
-    latitude: 17.4448,
-    longitude: 78.3498,
-  },
-  {
-    id: '6',
-    name: '6-2-73',
-    address: 'Sanjeevaiah Colony, Raju Colony, Bala Nagar…',
-    latitude: 17.4448,
-    longitude: 78.3498,
-  },
-  {
-    id: '7',
-    name: 'Asian Mukta Cinemas A2 (Konark)',
-    address: 'Konark Theatre Lane, Madhura Puri Colony…',
-    latitude: 17.4448,
-    longitude: 78.3498,
-  },
-  {
-    id: '8',
-    name: 'Dharma Reddy Colony Phase 1',
-    address: 'Kukatpally, Hyderabad, Telangana, India',
-    latitude: 17.4448,
-    longitude: 78.3498,
-  },
+  
+  
+  
 ];
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU';

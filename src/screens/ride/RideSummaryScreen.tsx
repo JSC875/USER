@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   View,
@@ -7,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Image,
+  TextInput,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -28,6 +28,15 @@ export default function RideSummaryScreen({ navigation, route }: any) {
   const [rating, setRating] = useState(0);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [tip, setTip] = useState(0);
+  const [customTip, setCustomTip] = useState('');
+  const [comments, setComments] = useState('');
+
+  const driverInfo = driver || {
+    name: 'Alex Robin',
+    vehicleModel: 'Volkswagen',
+    vehicleNumber: 'HG5045',
+    photo: undefined,
+  };
 
   const handleRating = (value: number) => {
     setRating(value);
@@ -43,16 +52,25 @@ export default function RideSummaryScreen({ navigation, route }: any) {
 
   const handleTip = (amount: number) => {
     setTip(amount);
+    setCustomTip('');
   };
 
-  const handleSubmitFeedback = () => {
-    // Submit feedback and navigate to home
-    navigation.navigate('Main');
+  const handleCustomTip = (value: string) => {
+    setCustomTip(value);
+    setTip(0);
   };
+  const handleContinue = () => {
+    navigation.navigate('RateDriver', { driver });
+  };
+  
 
   const handleBookAnother = () => {
     navigation.navigate('Main');
   };
+
+  
+
+  
 
   return (
     <SafeAreaView style={styles.container}>
@@ -108,71 +126,9 @@ export default function RideSummaryScreen({ navigation, route }: any) {
           </View>
         </View>
 
-        {/* Driver Rating */}
-        <View style={styles.ratingCard}>
-          <Text style={styles.cardTitle}>Rate Your Driver</Text>
-          
-          <View style={styles.driverInfo}>
-            <Image source={{ uri: driver.photo }} style={styles.driverPhoto} />
-            <View style={styles.driverDetails}>
-              <Text style={styles.driverName}>{driver.name}</Text>
-              <Text style={styles.vehicleInfo}>
-                {driver.vehicleModel} • {driver.vehicleNumber}
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.starsContainer}>
-            {[1, 2, 3, 4, 5].map((star) => (
-              <TouchableOpacity
-                key={star}
-                onPress={() => handleRating(star)}
-                style={styles.starButton}
-              >
-                <Ionicons
-                  name={star <= rating ? 'star' : 'star-outline'}
-                  size={32}
-                  color={star <= rating ? Colors.accent : Colors.gray300}
-                />
-              </TouchableOpacity>
-            ))}
-          </View>
-
-          {rating > 0 && (
-            <View style={styles.feedbackTags}>
-              <Text style={styles.tagsTitle}>What went well?</Text>
-              <View style={styles.tagsContainer}>
-                {feedbackTags.map((tag) => (
-                  <TouchableOpacity
-                    key={tag}
-                    style={[
-                      styles.tagButton,
-                      selectedTags.includes(tag) && styles.tagButtonSelected,
-                    ]}
-                    onPress={() => handleTagToggle(tag)}
-                  >
-                    <Text
-                      style={[
-                        styles.tagText,
-                        selectedTags.includes(tag) && styles.tagTextSelected,
-                      ]}
-                    >
-                      {tag}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </View>
-          )}
-        </View>
-
         {/* Tip Driver */}
         <View style={styles.tipCard}>
-          <Text style={styles.cardTitle}>Tip Your Driver</Text>
-          <Text style={styles.tipSubtitle}>
-            Show your appreciation for great service
-          </Text>
-          
+          <Text style={styles.tipSubtitle}>Tip the driver</Text>
           <View style={styles.tipOptions}>
             {[10, 20, 50].map((amount) => (
               <TouchableOpacity
@@ -223,14 +179,14 @@ export default function RideSummaryScreen({ navigation, route }: any) {
 
       {/* Bottom Actions */}
       <View style={styles.bottomActions}>
-        <Button
-          title="Submit Feedback"
-          onPress={handleSubmitFeedback}
-          style={styles.submitButton}
-        />
         <TouchableOpacity style={styles.bookAnotherButton} onPress={handleBookAnother}>
           <Text style={styles.bookAnotherText}>Book Another Ride</Text>
         </TouchableOpacity>
+        <Button
+          title="Continue"
+          onPress={handleContinue}
+          style={styles.submitButton}
+        />
       </View>
     </SafeAreaView>
   );
@@ -254,7 +210,7 @@ const styles = StyleSheet.create({
     marginBottom: Layout.spacing.md,
   },
   successTitle: {
-    fontSize: Layout.fontSize.xxl,
+    fontSize: Layout.fontSize.xl,
     fontWeight: 'bold',
     color: Colors.text,
     marginBottom: Layout.spacing.sm,
@@ -405,7 +361,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gray50,
     paddingHorizontal: Layout.spacing.md,
     paddingVertical: Layout.spacing.sm,
-    borderRadius: Layout.borderRadius.full,
+    borderRadius: Layout.borderRadius.lg,
     marginRight: Layout.spacing.sm,
     marginBottom: Layout.spacing.sm,
     borderWidth: 1,
@@ -531,5 +487,32 @@ const styles = StyleSheet.create({
     fontSize: Layout.fontSize.md,
     fontWeight: '600',
     color: Colors.primary,
+  },
+  promptText: {
+    fontSize: Layout.fontSize.md,
+    color: Colors.text,
+    marginBottom: Layout.spacing.md,
+  },
+  commentsInput: {
+    backgroundColor: Colors.gray50,
+    padding: Layout.spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    marginBottom: Layout.spacing.md,
+  },
+  tipPrompt: {
+    fontSize: Layout.fontSize.md,
+    color: Colors.text,
+    marginBottom: Layout.spacing.md,
+  },
+  customTipInput: {
+    backgroundColor: Colors.gray50,
+    padding: Layout.spacing.md,
+    borderRadius: Layout.borderRadius.md,
+    marginBottom: Layout.spacing.md,
+  },
+  submitButtonText: {
+    fontSize: Layout.fontSize.md,
+    fontWeight: '600',
+    color: Colors.white,
   },
 });

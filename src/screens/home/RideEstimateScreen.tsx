@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   View,
@@ -16,6 +15,7 @@ import Button from '../../components/common/Button';
 export default function RideEstimateScreen({ navigation, route }: any) {
   const { destination } = route.params;
   const [selectedPayment, setSelectedPayment] = useState('cash');
+  const [currentETA, setCurrentETA] = useState(route.params.driver?.eta || route.params.estimate?.eta || 'N/A');
 
   const rideEstimate = {
     distance: '8.5 km',

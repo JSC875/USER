@@ -5,6 +5,9 @@ import {
   StyleSheet,
   TouchableOpacity,
   Image,
+  Linking,
+  Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,13 +17,20 @@ import { Layout } from '../../constants/Layout';
 export default function LiveTrackingScreen({ navigation, route }: any) {
   const { destination, estimate, driver } = route.params;
   const [rideStatus, setRideStatus] = useState('arriving'); // arriving, picked_up, in_progress
-  const [currentETA, setCurrentETA] = useState(driver.eta);
+  const [currentETA, setCurrentETA] = useState(driver?.eta || estimate?.eta || 'N/A');
+  const [callModalVisible, setCallModalVisible] = useState(false);
+
+  const dummyDriver = {
+    name: 'Ravi Kumar',
+    phone: '+91 98765 43210',
+  };
+  const driverInfo = driver || dummyDriver;
 
   useEffect(() => {
     // Simulate ride progression
     const timer1 = setTimeout(() => {
       setRideStatus('picked_up');
-      setCurrentETA(estimate.duration);
+      setCurrentETA(estimate?.duration || 'N/A');
     }, 5000);
 
     const timer2 = setTimeout(() => {
@@ -39,31 +49,47 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   }, []);
 
   const handleChat = () => {
-    navigation.navigate('Chat', { driver });
+    navigation.navigate('Chat', { driver: driverInfo });
   };
 
   const handleCall = () => {
-    // Handle call functionality
-    console.log('Calling driver...');
+    setCallModalVisible(true);
+  };
+
+  const handleCallNow = () => {
+    setCallModalVisible(false);
+    if (driverInfo.phone) {
+      Linking.openURL(`tel:${driverInfo.phone}`);
+    } else {
+      Alert.alert('No phone number available');
+    }
   };
 
   const handleSOS = () => {
-    // Handle SOS functionality
-    console.log('SOS activated');
+    Alert.alert(
+      'Emergency SOS',
+      'Who do you want to call?',
+      [
+        { text: 'Police', onPress: () => Linking.openURL('tel:100') },
+        { text: 'Ambulance', onPress: () => Linking.openURL('tel:108') },
+        { text: 'Cancel', style: 'cancel' },
+      ],
+      { cancelable: true }
+    );
   };
 
   const handleCompleteRide = () => {
     navigation.navigate('RideSummary', {
       destination,
       estimate,
-      driver,
+      driver: driverInfo,
     });
   };
 
   const getStatusText = () => {
     switch (rideStatus) {
       case 'arriving':
-        return `${driver.name} is arriving in ${currentETA} mins`;
+        return `${driverInfo.name || 'Driver'} is arriving in ${currentETA} mins`;
       case 'picked_up':
         return 'Ride started - Heading to destination';
       case 'in_progress':
@@ -88,6 +114,30 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Call Modal */}
+      <Modal
+        visible={callModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCallModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.callModal}>
+            <Text style={styles.modalTitle}>Call Driver</Text>
+            <Text style={styles.modalDriverName}>{driverInfo.name || 'Driver'}</Text>
+            <Text style={styles.modalPhone}>{driverInfo.phone || 'No phone number'}</Text>
+            <View style={{ flexDirection: 'row', marginTop: 20 }}>
+              <TouchableOpacity style={styles.modalButton} onPress={handleCallNow}>
+                <Ionicons name="call" size={20} color="#fff" />
+                <Text style={styles.modalButtonText}>Call Now</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#ccc', marginLeft: 10 }]} onPress={() => setCallModalVisible(false)}>
+                <Text style={[styles.modalButtonText, { color: '#222' }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
       {/* Map Container */}
       <View style={styles.mapContainer}>
         <View style={styles.mapPlaceholder}>
@@ -128,15 +178,15 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       {/* Driver Info Card */}
       <View style={styles.driverCard}>
         <View style={styles.driverInfo}>
-          <Image source={{ uri: driver.photo }} style={styles.driverPhoto} />
+          <Image source={driverInfo.photo ? { uri: driverInfo.photo } : require('../../../assets/images/scoooter1.jpg')} style={styles.driverPhoto} />
           <View style={styles.driverDetails}>
-            <Text style={styles.driverName}>{driver.name}</Text>
+            <Text style={styles.driverName}>{driverInfo.name || 'Driver'}</Text>
             <View style={styles.ratingContainer}>
               <Ionicons name="star" size={16} color={Colors.accent} />
-              <Text style={styles.rating}>{driver.rating}</Text>
+              <Text style={styles.rating}>{driverInfo.rating || '-'}</Text>
             </View>
             <Text style={styles.vehicleInfo}>
-              {driver.vehicleModel} • {driver.vehicleNumber}
+              {driverInfo.vehicleModel || ''} • {driverInfo.vehicleNumber || ''}
             </Text>
           </View>
           <View style={styles.etaContainer}>
@@ -411,5 +461,54 @@ const styles = StyleSheet.create({
     fontSize: Layout.fontSize.sm,
     fontWeight: '600',
     color: Colors.white,
+  },
+  modalOverlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.4)',
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  callModal: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 24,
+    alignItems: 'center',
+    width: 300,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    marginBottom: 12,
+    color: Colors.primary,
+  },
+  modalDriverName: {
+    fontSize: 18,
+    fontWeight: '600',
+    marginBottom: 8,
+    color: Colors.text,
+  },
+  modalPhone: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    marginBottom: 16,
+  },
+  modalButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 18,
+    paddingVertical: 10,
+    borderRadius: 8,
+  },
+  modalButtonText: {
+    color: '#fff',
+    fontWeight: 'bold',
+    fontSize: 16,
+    marginLeft: 8,
   },
 });

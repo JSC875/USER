@@ -1,5 +1,5 @@
 import React, { useRef, useMemo, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Image, ScrollView, Linking, Alert } from 'react-native';
 import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
@@ -52,32 +52,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
       tag: 'NEW',
       tagColor: '#3b82f6',
     },
-    {
-      id: 'auto',
-      icon: 'car' as any,
-      label: 'Auto',
-      eta: '2 mins',
-      dropTime: 'Drop 9:14 am',
-      price: 59,
-    },
-    {
-      id: 'cab',
-      icon: 'car' as any,
-      label: 'Cab Non AC',
-      eta: '2 mins',
-      dropTime: 'Drop 9:14 am',
-      price: 120,
-      tag: 'FASTEST',
-      tagColor: '#22c55e',
-    },
-    {
-      id: 'cabac',
-      icon: 'car' as any,
-      label: 'Cab AC',
-      eta: '2 mins',
-      dropTime: 'Drop 9:14 am',
-      price: 140,
-    },
+    
   ];
 
   // Animated vehicle marker (rotation)
@@ -100,7 +75,24 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     // navigation.navigate('LocationSearch', { type: 'drop' });
   };
   const handleBook = () => {
-    // navigation.navigate('RideSummary', { rideType: selected });
+    // Get the selected ride option details
+    const selectedRide = rideOptions.find(o => o.id === selected);
+    
+    navigation.navigate('FindingDriver', { 
+      destination: {
+        name: drop.address,
+        latitude: drop.latitude,
+        longitude: drop.longitude
+      },
+      estimate: {
+        fare: selectedRide?.price || 0,
+        distance: '2.5 km', // You can calculate this dynamically
+        duration: '8 mins',  // You can calculate this dynamically
+        eta: '5 mins' // Dummy eta for now
+      },
+      paymentMethod: 'Cash', // Default payment method
+      driver: null // Will be set when driver is found
+    });
   };
 
   // Fit map to route on mount
@@ -176,7 +168,10 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           {animatedMarkers.map((v) => (
             <Marker key={v.id} coordinate={v} anchor={{ x: 0.5, y: 0.5 }}>
               <Animated.View style={v.style}>
-                <MaterialCommunityIcons name="motorbike" size={32} color="#fbbf24" />
+                <Image
+                  source={require('../../../assets/images/iconAnimation1.png')}
+                  style={{ width: 32, height: 32, resizeMode: 'contain' }}
+                />
               </Animated.View>
             </Marker>
           ))}
@@ -224,12 +219,11 @@ export default function RideOptionsScreen({ navigation, route }: any) {
                   onPress={() => setSelected(opt.id)}
                   activeOpacity={0.8}
                 >
-                  {/* Use distinct icons for each ride type */}
-                  {opt.id === 'bike' && <MaterialCommunityIcons name="motorbike" size={32} color="#222" style={{ marginRight: 16 }} />}
-                  {opt.id === 'scooty' && <MaterialCommunityIcons name="scooter" size={32} color="#3b82f6" style={{ marginRight: 16 }} />}
-                  {opt.id === 'auto' && <MaterialCommunityIcons name="car" size={32} color="#f59e42" style={{ marginRight: 16 }} />}
-                  {opt.id === 'cab' && <MaterialCommunityIcons name="car" size={32} color="#222" style={{ marginRight: 16 }} />}
-                  {opt.id === 'cabac' && <MaterialCommunityIcons name="car" size={32} color="#38bdf8" style={{ marginRight: 16 }} />}
+                  {/* Replace icon with logo */}
+                  <Image
+                    source={require('../../../assets/images/iconAnimation.jpg')}
+                    style={{ width: 32, height: 32, marginRight: 16, resizeMode: 'contain' }}
+                  />
                   <View style={{ flex: 1 }}>
                     <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
                       <Text style={styles.rideLabel}>{opt.label}</Text>
@@ -240,10 +234,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
                     {/* Subtitle */}
                     {opt.id === 'bike' && <Text style={styles.rideSubtitle}>Quick Bike rides</Text>}
                     {opt.id === 'auto' && <Text style={styles.rideSubtitle}>Auto rickshaw rides</Text>}
-                    {opt.id === 'cab' && <Text style={styles.rideSubtitle}>Non AC Cab rides</Text>}
-                    {opt.id === 'cabac' && <Text style={styles.rideSubtitle}>AC Cab rides</Text>}
-                    {opt.id === 'scooty' && <Text style={styles.rideSubtitle}>Electric Scooty rides</Text>}
-                    {/* Details */}
+                   
                     <Text style={styles.rideMeta}>{opt.eta} • {opt.dropTime}</Text>
                   </View>
                   {opt.tag && (
@@ -262,7 +253,11 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           <View style={{ height: 1, backgroundColor: '#f3f4f6', marginHorizontal: 16, marginTop: 8, marginBottom: 0, borderRadius: 1 }} />
           {/* Sticky Bar */}
           <View style={styles.stickyBar}>
-            <TouchableOpacity style={[styles.stickyBtn, { flex: 1, borderRightWidth: 1, borderRightColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }]} activeOpacity={0.7}>
+            <TouchableOpacity
+              style={[styles.stickyBtn, { flex: 1, borderRightWidth: 1, borderRightColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }]}
+              activeOpacity={0.7}
+              onPress={() => navigation.navigate('WalletScreen')}
+            >
               <Ionicons name="cash-outline" size={22} color="#222" style={{ marginRight: 8 }} />
               <Text style={styles.stickyBtnText}>Cash</Text>
             </TouchableOpacity>
@@ -274,7 +269,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           {/* Book Button - make sure this is OUTSIDE the ScrollView and stickyBar */}
           <TouchableOpacity style={styles.bookBtnFullGreen} onPress={handleBook} activeOpacity={0.85}>
             <Text style={styles.bookBtnTextFullGreen}>
-              Book Ride {rideOptions.find(o => o.id === selected)?.label || 'Bike'}
+              Book  {rideOptions.find(o => o.id === selected)?.label || 'ride'}
             </Text>
           </TouchableOpacity>
         </View>
@@ -375,16 +370,16 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    padding: 18,
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
+    padding: 10,
     marginTop: 0,
     marginBottom: 0,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 10,
-    elevation: 10,
+    shadowOffset: { width: 0, height: -1 },
+    shadowOpacity: 0.08,
+    shadowRadius: 4,
+    elevation: 4,
     zIndex: 20,
   },
   stickyBtn: {
@@ -393,31 +388,31 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 0,
     paddingHorizontal: 0,
-    paddingVertical: 14,
+    paddingVertical: 8,
     justifyContent: 'center',
   },
-  stickyBtnText: { fontWeight: '700', color: '#222', fontSize: 17 },
+  stickyBtnText: { fontWeight: '700', color: '#222', fontSize: 14 },
   bookBtnFullGreen: {
     width: '90%',
     alignSelf: 'center',
     backgroundColor: '#22c55e',
-    borderRadius: 32,
+    borderRadius: 20,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 20,
-    marginTop: 24,
-    marginBottom: 18,
+    paddingVertical: 12,
+    marginTop: 16,
+    marginBottom: 12,
     shadowColor: '#22c55e',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.18,
-    shadowRadius: 12,
-    elevation: 8,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 4,
   },
   bookBtnTextFullGreen: {
     fontWeight: 'bold',
     color: '#fff',
-    fontSize: 21,
-    letterSpacing: 0.5,
+    fontSize: 16,
+    letterSpacing: 0.3,
   },
   addStopBar: {
     position: 'absolute',
