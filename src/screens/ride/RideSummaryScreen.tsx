@@ -173,6 +173,7 @@ export default function RideSummaryScreen({ navigation, route }: any) {
           <View style={styles.paymentTotal}>
             <Text style={styles.paymentTotalLabel}>Total Paid</Text>
             <Text style={styles.paymentTotalValue}>₹{estimate.fare + tip}</Text>
+            <Text>hellow this is our self</Text>
           </View>
         </View>
       </ScrollView>
