@@ -62,6 +62,10 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
 
   const handleVerifyOTP = async () => {
     const otpString = otp.join('');
+    console.log('OTPVerificationScreen - Verifying OTP:', otpString);
+    console.log('OTPVerificationScreen - Is Sign In:', isSignIn);
+    console.log('OTPVerificationScreen - Phone Number:', phoneNumber);
+    
     if (otpString.length !== 6) {
       Alert.alert('Error', 'Please enter complete OTP');
       return;
@@ -72,30 +76,90 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
     try {
       if (isSignIn) {
         // Sign in flow
-        const completeSignIn = await signIn?.attemptFirstFactor({
+        console.log('OTPVerificationScreen - Attempting sign in with OTP...');
+        console.log('OTPVerificationScreen - SignIn object:', signIn);
+        
+        if (!signIn) {
+          console.error('OTPVerificationScreen - SignIn object is null');
+          Alert.alert('Error', 'Authentication service not available. Please try again.');
+          return;
+        }
+        
+        const completeSignIn = await signIn.attemptFirstFactor({
           strategy: 'phone_code',
           code: otpString,
         });
 
+        console.log('OTPVerificationScreen - Sign in result:', completeSignIn);
+
         if (completeSignIn?.status === 'complete') {
-          await setSignInActive({ session: completeSignIn.createdSessionId });
+          console.log('OTPVerificationScreen - Sign in successful, setting active session...');
+          console.log('OTPVerificationScreen - Created session ID:', completeSignIn.createdSessionId);
+          
+          if (setSignInActive) {
+            await setSignInActive({ session: completeSignIn.createdSessionId });
+            console.log('OTPVerificationScreen - Session activated successfully');
+          } else {
+            console.error('OTPVerificationScreen - setSignInActive is not available');
+          }
           // Don't navigate manually - the auth state change will handle it
+        } else {
+          console.log('OTPVerificationScreen - Sign in failed, status:', completeSignIn?.status);
+          console.log('OTPVerificationScreen - Complete signin object:', completeSignIn);
         }
       } else {
         // Sign up flow
-        const completeSignUp = await signUp?.attemptPhoneNumberVerification({
+        console.log('OTPVerificationScreen - Attempting sign up with OTP...');
+        console.log('OTPVerificationScreen - SignUp object:', signUp);
+        
+        if (!signUp) {
+          console.error('OTPVerificationScreen - SignUp object is null');
+          Alert.alert('Error', 'Authentication service not available. Please try again.');
+          return;
+        }
+        
+        const completeSignUp = await signUp.attemptPhoneNumberVerification({
           code: otpString,
         });
 
-        if (completeSignUp?.status === 'complete') {
-          await setSignUpActive({ session: completeSignUp.createdSessionId });
+        console.log('OTPVerificationScreen - Sign up result:', completeSignUp);
+        console.log('OTPVerificationScreen - Phone verification status:', completeSignUp?.verifications?.phoneNumber?.status);
+
+        // Check if phone number is verified
+        const isPhoneVerified = completeSignUp?.verifications?.phoneNumber?.status === 'verified';
+        console.log('OTPVerificationScreen - Is phone verified:', isPhoneVerified);
+
+        if (isPhoneVerified) {
+          console.log('OTPVerificationScreen - Phone verification successful!');
+          console.log('OTPVerificationScreen - Missing fields:', completeSignUp?.missingFields);
+          
+          if (setSignUpActive && completeSignUp.createdSessionId) {
+            await setSignUpActive({ session: completeSignUp.createdSessionId });
+            console.log('OTPVerificationScreen - Session activated successfully');
+          } else {
+            console.error('OTPVerificationScreen - setSignUpActive is not available or no session ID');
+          }
           // Navigate to profile setup for new users
           navigation.navigate('ProfileSetup');
+        } else {
+          console.log('OTPVerificationScreen - Phone verification failed');
+          console.log('OTPVerificationScreen - Complete signup object:', completeSignUp);
         }
       }
     } catch (err: any) {
-      console.error('Error:', err);
-      Alert.alert('Error', err.errors?.[0]?.message || 'Invalid OTP. Please try again.');
+      console.error('OTPVerificationScreen - OTP Verification Error:', err);
+      console.error('OTPVerificationScreen - Error details:', err.errors);
+      console.error('OTPVerificationScreen - Error message:', err.message);
+      console.error('OTPVerificationScreen - Error code:', err.code);
+      
+      let errorMessage = 'Invalid OTP. Please try again.';
+      if (err?.errors?.[0]?.message) {
+        errorMessage = err.errors[0].message;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      
+      Alert.alert('Error', errorMessage);
     } finally {
       setIsLoading(false);
     }
@@ -105,22 +169,26 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
     try {
       if (isSignIn) {
         // For sign in, we need to get the phone number factor again
-        const { supportedFirstFactors } = await signIn?.create({
-          identifier: phoneNumber,
-        });
-
-        const phoneNumberFactor = supportedFirstFactors?.find((factor: any) => {
-          return factor.strategy === 'phone_code';
-        }) as any;
-
-        if (phoneNumberFactor) {
-          await signIn?.prepareFirstFactor({
-            strategy: 'phone_code',
-            phoneNumberId: phoneNumberFactor.phoneNumberId,
+        if (signIn) {
+          const { supportedFirstFactors } = await signIn.create({
+            identifier: phoneNumber,
           });
+
+          const phoneNumberFactor = supportedFirstFactors?.find((factor: any) => {
+            return factor.strategy === 'phone_code';
+          }) as any;
+
+          if (phoneNumberFactor) {
+            await signIn.prepareFirstFactor({
+              strategy: 'phone_code',
+              phoneNumberId: phoneNumberFactor.phoneNumberId,
+            });
+          }
         }
       } else {
-        await signUp?.preparePhoneNumberVerification({ strategy: 'phone_code' });
+        if (signUp) {
+          await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' });
+        }
       }
       
       setTimer(30);
@@ -230,7 +298,7 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     alignItems: 'center',
-    marginBottom: Layout.spacing.xxl,
+    marginBottom: Layout.spacing.xl,
   },
   title: {
     fontSize: Layout.fontSize.xxl,

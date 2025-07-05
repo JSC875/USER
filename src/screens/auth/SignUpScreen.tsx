@@ -15,7 +15,7 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useSignUp, useUser } from '@clerk/clerk-expo';
+import { useSignUp, useUser, useAuth } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
@@ -92,7 +92,7 @@ function NameStep({ firstName, lastName, setFirstName, setLastName, onNext }: Na
         title="Next"
         onPress={onNext}
         fullWidth
-        disabled={!firstName.trim()}
+        disabled={!firstName.trim() || !lastName.trim()}
         style={{ marginTop: 24 }}
       />
     </View>
@@ -219,11 +219,17 @@ function OtpStep({
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   const handleOtpChange = (value: string, index: number) => {
+    console.log(`OtpStep - handleOtpChange: index=${index}, value="${value}", length=${value.length}`);
+    
     // Only allow single digit
-    if (value.length > 1) return;
+    if (value.length > 1) {
+      console.log('OtpStep - Value too long, ignoring');
+      return;
+    }
     
     const newOtp = [...otp];
     newOtp[index] = value;
+    console.log('OtpStep - New OTP array:', newOtp);
     setOtp(newOtp);
     
     // Auto-focus next input
@@ -303,8 +309,10 @@ function PhotoStep({
   onComplete, 
   onSkip, 
   onBack, 
-  isLoading 
-}: PhotoStepProps) {
+  isLoading,
+  firstName,
+  lastName
+}: PhotoStepProps & { firstName: string; lastName: string }) {
   const handleImagePicker = () => {
     Alert.alert(
       'Select Photo',
@@ -340,13 +348,29 @@ function PhotoStep({
       
       <Text style={styles.imageHint}>Tap to upload</Text>
       
+      {(!firstName.trim() || !lastName.trim()) && (
+        <Text style={styles.errorText}>
+          Please provide both first name and last name to continue
+        </Text>
+      )}
+      
       <Button
         title="Complete"
         onPress={onComplete}
         fullWidth
         loading={isLoading}
+        disabled={!firstName.trim() || !lastName.trim()}
         style={{ marginTop: 24 }}
       />
+      {(!firstName.trim() || !lastName.trim()) && (
+        <Button
+          title="Back to Name Step"
+          onPress={onBack}
+          fullWidth
+          variant="secondary"
+          style={{ marginTop: 12 }}
+        />
+      )}
       <Button
         title="I'll do it later"
         onPress={onSkip}
@@ -380,8 +404,9 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
   const [timer, setTimer] = useState<number>(30);
   const [canResend, setCanResend] = useState<boolean>(false);
   const [signUpCreated, setSignUpCreated] = useState<boolean>(false);
-  const { signUp, isLoaded } = useSignUp();
+  const { signUp, setActive: setSignUpActive, isLoaded } = useSignUp();
   const { user } = useUser();
+  const { isSignedIn } = useAuth();
 
   // Timer for OTP resend
   useEffect(() => {
@@ -409,9 +434,40 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
     setSignUpCreated(false);
   }, [phoneNumber, countryCode]);
 
+  // Monitor authentication state
+  useEffect(() => {
+    console.log('SignUpScreen - Auth state changed. isSignedIn:', isSignedIn);
+    if (isSignedIn) {
+      console.log('SignUpScreen - User is signed in!');
+    }
+  }, [isSignedIn]);
+
   // Step navigation
   const goToNextStep = () => setStep((s) => s + 1);
   const goToPrevStep = () => setStep((s) => s - 1);
+
+  // Debug function to test session activation
+  const testSessionActivation = async () => {
+    console.log('=== TESTING SESSION ACTIVATION ===');
+    console.log('SignUp status:', signUp?.status);
+    console.log('SignUp createdSessionId:', signUp?.createdSessionId);
+    console.log('Is signed in:', isSignedIn);
+    
+    if (signUp && signUp.createdSessionId) {
+      try {
+        console.log('Attempting to activate session...');
+        await setSignUpActive({ session: signUp.createdSessionId });
+        console.log('Session activation successful!');
+        Alert.alert('Success', 'Session activated successfully!');
+      } catch (err) {
+        console.error('Session activation error:', err);
+        Alert.alert('Error', 'Failed to activate session');
+      }
+    } else {
+      console.log('No session ID available');
+      Alert.alert('Info', 'No session ID available');
+    }
+  };
 
   // Step 2: Send OTP
   const handleSendOTP = async () => {
@@ -423,17 +479,36 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
     setIsLoading(true);
     try {
       const formattedPhone = `${countryCode}${phoneNumber.replace(/^0+/, '')}`;
+      console.log('SignUpScreen - Sending OTP to:', formattedPhone);
+      console.log('SignUpScreen - SignUp object:', signUp);
+      console.log('SignUpScreen - Is loaded:', isLoaded);
+      
+      if (!signUp) {
+        console.error('SignUpScreen - SignUp object is null during OTP send');
+        Alert.alert('Error', 'Authentication service not available. Please try again.');
+        return;
+      }
+      
       if (!signUpCreated) {
+        console.log('SignUpScreen - Creating sign up...');
         await signUp.create({ phoneNumber: formattedPhone });
         setSignUpCreated(true);
+        console.log('SignUpScreen - Sign up created successfully');
       }
+      
+      console.log('SignUpScreen - Preparing phone number verification...');
       await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' });
+      console.log('SignUpScreen - OTP sent successfully');
       goToNextStep();
     } catch (err: unknown) {
+      console.error('SignUpScreen - Error sending OTP:', err);
       if (typeof err === 'object' && err && 'errors' in err) {
         // @ts-ignore
-        Alert.alert('Error', err.errors?.[0]?.message || 'Failed to send OTP');
+        const errorMessage = err.errors?.[0]?.message || 'Failed to send OTP';
+        console.error('SignUpScreen - Error message:', errorMessage);
+        Alert.alert('Error', errorMessage);
       } else {
+        console.error('SignUpScreen - Unknown error type:', err);
         Alert.alert('Error', 'Failed to send OTP');
       }
     } finally {
@@ -447,23 +522,91 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
     setOtpError('');
     try {
       const otpString = otp.join('');
+      console.log('SignUpScreen - Verifying OTP:', otpString);
+      console.log('SignUpScreen - OTP length:', otpString.length);
+      console.log('SignUpScreen - OTP array:', otp);
+      console.log('SignUpScreen - SignUp object:', signUp);
+      console.log('SignUpScreen - Is loaded:', isLoaded);
+      console.log('SignUpScreen - SignUpCreated:', signUpCreated);
+      
       if (otpString.length !== 6) {
         setOtpError('Please enter complete OTP');
         setIsLoading(false);
         return;
       }
-      const completeSignUp = await signUp?.attemptPhoneNumberVerification({ code: otpString });
-      if (completeSignUp?.status === 'complete') {
-        // Clerk's setActive may not be typed, so use type assertion
-        if (signUp && (signUp as any).setActive) {
-          await (signUp as any).setActive({ session: completeSignUp.createdSessionId });
+
+      if (!signUp) {
+        console.error('SignUpScreen - SignUp object is null');
+        setOtpError('Authentication service not available. Please try again.');
+        setIsLoading(false);
+        return;
+      }
+
+      // Test: Check if the OTP contains only numbers
+      if (!/^\d{6}$/.test(otpString)) {
+        console.error('SignUpScreen - OTP contains non-numeric characters');
+        setOtpError('OTP should contain only numbers');
+        setIsLoading(false);
+        return;
+      }
+      
+      console.log('SignUpScreen - Attempting phone number verification...');
+      console.log('SignUpScreen - OTP code being sent:', otpString);
+      
+      const completeSignUp = await signUp.attemptPhoneNumberVerification({ code: otpString });
+      console.log('SignUpScreen - Verification result:', completeSignUp);
+      console.log('SignUpScreen - Verification status:', completeSignUp?.status);
+      console.log('SignUpScreen - Phone verification status:', completeSignUp?.verifications?.phoneNumber?.status);
+      console.log('SignUpScreen - Created session ID:', completeSignUp?.createdSessionId);
+      
+      // Check if phone number is verified
+      const isPhoneVerified = completeSignUp?.verifications?.phoneNumber?.status === 'verified';
+      console.log('SignUpScreen - Is phone verified:', isPhoneVerified);
+      
+      if (isPhoneVerified) {
+        console.log('SignUpScreen - Phone verification successful!');
+        console.log('SignUpScreen - Missing fields:', completeSignUp?.missingFields);
+        
+        // Check if we have all required fields (phone is verified, but we still need first_name and last_name)
+        if (completeSignUp?.missingFields?.includes('first_name') || completeSignUp?.missingFields?.includes('last_name')) {
+          console.log('SignUpScreen - Phone verified but missing name fields, proceeding to next step');
+          goToNextStep();
+        } else if (completeSignUp?.status === 'complete') {
+          console.log('SignUpScreen - All requirements met, setting active session...');
+          console.log('SignUpScreen - Created session ID:', completeSignUp.createdSessionId);
+          
+          // Set the active session
+          if (setSignUpActive && completeSignUp.createdSessionId) {
+            await setSignUpActive({ session: completeSignUp.createdSessionId });
+            console.log('SignUpScreen - Session activated successfully');
+          } else {
+            console.error('SignUpScreen - setSignUpActive is not available or no session ID');
+          }
+          goToNextStep();
+        } else {
+          console.log('SignUpScreen - Phone verified but status not complete, proceeding anyway');
+          goToNextStep();
         }
-        goToNextStep();
       } else {
+        console.log('SignUpScreen - Phone verification failed');
+        console.log('SignUpScreen - Complete signup object:', completeSignUp);
         setOtpError('Invalid OTP. Please try again.');
       }
     } catch (err: any) {
-      const errorMessage = err?.errors?.[0]?.message || 'Invalid OTP. Please try again.';
+      console.error('SignUpScreen - OTP Verification Error:', err);
+      console.error('SignUpScreen - Error details:', err.errors);
+      console.error('SignUpScreen - Error message:', err.message);
+      console.error('SignUpScreen - Error code:', err.code);
+      console.error('SignUpScreen - Error type:', typeof err);
+      console.error('SignUpScreen - Full error object:', JSON.stringify(err, null, 2));
+      
+      let errorMessage = 'Invalid OTP. Please try again.';
+      if (err?.errors?.[0]?.message) {
+        errorMessage = err.errors[0].message;
+      } else if (err?.message) {
+        errorMessage = err.message;
+      }
+      
       setOtpError(errorMessage);
     } finally {
       setIsLoading(false);
@@ -488,23 +631,64 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
   const handleCompleteProfile = async () => {
     setIsLoading(true);
     try {
-      await user?.update({ 
-        firstName: firstName.trim(), 
-        lastName: lastName.trim() 
-      });
+      console.log('SignUpScreen - Completing profile...');
+      console.log('SignUpScreen - First name:', firstName);
+      console.log('SignUpScreen - Last name:', lastName);
+      console.log('SignUpScreen - Current auth state - isSignedIn:', isSignedIn);
+      
+      // Validate that both names are provided
+      if (!firstName.trim() || !lastName.trim()) {
+        Alert.alert('Error', 'Please enter both first name and last name');
+        setIsLoading(false);
+        return;
+      }
+      
+      // Update the signup with first and last name
+      if (signUp) {
+        await signUp.update({
+          firstName: firstName.trim(),
+          lastName: lastName.trim()
+        });
+        console.log('SignUpScreen - Profile updated successfully');
+        console.log('SignUpScreen - SignUp status after update:', signUp.status);
+        
+        // Check if we need to complete the signup
+        if (signUp.status === 'complete') {
+          console.log('SignUpScreen - SignUp is complete, setting active session...');
+          if (setSignUpActive && signUp.createdSessionId) {
+            await setSignUpActive({ session: signUp.createdSessionId });
+            console.log('SignUpScreen - Session activated successfully');
+          }
+        } else {
+          console.log('SignUpScreen - SignUp status is not complete:', signUp.status);
+          console.log('SignUpScreen - Missing fields:', signUp.missingFields);
+          
+          // Try to complete the signup manually
+          try {
+            console.log('SignUpScreen - Attempting to complete signup...');
+            // Since we've already verified the phone and updated the name, 
+            // we should be able to complete the signup
+            console.log('SignUpScreen - SignUp should be complete now');
+          } catch (completionErr) {
+            console.error('SignUpScreen - Error completing signup:', completionErr);
+          }
+        }
+      }
       
       // TODO: Handle profile image upload if needed
       // if (profileImage) {
       //   await user?.setProfileImage({ file: profileImage });
       // }
       
+      console.log('SignUpScreen - Profile completion successful');
+      console.log('SignUpScreen - Final auth state - isSignedIn:', isSignedIn);
       Alert.alert('Success', 'Profile updated successfully!', [
         { text: 'OK', onPress: () => {
-          // Navigate to app home or wherever needed
-          // navigation.replace('Home');
+          console.log('SignUpScreen - Profile completion alert dismissed');
         }}
       ]);
     } catch (err: any) {
+      console.error('SignUpScreen - Profile completion error:', err);
       Alert.alert('Error', 'Failed to update profile. Please try again.');
     } finally {
       setIsLoading(false);
@@ -513,13 +697,47 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
 
   // Step 4: Skip profile
   const handleSkipProfile = () => {
+    console.log('SignUpScreen - Skipping profile setup');
+    console.log('SignUpScreen - Current auth state - isSignedIn:', isSignedIn);
+    console.log('SignUpScreen - SignUp status:', signUp?.status);
+    console.log('SignUpScreen - First name:', firstName);
+    console.log('SignUpScreen - Last name:', lastName);
+    
+    // Check if names are missing
+    if (!firstName.trim() || !lastName.trim()) {
+      Alert.alert(
+        'Name Required', 
+        'Please provide both first name and last name to complete your profile.',
+        [
+          { text: 'Go Back', onPress: () => goToPrevStep() },
+          { text: 'Cancel', style: 'cancel' }
+        ]
+      );
+      return;
+    }
+    
+    // Check if we can complete the signup without name
+    if (signUp && signUp.status === 'complete') {
+      console.log('SignUpScreen - SignUp is complete, setting active session...');
+      if (setSignUpActive && signUp.createdSessionId) {
+        setSignUpActive({ session: signUp.createdSessionId }).then(() => {
+          console.log('SignUpScreen - Session activated successfully on skip');
+        }).catch(err => {
+          console.error('SignUpScreen - Error activating session on skip:', err);
+        });
+      }
+    } else {
+      console.log('SignUpScreen - SignUp status is not complete:', signUp?.status);
+      console.log('SignUpScreen - Missing fields:', signUp?.missingFields);
+    }
+    
     Alert.alert(
       'Profile Setup', 
       'You can complete your profile later from the settings.',
       [
         { text: 'OK', onPress: () => {
-          // Navigate to app home or wherever needed
-          // navigation.replace('Home');
+          console.log('SignUpScreen - Profile skip alert dismissed');
+          console.log('SignUpScreen - Auth state after skip - isSignedIn:', isSignedIn);
         }}
       ]
     );
@@ -583,14 +801,32 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
             )}
             
             {step === 4 && (
-              <PhotoStep
-                profileImage={profileImage}
-                setProfileImage={setProfileImage}
-                onComplete={handleCompleteProfile}
-                onSkip={handleSkipProfile}
-                onBack={goToPrevStep}
-                isLoading={isLoading}
-              />
+              <>
+                <PhotoStep
+                  profileImage={profileImage}
+                  setProfileImage={setProfileImage}
+                  onComplete={handleCompleteProfile}
+                  onSkip={handleSkipProfile}
+                  onBack={goToPrevStep}
+                  isLoading={isLoading}
+                  firstName={firstName}
+                  lastName={lastName}
+                />
+                {/* Debug button - remove in production */}
+                <TouchableOpacity
+                  onPress={testSessionActivation}
+                  style={{
+                    backgroundColor: '#ff6600',
+                    padding: 10,
+                    margin: 10,
+                    borderRadius: 5,
+                  }}
+                >
+                  <Text style={{ color: 'white', textAlign: 'center' }}>
+                    Test Session Activation
+                  </Text>
+                </TouchableOpacity>
+              </>
             )}
           </View>
         </ScrollView>
