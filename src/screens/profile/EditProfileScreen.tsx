@@ -4,6 +4,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, TITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import * as ImagePicker from 'expo-image-picker';
+import { useUser } from '@clerk/clerk-expo';
 
 export default function EditProfileScreen({ navigation, route }: any) {
   const { name: initialName = '', email: initialEmail = '', phone: initialPhone = '', gender: initialGender = '', emergencyName: initialEmergencyName = '', emergencyPhone: initialEmergencyPhone = '', photo: initialPhoto = '' } = route?.params || {};
@@ -15,6 +16,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
   const [emergencyPhone, setEmergencyPhone] = useState(initialEmergencyPhone);
   const [photo, setPhoto] = useState(initialPhoto);
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
+  const { user } = useUser();
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -31,12 +33,14 @@ export default function EditProfileScreen({ navigation, route }: any) {
   const validate = () => {
     const newErrors: { [key: string]: string } = {};
     if (!name) newErrors.name = 'Name is required';
+    else if (/\d/.test(name)) newErrors.name = 'Name cannot contain numbers';
     if (!email) newErrors.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email';
     if (!phone) newErrors.phone = 'Phone is required';
     else if (!/^[0-9]{10}$/.test(phone)) newErrors.phone = 'Phone must be 10 digits';
     if (!gender) newErrors.gender = 'Gender is required';
     if (!emergencyName) newErrors.emergencyName = 'Emergency contact is required';
+    else if (/\d/.test(emergencyName)) newErrors.emergencyName = 'Emergency contact name cannot contain numbers';
     if (!emergencyPhone) newErrors.emergencyPhone = 'Emergency phone is required';
     else if (!/^[0-9]{10}$/.test(emergencyPhone)) newErrors.emergencyPhone = 'Emergency phone must be 10 digits';
     setErrors(newErrors);
@@ -124,19 +128,22 @@ export default function EditProfileScreen({ navigation, route }: any) {
           keyboardType="phone-pad"
         />
         {errors.emergencyPhone && <Text style={{ color: Colors.error }}>{errors.emergencyPhone}</Text>}
-        <TouchableOpacity style={styles.saveButton} onPress={() => {
-          if (validate()) {
-            navigation.navigate('PersonalDetails', {
-              name,
-              email,
-              phone,
-              gender,
-              emergencyName,
-              emergencyPhone,
-              photo,
-            });
-          }
-        }}>
+        <TouchableOpacity
+          style={styles.saveButton}
+          onPress={async () => {
+            if (validate()) {
+              navigation.navigate('PersonalDetails', {
+                name,
+                email,
+                phone,
+                gender,
+                emergencyName,
+                emergencyPhone,
+                photo,
+              });
+            }
+          }}
+        >
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>
       </ScrollView>

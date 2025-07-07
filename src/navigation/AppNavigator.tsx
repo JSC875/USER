@@ -39,6 +39,7 @@ import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import PersonalDetailsScreen from '../screens/profile/PersonalDetailsScreen';
 import AboutScreen from '../screens/profile/AboutScreen';
 import PaymentScreen from '../screens/profile/PaymentScreen';
+import PrivacySecurityScreen from '../screens/profile/PrivacySecurityScreen';
 
 // Support Screens
 import HelpSupportScreen from '../screens/support/HelpSupportScreen';
@@ -177,6 +178,7 @@ function MainNavigator() {
       <Stack.Screen name="PersonalDetails" component={PersonalDetailsScreen} />
       <Stack.Screen name="About" component={AboutScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />
+      <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
     </Stack.Navigator>
   );
 }

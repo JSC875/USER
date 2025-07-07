@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   View,
@@ -12,12 +11,37 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import { useUser } from '@clerk/clerk-expo';
 
 export default function SettingsScreen({ navigation }: any) {
+  const { user } = useUser();
   const [notifications, setNotifications] = useState(true);
   const [locationServices, setLocationServices] = useState(true);
   const [autoPayment, setAutoPayment] = useState(false);
   const [shareData, setShareData] = useState(true);
+
+  const getUserName = () => {
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    } else if (user?.firstName) {
+      return user.firstName;
+    } else if (user?.fullName) {
+      return user.fullName;
+    }
+    return 'User';
+  };
+
+  const getUserEmail = () => {
+    return user?.primaryEmailAddress?.emailAddress || '';
+  };
+
+  const getUserPhone = () => {
+    return user?.primaryPhoneNumber?.phoneNumber || '';
+  };
+
+  const getUserPhoto = () => {
+    return user?.imageUrl || '';
+  };
 
   const settingSections = [
     {
@@ -27,20 +51,23 @@ export default function SettingsScreen({ navigation }: any) {
           icon: 'person-outline',
           title: 'Personal Information',
           subtitle: 'Update your profile details',
-          action: () => console.log('Personal Info'),
+          action: () => navigation.navigate('PersonalDetails', {
+            name: getUserName(),
+            email: getUserEmail(),
+            phone: getUserPhone(),
+            gender: '',
+            emergencyName: '',
+            emergencyPhone: '',
+            photo: getUserPhoto(),
+          }),
         },
         {
           icon: 'shield-checkmark-outline',
           title: 'Privacy & Security',
           subtitle: 'Manage your privacy settings',
-          action: () => console.log('Privacy'),
+          action: () => navigation.navigate('PrivacySecurity'),
         },
-        {
-          icon: 'key-outline',
-          title: 'Change Password',
-          subtitle: 'Update your account password',
-          action: () => console.log('Change Password'),
-        },
+        
       ],
     },
     {
