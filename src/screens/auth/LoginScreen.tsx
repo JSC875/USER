@@ -190,7 +190,7 @@ const styles = StyleSheet.create({
   },
   header: {
     alignItems: 'center',
-    paddingTop: Layout.spacing.xxl,
+    paddingTop: Layout.spacing.xl,
     paddingBottom: Layout.spacing.xl,
   },
   iconContainer: {

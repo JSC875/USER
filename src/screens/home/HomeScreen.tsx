@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Dimensions,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -15,9 +16,9 @@ import { Layout } from '../../constants/Layout';
 import { mockLocations } from '../../data/mockData';
 import { getGreeting, useAssignUserType } from '../../utils/helpers';
 import MapView, { Marker } from 'react-native-maps';
-import { useEffect, useState } from 'react';
 import * as Location from 'expo-location';
 import { useLocationStore } from '../../store/useLocationStore';
+import { getSocket } from "../../utils/socket";
 
 const { width } = Dimensions.get('window');
 
@@ -33,16 +34,17 @@ export default function HomeScreen({ navigation, route }: any) {
   } = useLocationStore();
   const { getToken } = useAuth();
 
-  const [region, setRegion] = useState({
+  const [region, setRegion] = React.useState({
     latitude: 28.6139, // Default: New Delhi
     longitude: 77.2090,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   });
 
-  const [dropLocation, setDropLocation] = useState<any>(null);
+  const [dropLocation, setDropLocation] = React.useState<any>(null);
+  const [hasSentToBackend, setHasSentToBackend] = React.useState(false);
 
-  useAssignUserType('user');
+  useAssignUserType('customer');
 
   // On mount, get current location and set as pickup if not set
   useEffect(() => {
@@ -101,6 +103,63 @@ export default function HomeScreen({ navigation, route }: any) {
     }
   }, [route.params?.destination]);
 
+  useEffect(() => {
+    // Send custom JWT to backend only once per session
+    const sendCustomJWTToBackend = async () => {
+      if (!user || hasSentToBackend) return;
+      try {
+        const token = await getToken({ template: 'my_app_token' });
+        if (!token) return;
+        const response = await fetch('https://bike-taxi-production.up.railway.app/api/users/me', {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+          },
+        });
+        let result = null;
+        try {
+          const text = await response.text();
+          result = text ? JSON.parse(text) : null;
+        } catch (e) {
+          result = null; // Not JSON, or empty
+        }
+        console.log('Backend response:', result, 'Status:', response.status);
+        if (response.status >= 200 && response.status < 300) {
+          // Show a visual confirmation
+          Alert.alert('Success', 'Custom JWT sent to backend!');
+        }
+        setHasSentToBackend(true);
+      } catch (err) {
+        console.error('Failed to send custom JWT to backend:', err);
+      }
+    };
+    sendCustomJWTToBackend();
+  }, [user, getToken, hasSentToBackend]);
+
+  useEffect(() => {
+    const socket = getSocket();
+
+    socket.on("connect", () => {
+      console.log("Connected to socket server!");
+    });
+
+    socket.on("disconnect", () => {
+      console.log("Disconnected from socket server.");
+    });
+
+    // Example: Listen for a custom event
+    socket.on("some-event", (data: any) => {
+      console.log("Received some-event:", data);
+    });
+
+    return () => {
+      socket.off("connect");
+      socket.off("disconnect");
+      socket.off("some-event");
+      socket.disconnect();
+    };
+  }, []);
+
   const handleLocationSearch = (type: 'pickup' | 'destination') => {
     navigation.navigate('LocationSearch', { type });
   };
@@ -127,8 +186,60 @@ export default function HomeScreen({ navigation, route }: any) {
     return 'User';
   };
 
+  // Add this function to fetch and log the custom JWT
+  const fetchCustomJWT = async () => {
+    try {
+      const token = await getToken({ template: 'my_app_token' });
+      console.log('Custom Clerk JWT:', token);
+      // Optionally, you can show an alert or copy to clipboard
+    } catch (err) {
+      console.error('Failed to fetch custom JWT:', err);
+    }
+  };
+
+  // Button handler to send custom JWT to backend
+  const handleSendCustomJWT = async () => {
+    try {
+      const token = await getToken({ template: 'my_app_token' });
+      console.log('Custom Clerk JWT:', token);
+      const response = await fetch('https://bike-taxi-production.up.railway.app/api/users/me', {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      let result = null;
+      try {
+        const text = await response.text();
+        result = text ? JSON.parse(text) : null;
+      } catch (e) {
+        result = null;
+      }
+      console.log('Backend response:', result, 'Status:', response.status);
+      if (response.status >= 200 && response.status < 300) {
+        Alert.alert('Success', 'Custom JWT sent to backend!');
+      }
+    } catch (err) {
+      console.error('Failed to send custom JWT to backend:', err);
+    }
+  };
+
   return (
     <SafeAreaView style={styles.container}>
+      {/* Custom JWT Test Button */}
+      <TouchableOpacity
+        style={{ backgroundColor: '#007AFF', padding: 10, margin: 10, borderRadius: 5 }}
+        onPress={fetchCustomJWT}
+      >
+        <Text style={{ color: 'white', textAlign: 'center' }}>Get Custom Clerk JWT</Text>
+      </TouchableOpacity>
+      {/* Send Custom JWT to Backend Button */}
+      <TouchableOpacity
+        style={{ backgroundColor: '#34C759', padding: 10, margin: 10, borderRadius: 5 }}
+        onPress={handleSendCustomJWT}
+      >
+        <Text style={{ color: 'white', textAlign: 'center' }}>Send Custom JWT to Backend</Text>
+      </TouchableOpacity>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -217,6 +328,7 @@ export default function HomeScreen({ navigation, route }: any) {
           </TouchableOpacity>
         </View>
       </View>
+      <Text>Socket.IO connection initialized. Check console for status.</Text>
     </SafeAreaView>
   );
 }

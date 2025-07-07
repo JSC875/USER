@@ -651,7 +651,6 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
         });
         console.log('SignUpScreen - Profile updated successfully');
         console.log('SignUpScreen - SignUp status after update:', signUp.status);
-        
         // Check if we need to complete the signup
         if (signUp.status === 'complete') {
           console.log('SignUpScreen - SignUp is complete, setting active session...');
@@ -662,7 +661,6 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
         } else {
           console.log('SignUpScreen - SignUp status is not complete:', signUp.status);
           console.log('SignUpScreen - Missing fields:', signUp.missingFields);
-          
           // Try to complete the signup manually
           try {
             console.log('SignUpScreen - Attempting to complete signup...');
@@ -673,6 +671,15 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
             console.error('SignUpScreen - Error completing signup:', completionErr);
           }
         }
+      }
+      // Set userType in Clerk metadata if user is available
+      if (user) {
+        await user.update({
+          firstName: firstName.trim(),
+          lastName: lastName.trim(),
+          unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
+        });
+        console.log('SignUpScreen - Clerk user updated with name');
       }
       
       // TODO: Handle profile image upload if needed

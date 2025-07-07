@@ -27,7 +27,7 @@
     const [isLoading, setIsLoading] = useState(false);
     const { user } = useUser();
 
-    useAssignUserType('user');
+    useAssignUserType('customer');
 
     const handleImagePicker = () => {
       Alert.alert(
@@ -54,6 +54,7 @@
         await user?.update({
           firstName: firstName.trim(),
           lastName: lastName.trim(),
+          unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
         });
 
         // Add email if provided
