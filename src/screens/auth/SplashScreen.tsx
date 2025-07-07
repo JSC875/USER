@@ -33,7 +33,7 @@ const screens = [
     key: 'safe',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={require('../../../assets/images/splash13.png')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
+        <Image source={require('../../../assets/images/safeandrelaible.png')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
       </View>
     ),
     title: 'Safe & Reliable',

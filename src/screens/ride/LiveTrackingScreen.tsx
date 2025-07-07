@@ -8,6 +8,7 @@ import {
   Linking,
   Alert,
   Modal,
+  Share,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -109,6 +110,16 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         return '100%';
       default:
         return '0%';
+    }
+  };
+
+  const onShareTrip = async () => {
+    try {
+      await Share.share({
+        message: 'Check out my trip details! [Add trip info or link here]',
+      });
+    } catch (error) {
+      alert('Error sharing: ' + error.message);
     }
   };
 
@@ -219,7 +230,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         </View>
 
         <View style={styles.tripActions}>
-          <TouchableOpacity style={styles.shareButton}>
+          <TouchableOpacity style={styles.shareButton} onPress={onShareTrip}>
             <Ionicons name="share" size={16} color={Colors.primary} />
             <Text style={styles.shareText}>Share Trip</Text>
           </TouchableOpacity>

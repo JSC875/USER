@@ -14,6 +14,7 @@ import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useFocusEffect } from '@react-navigation/native';
+import { useRoute } from '@react-navigation/native';
 
 const profileOptions = [
   {
@@ -23,10 +24,16 @@ const profileOptions = [
     screen: 'PersonalDetails',
   },
   {
-    id: '2',
+    id: '1',
     title: 'Wallet & Payments',
     icon: 'wallet-outline',
     screen: 'Payment',
+  },
+  {
+    id: '2',
+    title: 'Privacy & Security',
+    icon: 'shield-checkmark-outline',
+    screen: 'PrivacySecurity',
   },
   {
     id: '3',
@@ -51,6 +58,9 @@ export default function ProfileScreen({ navigation, route }: any) {
   };
 
   const [profilePhoto, setProfilePhoto] = useState(getUserPhoto());
+  const [activeTab, setActiveTab] = useState<'methods' | 'history'>(
+    route.params?.initialTab === 'history' ? 'history' : 'methods'
+  );
 
   useFocusEffect(
     useCallback(() => {
@@ -81,6 +91,8 @@ export default function ProfileScreen({ navigation, route }: any) {
       navigation.navigate('Settings');
     } else if (screen === 'About') {
       navigation.navigate('About');
+    } else if (screen === 'PrivacySecurity') {
+      navigation.navigate('PrivacySecurity');
     } else {
       console.log(`Navigate to ${screen}`);
     }
@@ -163,20 +175,20 @@ export default function ProfileScreen({ navigation, route }: any) {
           </View>
 
           <View style={styles.statsContainer}>
-            <View style={styles.statItem}>
+            <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('History')}>
               <Text style={styles.statValue}>47</Text>
               <Text style={styles.statLabel}>Total Rides</Text>
-            </View>
+            </TouchableOpacity>
             <View style={styles.statDivider} />
             <View style={styles.statItem}>
               <Text style={styles.statValue}>4.8</Text>
               <Text style={styles.statLabel}>Rating</Text>
             </View>
             <View style={styles.statDivider} />
-            <View style={styles.statItem}>
+            <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Payment', { initialTab: 'history' })}>
               <Text style={styles.statValue}>₹2,340</Text>
               <Text style={styles.statLabel}>Total Spent</Text>
-            </View>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -189,15 +201,13 @@ export default function ProfileScreen({ navigation, route }: any) {
                 <View style={styles.actionIcon}>
                   <Ionicons name="time" size={24} color={Colors.primary} />
                 </View>
-                <Text style={styles.actionText}>Schedule</Text>
-                <Text style={styles.actionText}>Ride</Text>
+                <Text style={styles.actionText}>Schedule{'\n'}Ride</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('History')}>
                 <View style={styles.actionIcon}>
                   <Ionicons name="receipt" size={24} color={Colors.accent} />
                 </View>
-                <Text style={styles.actionText}>Ride</Text>
-                <Text style={styles.actionText}>History</Text>
+                <Text style={styles.actionText}>Ride{'\n'}History</Text>
               </TouchableOpacity>
             </View>
             <View style={styles.actionGridRow}>
@@ -205,15 +215,13 @@ export default function ProfileScreen({ navigation, route }: any) {
                 <View style={styles.actionIcon}>
                   <Ionicons name="gift" size={24} color={Colors.coral} />
                 </View>
-                <Text style={styles.actionText}>View</Text>
-                <Text style={styles.actionText}>Offers</Text>
+                <Text style={styles.actionText}>View{'\n'}Offers</Text>
               </TouchableOpacity>
               <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('HelpSupport')}>
                 <View style={styles.actionIcon}>
                   <Ionicons name="help-circle" size={24} color={Colors.info} />
                 </View>
-                <Text style={styles.actionText}>Get</Text>
-                <Text style={styles.actionText}>Support</Text>
+                <Text style={styles.actionText}>Get{'\n'}Support</Text>
               </TouchableOpacity>
             </View>
           </View>

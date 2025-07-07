@@ -1,106 +1,158 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, FlatList } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { mockPaymentMethods } from '../../data/mockData';
 
-const paymentOptions = [
+const paymentMethods = [
   {
-    id: 'card',
-    label: 'VISA',
+    id: '1',
+    type: 'UPI',
+    label: 'GPay',
+    icon: <MaterialCommunityIcons name="google" size={28} color="#4285F4" />,
+    details: 'xxxxxx@okhdfcbank',
+    isDefault: true,
+  },
+  {
+    id: '2',
+    type: 'Card',
+    label: 'Visa',
     icon: <FontAwesome5 name="cc-visa" size={28} color="#1a1f71" />,
-    details: '•••• 52 2457',
-    expiry: 'Expiry 04 July 2023',
+    details: '**** 1234',
+    isDefault: false,
   },
   {
-    id: 'paypal',
-    label: 'Paypal',
-    icon: <FontAwesome5 name="paypal" size={28} color="#003087" />,
-    details: '',
-    expiry: '',
-  },
-  {
-    id: 'cash',
-    label: 'Cash',
-    icon: <Ionicons name="cash-outline" size={28} color="#16a34a" />,
-    details: '',
-    expiry: '',
+    id: '3',
+    type: 'Wallet',
+    label: 'Paytm',
+    icon: <MaterialCommunityIcons name="wallet" size={28} color="#0f9d58" />,
+    details: 'Wallet',
+    isDefault: false,
   },
 ];
+
+const paymentHistory = [
+  {
+    id: 'RIDE1234',
+    date: '2024-06-01 14:30',
+    amount: 120,
+    method: 'GPay',
+    status: 'Success',
+  },
+  {
+    id: 'RIDE1233',
+    date: '2024-05-30 18:10',
+    amount: 95,
+    method: 'Visa',
+    status: 'Failed',
+  },
+  {
+    id: 'RIDE1232',
+    date: '2024-05-28 09:45',
+    amount: 150,
+    method: 'Paytm',
+    status: 'Success',
+  },
+];
+
+const statusColors = {
+  Success: '#22c55e',
+  Failed: '#ef4444',
+};
 
 export default function PaymentScreen({ navigation }: any) {
   const [coupon, setCoupon] = useState('');
   const [selected, setSelected] = useState('card');
   const price = 52;
+  const [defaultMethod, setDefaultMethod] = useState('1');
+  const [activeTab, setActiveTab] = useState<'methods' | 'history'>('methods');
 
   return (
-    <View style={styles.container}>
-      <ScrollView contentContainerStyle={{ paddingBottom: 32 }} showsVerticalScrollIndicator={false}>
-        {/* Back button and illustration */}
-        <View style={styles.topRow}>
-          <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
-            <Ionicons name="chevron-back" size={22} color={Colors.text} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Coupon section */}
-        <TouchableOpacity style={styles.applyCouponRow} activeOpacity={0.8}>
-          <Text style={styles.applyCouponText}>Apply Coupon</Text>
-          <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
-        </TouchableOpacity>
-        <View style={styles.couponInputRow}>
-          <TextInput
-            style={styles.couponInput}
-            placeholder="Enter Coupon code"
-            value={coupon}
-            onChangeText={setCoupon}
-            placeholderTextColor={Colors.gray400}
-          />
-          <TouchableOpacity style={styles.applyBtn}>
-            <Text style={styles.applyBtnText}>Apply</Text>
-          </TouchableOpacity>
-        </View>
-
-        {/* Add new card */}
-        <View style={styles.addCardRow}>
-          <Text style={styles.addCardText}>Add New Card</Text>
-          <TouchableOpacity>
-            <Ionicons name="add" size={22} color={Colors.primary} />
-          </TouchableOpacity>
-        </View>
-
-        {/* Payment methods */}
-        {paymentOptions.map(option => (
-          <TouchableOpacity
-            key={option.id}
-            style={[styles.paymentCard, selected === option.id && styles.paymentCardSelected]}
-            onPress={() => setSelected(option.id)}
-            activeOpacity={0.85}
-          >
-            <View style={styles.paymentIcon}>{option.icon}</View>
-            <View style={{ flex: 1 }}>
-              <Text style={styles.paymentLabel}>{option.label}</Text>
-              {!!option.details && <Text style={styles.paymentDetails}>{option.details}</Text>}
-              {!!option.expiry && <Text style={styles.paymentExpiry}>{option.expiry}</Text>}
-            </View>
-            {selected === option.id && (
-              <Ionicons name="checkmark-circle" size={22} color={Colors.primary} />
-            )}
-          </TouchableOpacity>
-        ))}
-      </ScrollView>
-      {/* Price and Book Ride button */}
-      <View style={styles.bottomBar}>
-        <View style={styles.priceBox}>
-          <Text style={styles.priceText}>${price}</Text>
-          <Text style={styles.priceLabel}>Price</Text>
-        </View>
-        <TouchableOpacity style={styles.bookBtn}>
-          <Text style={styles.bookBtnText}>pay payment</Text>
+    <ScrollView style={styles.container} contentContainerStyle={{ paddingBottom: 32 }}>
+      {/* Back button and illustration */}
+      <View style={styles.topRow}>
+        <TouchableOpacity style={styles.backBtn} onPress={() => navigation.goBack()}>
+          <Ionicons name="chevron-back" size={22} color={Colors.text} />
         </TouchableOpacity>
       </View>
-    </View>
+
+     
+      
+
+      {/* Tab row */}
+      <View style={styles.tabRow}>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'methods' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('methods')}
+        >
+          <Text style={[styles.tabText, activeTab === 'methods' && styles.tabTextActive]}>Payment Methods</Text>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.tabBtn, activeTab === 'history' && styles.tabBtnActive]}
+          onPress={() => setActiveTab('history')}
+        >
+          <Text style={[styles.tabText, activeTab === 'history' && styles.tabTextActive]}>Payment History</Text>
+        </TouchableOpacity>
+      </View>
+
+      {activeTab === 'methods' ? (
+        <>
+          <View style={styles.card}>
+            <Text style={styles.sectionTitle}>Payment Methods</Text>
+            {paymentMethods.map((method) => (
+              <View key={method.id} style={styles.methodRow}>
+                <View style={styles.methodIcon}>{method.icon}</View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.methodLabel}>{method.label}</Text>
+                  <Text style={styles.methodDetails}>{method.details}</Text>
+                </View>
+                {defaultMethod === method.id ? (
+                  <View style={styles.defaultBadge}>
+                    <Text style={styles.defaultBadgeText}>Default</Text>
+                  </View>
+                ) : (
+                  <TouchableOpacity onPress={() => setDefaultMethod(method.id)} style={styles.setDefaultBtn}>
+                    <Text style={styles.setDefaultText}>Set as Default</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))}
+            <TouchableOpacity style={styles.addBtn}>
+              <Ionicons name="add" size={20} color="#fff" />
+              <Text style={styles.addBtnText}>Add New Payment Method</Text>
+            </TouchableOpacity>
+          </View>
+          
+        </>
+      ) : (
+        <View style={styles.card}>
+          <Text style={styles.sectionTitle}>Payment History</Text>
+          <FlatList
+            data={paymentHistory}
+            keyExtractor={item => item.id}
+            scrollEnabled={false}
+            renderItem={({ item }) => (
+              <View style={styles.historyRow}>
+                <View style={styles.historyIcon}>
+                  <Ionicons name="receipt-outline" size={24} color="#6366f1" />
+                </View>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.rideId}>{item.id}</Text>
+                  <Text style={styles.historyDetails}>{item.date} • {item.method}</Text>
+                </View>
+                <Text style={styles.amount}>₹{item.amount}</Text>
+                <View style={[styles.statusBadge, { backgroundColor: statusColors[item.status as keyof typeof statusColors] || '#a3a3a3' }]}>
+                  <Text style={styles.statusText}>{item.status}</Text>
+                </View>
+              </View>
+            )}
+          />
+        </View>
+      )}
+
+      
+    </ScrollView>
   );
 }
 
@@ -171,51 +223,73 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     fontSize: 15,
   },
-  addCardRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    marginHorizontal: 16,
-    marginBottom: 10,
-  },
-  addCardText: {
-    fontSize: 16,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  paymentCard: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  card: {
     backgroundColor: '#fff',
-    borderRadius: 14,
-    padding: 16,
-    marginHorizontal: 16,
-    marginBottom: 12,
-    borderWidth: 1.5,
-    borderColor: 'transparent',
+    borderRadius: 16,
+    padding: 18,
+    marginBottom: 20,
+    shadowColor: '#000',
+    shadowOpacity: 0.06,
+    shadowOffset: { width: 0, height: 2 },
+    shadowRadius: 8,
+    elevation: 4,
   },
-  paymentCardSelected: {
-    borderColor: Colors.primary,
-    backgroundColor: '#ecebff',
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#22223b',
+    marginBottom: 14,
   },
-  paymentIcon: {
-    marginRight: 16,
+  methodRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f1f1',
   },
-  paymentLabel: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.text,
+  methodIcon: { marginRight: 14 },
+  methodLabel: { fontSize: 16, fontWeight: '600', color: '#22223b' },
+  methodDetails: { fontSize: 13, color: '#6b7280', marginTop: 2 },
+  defaultBadge: {
+    backgroundColor: '#e0e7ff',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginLeft: 8,
   },
-  paymentDetails: {
-    fontSize: 14,
-    color: Colors.gray500,
-    marginTop: 2,
+  defaultBadgeText: { color: '#6366f1', fontWeight: 'bold', fontSize: 12 },
+  setDefaultBtn: { paddingHorizontal: 10, paddingVertical: 4, marginLeft: 8 },
+  setDefaultText: { color: '#6366f1', fontWeight: '600', fontSize: 12 },
+  addBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#6366f1',
+    borderRadius: 10,
+    paddingVertical: 10,
+    justifyContent: 'center',
+    marginTop: 10,
   },
-  paymentExpiry: {
-    fontSize: 12,
-    color: Colors.gray400,
-    marginTop: 1,
+  addBtnText: { color: '#fff', fontWeight: 'bold', fontSize: 15, marginLeft: 6 },
+  historyRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 14,
+    paddingVertical: 8,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f1f1',
   },
+  historyIcon: { marginRight: 12 },
+  rideId: { fontSize: 15, fontWeight: '600', color: '#22223b' },
+  historyDetails: { fontSize: 12, color: '#6b7280', marginTop: 2 },
+  amount: { fontSize: 15, fontWeight: 'bold', color: '#22223b', marginRight: 10 },
+  statusBadge: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    marginLeft: 4,
+  },
+  statusText: { color: '#fff', fontWeight: 'bold', fontSize: 12 },
   bottomBar: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -256,5 +330,31 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 17,
     fontWeight: 'bold',
+  },
+  tabRow: {
+    flexDirection: 'row',
+    backgroundColor: '#ececec',
+    borderRadius: 12,
+    marginBottom: 16,
+    marginHorizontal: 8,
+    marginTop: 12,
+  },
+  tabBtn: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  tabBtnActive: {
+    backgroundColor: '#fff',
+    elevation: 2,
+  },
+  tabText: {
+    color: '#888',
+    fontWeight: '600',
+    fontSize: 16,
+  },
+  tabTextActive: {
+    color: '#6366f1',
   },
 }); 
