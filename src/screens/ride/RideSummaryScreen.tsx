@@ -65,7 +65,7 @@ export default function RideSummaryScreen({ navigation, route }: any) {
   
 
   const handleBookAnother = () => {
-    navigation.navigate('Main');
+    navigation.navigate('Home');
   };
 
   
@@ -181,7 +181,7 @@ export default function RideSummaryScreen({ navigation, route }: any) {
       {/* Bottom Actions */}
       <View style={styles.bottomActions}>
         <TouchableOpacity style={styles.bookAnotherButton} onPress={handleBookAnother}>
-          <Text style={styles.bookAnotherText}>Book Another Ride boooook</Text>
+          <Text style={styles.bookAnotherText}>Book Another Ride </Text>
         </TouchableOpacity>
         <Button
           title="Continue"
