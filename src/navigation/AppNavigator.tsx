@@ -33,11 +33,12 @@ import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
 // Profile Screens
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import RideHistoryScreen from '../screens/profile/RideHistoryScreen';
-import WalletScreen from '../screens/profile/WalletScreen';
+
 import SettingsScreen from '../screens/profile/SettingsScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import PersonalDetailsScreen from '../screens/profile/PersonalDetailsScreen';
 import AboutScreen from '../screens/profile/AboutScreen';
+import PaymentScreen from '../screens/profile/PaymentScreen';
 
 // Support Screens
 import HelpSupportScreen from '../screens/support/HelpSupportScreen';
@@ -100,7 +101,7 @@ function TabNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="History" component={RideHistoryScreen} />
-      <Tab.Screen name="Wallet" component={WalletScreen} />
+      
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -175,6 +176,7 @@ function MainNavigator() {
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="PersonalDetails" component={PersonalDetailsScreen} />
       <Stack.Screen name="About" component={AboutScreen} />
+      <Stack.Screen name="Payment" component={PaymentScreen} />
     </Stack.Navigator>
   );
 }

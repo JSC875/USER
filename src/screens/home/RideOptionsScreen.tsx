@@ -256,7 +256,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
             <TouchableOpacity
               style={[styles.stickyBtn, { flex: 1, borderRightWidth: 1, borderRightColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }]}
               activeOpacity={0.7}
-              onPress={() => navigation.navigate('WalletScreen')}
+              onPress={() => navigation.navigate('Payment')}
             >
               <Ionicons name="cash-outline" size={22} color="#222" style={{ marginRight: 8 }} />
               <Text style={styles.stickyBtnText}>Cash</Text>

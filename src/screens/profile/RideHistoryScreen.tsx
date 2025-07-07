@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import {
   View,
@@ -57,7 +56,7 @@ export default function RideHistoryScreen({ navigation }: any) {
             <Ionicons name="star" size={14} color={Colors.accent} />
             <Text style={styles.ratingText}>{item.rating}</Text>
           </View>
-          <TouchableOpacity style={styles.rebookButton}>
+          <TouchableOpacity style={styles.rebookButton} onPress={() => navigation.navigate('DropLocationSelector', { destination: { address: item.to, name: item.to } })}>
             <Text style={styles.rebookText}>Rebook</Text>
           </TouchableOpacity>
         </View>

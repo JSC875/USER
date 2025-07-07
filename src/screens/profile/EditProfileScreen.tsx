@@ -14,6 +14,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
   const [emergencyName, setEmergencyName] = useState(initialEmergencyName);
   const [emergencyPhone, setEmergencyPhone] = useState(initialEmergencyPhone);
   const [photo, setPhoto] = useState(initialPhoto);
+  const [errors, setErrors] = useState<{ [key: string]: string }>({});
 
   const pickImage = async () => {
     let result = await ImagePicker.launchImageLibraryAsync({
@@ -25,6 +26,21 @@ export default function EditProfileScreen({ navigation, route }: any) {
     if (!result.canceled && result.assets && result.assets.length > 0) {
       setPhoto(result.assets[0].uri);
     }
+  };
+
+  const validate = () => {
+    const newErrors: { [key: string]: string } = {};
+    if (!name) newErrors.name = 'Name is required';
+    if (!email) newErrors.email = 'Email is required';
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email';
+    if (!phone) newErrors.phone = 'Phone is required';
+    else if (!/^[0-9]{10}$/.test(phone)) newErrors.phone = 'Phone must be 10 digits';
+    if (!gender) newErrors.gender = 'Gender is required';
+    if (!emergencyName) newErrors.emergencyName = 'Emergency contact is required';
+    if (!emergencyPhone) newErrors.emergencyPhone = 'Emergency phone is required';
+    else if (!/^[0-9]{10}$/.test(emergencyPhone)) newErrors.emergencyPhone = 'Emergency phone must be 10 digits';
+    setErrors(newErrors);
+    return Object.keys(newErrors).length === 0;
   };
 
   return (
@@ -54,6 +70,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
           value={name}
           onChangeText={setName}
         />
+        {errors.name && <Text style={{ color: Colors.error }}>{errors.name}</Text>}
         {/* Email */}
         <Text style={styles.label}>Email</Text>
         <TextInput
@@ -63,6 +80,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
           onChangeText={setEmail}
           keyboardType="email-address"
         />
+        {errors.email && <Text style={{ color: Colors.error }}>{errors.email}</Text>}
         {/* Phone */}
         <Text style={styles.label}>Phone</Text>
         <TextInput
@@ -72,6 +90,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
           onChangeText={setPhone}
           keyboardType="phone-pad"
         />
+        {errors.phone && <Text style={{ color: Colors.error }}>{errors.phone}</Text>}
         {/* Gender */}
         <Text style={styles.label}>Gender</Text>
         <View style={styles.genderRow}>
@@ -85,6 +104,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
             </TouchableOpacity>
           ))}
         </View>
+        {errors.gender && <Text style={{ color: Colors.error }}>{errors.gender}</Text>}
         {/* Emergency Contact Name */}
         <Text style={styles.label}>Emergency Contact Name</Text>
         <TextInput
@@ -93,6 +113,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
           value={emergencyName}
           onChangeText={setEmergencyName}
         />
+        {errors.emergencyName && <Text style={{ color: Colors.error }}>{errors.emergencyName}</Text>}
         {/* Emergency Contact Phone */}
         <Text style={styles.label}>Emergency Contact Phone</Text>
         <TextInput
@@ -102,16 +123,19 @@ export default function EditProfileScreen({ navigation, route }: any) {
           onChangeText={setEmergencyPhone}
           keyboardType="phone-pad"
         />
+        {errors.emergencyPhone && <Text style={{ color: Colors.error }}>{errors.emergencyPhone}</Text>}
         <TouchableOpacity style={styles.saveButton} onPress={() => {
-          navigation.navigate('PersonalDetails', {
-            name,
-            email,
-            phone,
-            gender,
-            emergencyName,
-            emergencyPhone,
-            photo,
-          });
+          if (validate()) {
+            navigation.navigate('PersonalDetails', {
+              name,
+              email,
+              phone,
+              gender,
+              emergencyName,
+              emergencyPhone,
+              photo,
+            });
+          }
         }}>
           <Text style={styles.saveButtonText}>Save</Text>
         </TouchableOpacity>

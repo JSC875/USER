@@ -26,7 +26,7 @@ const profileOptions = [
     id: '2',
     title: 'Wallet & Payments',
     icon: 'wallet-outline',
-    screen: 'Wallet',
+    screen: 'Payment',
   },
   {
     id: '3',
@@ -75,8 +75,8 @@ export default function ProfileScreen({ navigation, route }: any) {
       navigation.navigate('EditProfile');
     } else if (screen === 'History') {
       navigation.navigate('History');
-    } else if (screen === 'Wallet') {
-      navigation.navigate('Wallet');
+    } else if (screen === 'Payment') {
+      navigation.navigate('Payment');
     } else if (screen === 'Settings') {
       navigation.navigate('Settings');
     } else if (screen === 'About') {
@@ -183,34 +183,39 @@ export default function ProfileScreen({ navigation, route }: any) {
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionGrid}>
-            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('ScheduleRide')}>
-              <View style={styles.actionIcon}>
-                <Ionicons name="time" size={24} color={Colors.primary} />
-              </View>
-              <Text style={styles.actionText}>Schedule Ride</Text>
-            </TouchableOpacity>
-            <TouchableOpacity 
-              style={styles.actionButton}
-              onPress={() => navigation.navigate('History')}
-            >
-              <View style={styles.actionIcon}>
-                <Ionicons name="receipt" size={24} color={Colors.accent} />
-              </View>
-              <Text style={styles.actionText}>Ride History</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.getParent()?.navigate('Offers')}>
-              <View style={styles.actionIcon}>
-                <Ionicons name="gift" size={24} color={Colors.coral} />
-              </View>
-              <Text style={styles.actionText}>Offers</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButton} onPress={() => navigation.navigate('HelpSupport')}>
-              <View style={styles.actionIcon}>
-                <Ionicons name="help-circle" size={24} color={Colors.info} />
-              </View>
-              <Text style={styles.actionText}>Support</Text>
-            </TouchableOpacity>
+          <View style={styles.actionGridWrap}>
+            <View style={styles.actionGridRow}>
+              <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('ScheduleRide')}>
+                <View style={styles.actionIcon}>
+                  <Ionicons name="time" size={24} color={Colors.primary} />
+                </View>
+                <Text style={styles.actionText}>Schedule</Text>
+                <Text style={styles.actionText}>Ride</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('History')}>
+                <View style={styles.actionIcon}>
+                  <Ionicons name="receipt" size={24} color={Colors.accent} />
+                </View>
+                <Text style={styles.actionText}>Ride</Text>
+                <Text style={styles.actionText}>History</Text>
+              </TouchableOpacity>
+            </View>
+            <View style={styles.actionGridRow}>
+              <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.getParent()?.navigate('Offers')}>
+                <View style={styles.actionIcon}>
+                  <Ionicons name="gift" size={24} color={Colors.coral} />
+                </View>
+                <Text style={styles.actionText}>View</Text>
+                <Text style={styles.actionText}>Offers</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('HelpSupport')}>
+                <View style={styles.actionIcon}>
+                  <Ionicons name="help-circle" size={24} color={Colors.info} />
+                </View>
+                <Text style={styles.actionText}>Get</Text>
+                <Text style={styles.actionText}>Support</Text>
+              </TouchableOpacity>
+            </View>
           </View>
         </View>
 
@@ -362,12 +367,18 @@ const styles = StyleSheet.create({
     color: Colors.text,
     marginBottom: Layout.spacing.md,
   },
-  actionGrid: {
-    flexDirection: 'row',
-    justifyContent: 'space-around',
+  actionGridWrap: {
+    flexDirection: 'column',
   },
-  actionButton: {
+  actionGridRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  actionButtonGrid: {
+    flex: 1,
     alignItems: 'center',
+    marginHorizontal: 6,
   },
   actionIcon: {
     width: 48,
