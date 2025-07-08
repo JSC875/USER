@@ -1,12 +1,13 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator, Alert, ToastAndroid, Platform } from 'react-native';
 import MapView, { Region, PROVIDER_GOOGLE } from 'react-native-maps';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import * as Location from 'expo-location';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
-const MAP_HEIGHT = height * 0.60;
+const MAP_HEIGHT = height - 270; // 270px for bottom sheet height
 const PIN_SIZE = 44;
 
 const DEFAULT_REGION = {
@@ -31,6 +32,28 @@ export default function DropPinLocationScreen({ navigation }: any) {
   const [locationName, setLocationName] = useState('Address');
   const [isFetching, setIsFetching] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const mapRef = useRef<MapView>(null);
+
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        // Permission denied, keep default region
+        return;
+      }
+      let loc = await Location.getCurrentPositionAsync({});
+      const newRegion = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+      setRegion(newRegion);
+      mapRef.current?.animateToRegion(newRegion, 800);
+      // Fetch address for the initial location
+      reverseGeocode(loc.coords.latitude, loc.coords.longitude);
+    })();
+  }, []);
 
   // Reverse geocode using provided API key
   const reverseGeocode = async (lat: number, lng: number) => {
@@ -82,12 +105,14 @@ export default function DropPinLocationScreen({ navigation }: any) {
       return;
     }
     let loc = await Location.getCurrentPositionAsync({});
-    setRegion({
+    const newRegion = {
       latitude: loc.coords.latitude,
       longitude: loc.coords.longitude,
       latitudeDelta: 0.01,
       longitudeDelta: 0.01,
-    });
+    };
+    mapRef.current?.animateToRegion(newRegion, 800);
+    setRegion(newRegion);
   };
 
   // When user taps Select Drop, pass locationName, address, and coordinates back to HomeScreen
@@ -102,60 +127,161 @@ export default function DropPinLocationScreen({ navigation }: any) {
     });
   };
 
+  // Save location handler
+  const saveLocation = async (type: 'home' | 'work' | 'custom', customLabel?: string) => {
+    const locationToSave = {
+      latitude: region.latitude,
+      longitude: region.longitude,
+      address,
+      name: type === 'custom' ? (customLabel || 'Custom') : (type === 'home' ? 'Home' : 'Work'),
+      label: type === 'custom' ? (customLabel || 'Custom') : type,
+    };
+    try {
+      // Get existing saved locations
+      const existing = await AsyncStorage.getItem('@saved_locations');
+      let saved = existing ? JSON.parse(existing) : {};
+      if (type === 'home' || type === 'work') {
+        saved[type] = locationToSave;
+      } else if (type === 'custom' && customLabel) {
+        if (!saved.custom) saved.custom = [];
+        saved.custom.push(locationToSave);
+      }
+      await AsyncStorage.setItem('@saved_locations', JSON.stringify(saved));
+      if (Platform.OS === 'android') {
+        ToastAndroid.show('Location saved!', ToastAndroid.SHORT);
+      } else {
+        Alert.alert('Success', 'Location saved!');
+      }
+    } catch (e) {
+      Alert.alert('Error', 'Failed to save location');
+    }
+  };
+
+  // Handler for Add New
+  const handleAddNew = () => {
+    Alert.prompt(
+      'Save Location',
+      'Enter a label for this location:',
+      [
+        {
+          text: 'Cancel',
+          style: 'cancel',
+        },
+        {
+          text: 'Save',
+          onPress: (label) => {
+            if (label && label.trim().length > 0) {
+              saveLocation('custom', label.trim());
+            } else {
+              Alert.alert('Label required', 'Please enter a label for the location.');
+            }
+          },
+        },
+      ],
+      'plain-text'
+    );
+  };
+
   const { house, rest } = parseAddress(address);
 
   return (
     <View style={styles.screen}>
       <View style={styles.mapContainer}>
         <MapView
+          ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={StyleSheet.absoluteFill}
-          region={region}
+          initialRegion={region}
           onRegionChangeComplete={handleRegionChangeComplete}
           showsUserLocation
           showsMyLocationButton={false}
         />
         {/* Floating Center Pin (emoji for Rapido style) */}
         <View pointerEvents="none" style={styles.pinContainer}>
-          <Text style={{ fontSize: 44, color: Colors.coral, textAlign: 'center' }}>📍</Text>
+          <View style={{ alignItems: 'center', justifyContent: 'center' }}>
+            {/* Outer red circle with white border */}
+            <View style={{
+              width: 26,
+              height: 26,
+              borderRadius: 18,
+              backgroundColor: '#fff',
+              alignItems: 'center',
+              justifyContent: 'center',
+              borderWidth: 2,
+              borderColor: '#fff',
+              shadowColor: '#000',
+              shadowOffset: { width: 0, height: 1 },
+              shadowOpacity: 0.15,
+              shadowRadius: 2,
+              elevation: 2,
+            }}>
+              {/* Inner red circle */}
+              <View style={{
+                width: 24,
+                height: 24,
+                borderRadius: 14,
+                backgroundColor: '#E53935',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                {/* White center */}
+                <View style={{
+                  width: 12,
+                  height: 12,
+                  borderRadius: 6,
+                  backgroundColor: '#fff',
+                }} />
+              </View>
+            </View>
+            {/* Black stick */}
+            <View style={{
+              width: 3,
+              height: 16,
+              backgroundColor: '#222',
+              marginTop: -2,
+              borderRadius: 2,
+            }} />
+          </View>
         </View>
         {/* My Location Button */}
         <TouchableOpacity style={styles.myLocationBtn} onPress={handleMyLocation}>
           <Ionicons name="locate" size={24} color={Colors.primary} />
         </TouchableOpacity>
       </View>
-      {/* Bottom Card */}
-      <View style={styles.addressCard}>
-        <View style={styles.addressRow}>
-          <Text style={styles.addressLabel}>Select your location</Text>
-          <TouchableOpacity>
-            <Text style={styles.changeText}>Change</Text>
-          </TouchableOpacity>
-        </View>
-        <View style={styles.selectedAddressBox}>
-          <View style={styles.iconCircle}>
-            <Ionicons name="location-sharp" size={20} color="#fff" />
+      {/* Bottom Sheet */}
+      <View style={styles.bottomSheet}>
+        <View style={styles.addressCard}>
+          <View style={styles.addressRow}>
+            <Text style={styles.addressLabel}>Select your location</Text>
+            <TouchableOpacity>
+              <Text style={styles.changeText}>Change</Text>
+            </TouchableOpacity>
           </View>
-          <View>
-            <Text style={styles.selectedAddressTitle}>
-              {isFetching ? <ActivityIndicator size="small" color={Colors.primary} /> : locationName}
-            </Text>
-            <Text style={styles.selectedAddressSubtitle} numberOfLines={1}>
-              {isFetching ? 'Fetching address...' : address || 'not found'}
-            </Text>
+          <View style={styles.selectedAddressBox}>
+            <View style={styles.iconCircle}>
+              <Ionicons name="location-sharp" size={20} color="#fff" />
+            </View>
+            <View>
+              <Text style={styles.selectedAddressTitle}>
+                {isFetching ? <ActivityIndicator size="small" color={Colors.primary} /> : locationName}
+              </Text>
+              <Text style={styles.selectedAddressSubtitle} numberOfLines={1}>
+                {isFetching ? 'Fetching address...' : address || 'not found'}
+              </Text>
+            </View>
+          </View>
+          <View style={styles.divider} />
+          <Text style={styles.saveLabel}>Save location as</Text>
+          <View style={styles.saveRow}>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('home')}><Text style={styles.saveBtnIcon}>🏠</Text><Text style={styles.saveBtnText}> Home</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('work')}><Text style={styles.saveBtnIcon}>💼</Text><Text style={styles.saveBtnText}> Work</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleAddNew}><Text style={styles.saveBtnIcon}>➕</Text><Text style={styles.saveBtnText}> Add New</Text></TouchableOpacity>
           </View>
         </View>
-        <View style={styles.divider} />
-        <Text style={styles.saveLabel}>Save location as</Text>
-        <View style={styles.saveRow}>
-          <TouchableOpacity style={styles.saveBtn}><Text style={styles.saveBtnIcon}>🏠</Text><Text style={styles.saveBtnText}> Home</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.saveBtn}><Text style={styles.saveBtnIcon}>💼</Text><Text style={styles.saveBtnText}> Work</Text></TouchableOpacity>
-          <TouchableOpacity style={styles.saveBtn}><Text style={styles.saveBtnIcon}>➕</Text><Text style={styles.saveBtnText}> Add New</Text></TouchableOpacity>
-        </View>
+        <TouchableOpacity style={styles.selectDropButton} onPress={handleSelectDrop} activeOpacity={0.8}>
+          <Text style={styles.selectDropButtonText}>Select Drop</Text>
+        </TouchableOpacity>
       </View>
-      <TouchableOpacity style={styles.selectDropButton} onPress={handleSelectDrop} activeOpacity={0.8}>
-        <Text style={styles.selectDropButtonText}>Select Drop</Text>
-      </TouchableOpacity>
     </View>
   );
 }
@@ -164,14 +290,20 @@ const styles = StyleSheet.create({
   screen: {
     flex: 1,
     backgroundColor: Colors.background,
-    alignItems: 'center',
+    alignItems: 'stretch',
     justifyContent: 'flex-start',
+    position: 'relative',
   },
   mapContainer: {
-    width: width,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    width: '100%',
     height: MAP_HEIGHT,
-    borderBottomLeftRadius: 24,
-    borderBottomRightRadius: 24,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
     overflow: 'hidden',
     backgroundColor: '#eee',
     elevation: 4,
@@ -205,27 +337,40 @@ const styles = StyleSheet.create({
     shadowRadius: 6,
     elevation: 4,
   },
+  bottomSheet: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'transparent',
+    paddingHorizontal: 0,
+    paddingBottom: 0,
+    zIndex: 100,
+  },
   addressCard: {
-    width: width - 32,
+    width: '100%',
     backgroundColor: '#fff',
-    borderRadius: 24,
-    paddingVertical: 24,
-    paddingHorizontal: 20,
-    marginTop: -32,
+    borderTopLeftRadius: 28,
+    borderTopRightRadius: 28,
+    borderBottomLeftRadius: 0,
+    borderBottomRightRadius: 0,
+    paddingVertical: 16,
+    paddingHorizontal: 18,
     elevation: 10,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 16,
+    shadowOffset: { width: 0, height: -2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 12,
     borderWidth: 1,
     borderColor: Colors.gray100,
     alignItems: 'stretch',
+    alignSelf: 'center',
   },
   addressRow: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 10,
+    marginBottom: 6,
   },
   addressLabel: {
     fontSize: 16,
@@ -235,37 +380,37 @@ const styles = StyleSheet.create({
   changeText: {
     color: Colors.primary,
     fontWeight: '600',
-    fontSize: 15,
+    fontSize: 14,
   },
   selectedAddressBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.gray50,
     borderRadius: 14,
-    padding: 16,
-    marginBottom: 10,
+    padding: 30,
+    marginBottom: 8,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 2,
   },
   iconCircle: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+    width: 28,
+    height: 28,
+    borderRadius: 14,
     backgroundColor: Colors.coral,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 12,
   },
   selectedAddressTitle: {
-    fontSize: 18,
+    fontSize: 13,
     color: Colors.text,
     fontWeight: '700',
-    marginBottom: 2,
+    marginBottom: 0,
   },
   selectedAddressSubtitle: {
-    fontSize: 14,
+    fontSize: 11,
     color: Colors.gray400,
     fontWeight: '400',
     width: width - 120,
@@ -273,59 +418,59 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: Colors.gray200,
-    marginVertical: 12,
+    marginVertical: 8,
     borderRadius: 1,
   },
   saveLabel: {
-    fontSize: 15,
+    fontSize: 11,
     color: Colors.gray400,
-    marginBottom: 8,
+    marginBottom: 4,
     fontWeight: '500',
   },
   saveRow: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
-    marginTop: 2,
-    marginBottom: 8,
+    marginTop: 0,
+    marginBottom: 4,
   },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.gray50,
-    borderRadius: 20,
-    paddingVertical: 8,
-    paddingHorizontal: 18,
-    marginRight: 10,
-    elevation: 1,
+    borderRadius: 14,
+    paddingVertical: 4,
+    paddingHorizontal: 10,
+    marginRight: 6,
+    elevation: 0,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 2,
   },
   saveBtnIcon: {
-    fontSize: 18,
+    fontSize: 14,
   },
   saveBtnText: {
-    fontSize: 10,
+    fontSize: 11,
     color: Colors.text,
     fontWeight: '500',
   },
   selectDropButton: {
-    width: width - 32,
-    backgroundColor: Colors.primary,
-    borderRadius: 24,
+    width: '90%',
+    backgroundColor: '#FFD600',
+    borderRadius: 16,
     paddingVertical: 16,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 28,
+    marginTop: 12,
     alignSelf: 'center',
-    elevation: 2,
+    elevation: 0,
     marginBottom: 18,
   },
   selectDropButtonText: {
     color: '#222',
     fontWeight: '700',
-    fontSize: 20,
-    letterSpacing: 0.2,
+    fontSize: 16,
+    letterSpacing: 0.1,
   },
 });

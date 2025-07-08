@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import MapView, { Marker, MapPressEvent, Region } from 'react-native-maps';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
+import * as Location from 'expo-location';
 
 interface Location {
   latitude: number;
@@ -39,6 +40,29 @@ const LocationPickerMap: React.FC<LocationPickerMapProps> = ({
         }
       : DEFAULT_REGION
   );
+  const [locationLoaded, setLocationLoaded] = useState(false);
+
+  useEffect(() => {
+    if (!initialLocation) {
+      (async () => {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          setLocationLoaded(true); // Permission denied, show fallback
+          return;
+        }
+        let loc = await Location.getCurrentPositionAsync({});
+        setRegion({
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          latitudeDelta: 0.05,
+          longitudeDelta: 0.05,
+        });
+        setLocationLoaded(true);
+      })();
+    } else {
+      setLocationLoaded(true);
+    }
+  }, [initialLocation]);
 
   const handleMapPress = (e: MapPressEvent) => {
     const { latitude, longitude } = e.nativeEvent.coordinate;

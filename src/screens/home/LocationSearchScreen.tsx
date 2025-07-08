@@ -9,7 +9,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useLocationStore } from '../../store/useLocationStore';
@@ -222,6 +222,29 @@ export default function LocationSearchScreen({ navigation, route }: any) {
               ) : null
             }
           />
+        )}
+        {/* Set location on the map button */}
+        {searchQuery.length > 0 && (
+          <TouchableOpacity
+            style={{
+              position: 'absolute',
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#23235B',
+              paddingVertical: 16,
+              alignItems: 'center',
+              flexDirection: 'row',
+              justifyContent: 'center',
+              zIndex: 10,
+            }}
+            onPress={() => navigation.navigate('DropPinLocation')}
+          >
+            <MaterialIcons name="my-location" size={22} color="#fff" style={{ marginRight: 8 }} />
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>
+              Set location on the map
+            </Text>
+          </TouchableOpacity>
         )}
       </View>
     </SafeAreaView>
