@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, ActivityIndicator, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Animated } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons } from '@expo/vector-icons';
+import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import MapView, { Marker } from 'react-native-maps';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import { useIsFocused } from '@react-navigation/native';
 
 const { width } = Dimensions.get('window');
 
@@ -36,6 +38,26 @@ const RECENT_LOCATIONS = [
 
 const GOOGLE_MAPS_API_KEY = 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU';
 
+// Add a helper to get icon and color for each location type
+const getLocationIcon = (name: string) => {
+  if (name.toLowerCase().includes('home')) {
+    return { icon: <MaterialIcons name="home" size={24} color="#fff" />, bg: '#E53935' };
+  }
+  if (name.toLowerCase().includes('work') || name.toLowerCase().includes('office')) {
+    return { icon: <MaterialIcons name="work" size={24} color="#fff" />, bg: '#F57C00' };
+  }
+  if (name.toLowerCase().includes('all saved')) {
+    return { icon: <MaterialIcons name="bookmark" size={24} color="#fff" />, bg: '#23235B' };
+  }
+  if (name.toLowerCase().includes('recent') || name.toLowerCase().includes('kfc')) {
+    return { icon: <MaterialIcons name="history" size={24} color="#fff" />, bg: '#BDBDBD' };
+  }
+  return { icon: <MaterialIcons name="bookmark" size={24} color="#fff" />, bg: '#BDBDBD' };
+};
+
+// Add a helper for distance formatting (mock for now)
+const formatDistance = (distance: number) => `${distance} mi`;
+
 export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [dropLocation, setDropLocation] = useState<any>(null);
   const [currentLocation, setCurrentLocation] = useState<any>(null);
@@ -45,6 +67,9 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [noResults, setNoResults] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [savedLocations, setSavedLocations] = useState<any>({});
+  const isFocused = useIsFocused();
+  const [fadeAnim] = useState(new Animated.Value(0));
 
   useEffect(() => {
     if (route.params?.destination) {
@@ -81,6 +106,31 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         name: 'Current Location',
       });
     }
+  }, []);
+
+  useEffect(() => {
+    // Load saved locations from AsyncStorage every time screen is focused
+    const loadSavedLocations = async () => {
+      try {
+        const data = await AsyncStorage.getItem('@saved_locations');
+        if (data) {
+          setSavedLocations(JSON.parse(data));
+        }
+      } catch (e) {
+        // ignore
+      }
+    };
+    if (isFocused) {
+      loadSavedLocations();
+    }
+  }, [isFocused]);
+
+  useEffect(() => {
+    Animated.timing(fadeAnim, {
+      toValue: 1,
+      duration: 400,
+      useNativeDriver: true,
+    }).start();
   }, []);
 
   const searchPlaces = async (query: string) => {
@@ -140,6 +190,16 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     }
     if (editing === 'drop') {
       setDropLocation(location);
+      setEditing(null);
+      setSearchQuery(location.address || location.name || '');
+      setSearchResults([]);
+      setNoResults(false);
+      Keyboard.dismiss();
+      navigation.navigate('RideOptions', {
+        pickup: currentLocation,
+        drop: location,
+      });
+      return;
     } else if (editing === 'current') {
       setCurrentLocation(location);
     }
@@ -164,18 +224,18 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   };
 
   const renderSearchResult = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.locationItem} onPress={() => handleLocationSelect(item)}>
+    <TouchableOpacity style={styles.locationItemModern} onPress={() => handleLocationSelect(item)}>
       <Ionicons name="location-outline" size={22} color={Colors.primary} style={{ marginRight: 14 }} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.locationName}>{item.structured_formatting?.main_text || item.name || item.description}</Text>
-        <Text style={styles.locationAddress} numberOfLines={1}>{item.structured_formatting?.secondary_text || item.address}</Text>
+        <Text style={styles.locationNameModern}>{item.structured_formatting?.main_text || item.name || item.description}</Text>
+        <Text style={styles.locationAddressModern} numberOfLines={1}>{item.structured_formatting?.secondary_text || item.address}</Text>
       </View>
     </TouchableOpacity>
   );
 
   const renderLocation = ({ item }: { item: any }) => (
     <TouchableOpacity
-      style={styles.locationItem}
+      style={styles.locationItemModern}
       onPress={() => {
         setDropLocation({
           ...item,
@@ -191,80 +251,134 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     >
       <Ionicons name="time-outline" size={22} color={Colors.gray400} style={{ marginRight: 14 }} />
       <View style={{ flex: 1 }}>
-        <Text style={styles.locationName}>{item.name}</Text>
-        <Text style={styles.locationAddress} numberOfLines={1}>{item.address}</Text>
+        <Text style={styles.locationNameModern}>{item.name}</Text>
+        <Text style={styles.locationAddressModern} numberOfLines={1}>{item.address}</Text>
       </View>
       <Ionicons name="heart-outline" size={22} color={Colors.gray400} />
     </TouchableOpacity>
   );
 
+  const getListData = () => {
+    let data: any[] = [];
+    // Add saved Home/Work if present, else fallback to hardcoded
+    if (savedLocations.home) {
+      data.push({ id: 'home', name: 'Home', address: savedLocations.home.address, latitude: savedLocations.home.latitude, longitude: savedLocations.home.longitude });
+    } else {
+      data.push({ id: 'home', name: 'Home', address: 'Set your home location' });
+    }
+    if (savedLocations.work) {
+      data.push({ id: 'work', name: 'Work', address: savedLocations.work.address, latitude: savedLocations.work.latitude, longitude: savedLocations.work.longitude });
+    } else {
+      data.push({ id: 'work', name: 'Work', address: 'Set your work location' });
+    }
+    // Add custom saved locations
+    if (savedLocations.custom && Array.isArray(savedLocations.custom)) {
+      savedLocations.custom.forEach((loc: any, idx: number) => {
+        data.push({ id: `custom_${idx}`, name: loc.name, address: loc.address, latitude: loc.latitude, longitude: loc.longitude });
+      });
+    }
+    // Add recents/hardcoded
+    data = data.concat([
+      { id: 'recent1', name: 'KFC Joint', address: '2972 Westheimer Rd. Santa Ana, Illinois 85486' },
+      { id: 'recent2', name: "Amy's Office", address: '6391 Elgin St. Celina, Delaware 10299' },
+      { id: 'recent3', name: 'Rachel Home', address: '2464 Royal Ln. Mesa, New Jersey 45463' },
+      { id: 'all', name: 'All Saved Places', address: '' },
+    ]);
+    return data;
+  };
+
   return (
-    <SafeAreaView style={styles.safeArea}>
-      {/* Top Navigation */}
-      <View style={styles.navBar}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.navIcon}>
-          <Ionicons name="arrow-back" size={26} color={Colors.text} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      {/* Top Bar */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: '#fff' }}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4 }}>
+          <Ionicons name="arrow-back" size={26} color="#222" />
         </TouchableOpacity>
-        <Text style={styles.navTitle}>Drop</Text>
-        <TouchableOpacity style={styles.navDropdown}>
-          <Text style={styles.navDropdownText}>For me </Text>
-          <Ionicons name="chevron-down" size={18} color={Colors.text} />
+        <Text style={{ fontSize: 22, fontWeight: '700', color: '#222', flex: 1, textAlign: 'center', marginLeft: -26 }}>Drop Location</Text>
+        <View style={{ width: 26 }} />
+      </View>
+      {/* Selectors */}
+      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 10 }}>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F7', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 8, marginRight: 8 }}>
+          <MaterialCommunityIcons name="clock-outline" size={18} color="#222" style={{ marginRight: 6 }} />
+          <Text style={{ fontWeight: '600', color: '#222' }}>Pick-up now</Text>
+          <Ionicons name="chevron-down" size={16} color="#222" style={{ marginLeft: 4 }} />
+        </TouchableOpacity>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F7', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 8 }}>
+          <MaterialCommunityIcons name="account-outline" size={18} color="#222" style={{ marginRight: 6 }} />
+          <Text style={{ fontWeight: '600', color: '#222' }}>For me</Text>
+          <Ionicons name="chevron-down" size={16} color="#222" style={{ marginLeft: 4 }} />
         </TouchableOpacity>
       </View>
-      {/* Location Summary Card */}
-      <View style={styles.summaryCard}>
-        <View style={styles.summaryIcons}>
-          <Ionicons name="ellipse" size={18} color={Colors.success} style={styles.iconShadow} />
-          <View style={styles.dottedLine} />
-          <Ionicons name="ellipse" size={18} color={Colors.coral} style={styles.iconShadow} />
+      {/* Location Card - Outlined, rounded, vertical icon style */}
+      <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 16 }}>
+        <View style={{ flex: 1 }}>
+          <View style={{
+            flexDirection: 'row',
+            alignItems: 'stretch',
+            backgroundColor: '#fff',
+            borderRadius: 16,
+            borderWidth: 2,
+            borderColor: '#222',
+            paddingVertical: 10,
+            paddingHorizontal: 14,
+            minHeight: 64,
+          }}>
+            {/* Vertical icons and line */}
+            <View style={{ alignItems: 'center', marginRight: 10, width: 20 }}>
+              <Ionicons name="ellipse" size={18} color="#222" style={{ marginBottom: 2 }} />
+              <View style={{ width: 2, flex: 1, backgroundColor: '#E0E0E0', marginVertical: 2 }} />
+              <Ionicons name="square" size={18} color="#222" style={{ marginTop: 2 }} />
+            </View>
+            {/* Pickup and Drop fields */}
+            <View style={{ flex: 1, justifyContent: 'center' }}>
+              {/* Pickup field */}
+              <TouchableOpacity onPress={() => { setEditing('current'); setSearchQuery(currentLocation?.address || currentLocation?.name || ''); }} activeOpacity={0.8}>
+                {editing === 'current' ? (
+                  <TextInput
+                    style={{ color: '#222', fontWeight: 'bold', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginBottom: 0 }}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder={currentLocation?.address ? currentLocation.address : 'Current Location'}
+                    autoFocus
+                    clearButtonMode="while-editing"
+                    onSubmitEditing={() => setEditing(null)}
+                  />
+                ) : (
+                  <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 15 }}>{currentLocation?.address || currentLocation?.name || 'Current Location'}</Text>
+                )}
+              </TouchableOpacity>
+              {/* Add gap between pickup and drop fields */}
+              <View style={{ height: 20 }} />
+              {/* Drop field */}
+              <TouchableOpacity onPress={() => { setEditing('drop'); setSearchQuery(dropLocation?.address || dropLocation?.name || ''); }} activeOpacity={0.8}>
+                {editing === 'drop' ? (
+                  <TextInput
+                    style={{ color: '#888', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginTop: 2 }}
+                    value={searchQuery}
+                    onChangeText={setSearchQuery}
+                    placeholder="Where to?"
+                    autoFocus
+                    clearButtonMode="while-editing"
+                    onSubmitEditing={() => {
+                      if (dropLocation) {
+                        navigation.navigate('RideOptions', {
+                          pickup: currentLocation,
+                          drop: dropLocation,
+                        });
+                      }
+                    }}
+                  />
+                ) : (
+                  <Text style={{ color: '#888', fontSize: 15, marginTop: 2 }}>{dropLocation ? dropLocation.address || dropLocation.name : 'Where to?'}</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+          </View>
         </View>
-        <View style={styles.summaryTextCol}>
-          <TouchableOpacity onPress={() => { setEditing('current'); setSearchQuery(currentLocation?.address || currentLocation?.name || ''); }} activeOpacity={0.8}>
-            {editing === 'current' ? (
-              <TextInput
-                style={[styles.summarySubtitle, { color: Colors.text, backgroundColor: Colors.gray50, borderRadius: 8, paddingHorizontal: 8 }]}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Your Current Location"
-                autoFocus
-                clearButtonMode="while-editing"
-              />
-            ) : (
-              <Text style={styles.summaryTitle}>Your Current Location</Text>
-            )}
-          </TouchableOpacity>
-          <View style={styles.summaryDivider} />
-          <TouchableOpacity onPress={() => { setEditing('drop'); setSearchQuery(dropLocation?.address || dropLocation?.name || ''); }} activeOpacity={0.8}>
-            {editing === 'drop' ? (
-              <TextInput
-                style={[styles.summarySubtitle, { color: Colors.text, backgroundColor: Colors.gray50, borderRadius: 8, paddingHorizontal: 8 }]}
-                value={searchQuery}
-                onChangeText={setSearchQuery}
-                placeholder="Drop location"
-                autoFocus
-                clearButtonMode="while-editing"
-              />
-            ) : (
-              <Text style={styles.summarySubtitle}>
-                {dropLocation ? dropLocation.address || dropLocation.name : 'Drop location'}
-              </Text>
-            )}
-          </TouchableOpacity>
-        </View>
       </View>
-      {/* Buttons Below Card */}
-      <View style={styles.buttonRow}>
-        <TouchableOpacity style={styles.mapBtn} onPress={handleSelectOnMap}>
-          <Ionicons name="navigate" size={18} color={Colors.primary} style={{ marginRight: 6 }} />
-          <Text style={styles.mapBtnText}>Select on map</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.addStopsBtn}>
-          <Ionicons name="add" size={18} color={Colors.primary} style={{ marginRight: 6 }} />
-          <Text style={styles.mapBtnText}>Add stops</Text>
-        </TouchableOpacity>
-      </View>
-      {/* Suggestions or Recent Locations List */}
-      {editing ? (
+      {/* Search Results or Recent Locations List */}
+      {editing === 'drop' && searchQuery.length > 2 ? (
         isSearching ? (
           <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
             <ActivityIndicator color={Colors.primary} />
@@ -278,28 +392,66 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
             data={searchResults}
             keyExtractor={item => item.place_id || item.address || item.name}
             renderItem={renderSearchResult}
-            contentContainerStyle={styles.listContent}
+            contentContainerStyle={{ paddingBottom: 16 }}
             keyboardShouldPersistTaps="handled"
           />
         )
       ) : (
         <FlatList
-          data={RECENT_LOCATIONS}
+          data={getListData()}
           keyExtractor={item => item.id}
-          renderItem={renderLocation}
-          contentContainerStyle={styles.listContent}
-          ItemSeparatorComponent={() => <View style={styles.listDivider} />}
+          renderItem={({ item, index }) => {
+            if (item.id === 'all') {
+              const { icon, bg } = getLocationIcon(item.name);
+              return (
+                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 16 }}>
+                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', marginRight: 14, marginLeft: 16 }}>{icon}</View>
+                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#23235B', flex: 1 }}>All Saved Places</Text>
+                  <MaterialIcons name="chevron-right" size={24} color="#23235B" />
+                </TouchableOpacity>
+              );
+            }
+            const { icon, bg } = getLocationIcon(item.name);
+            return (
+              <TouchableOpacity
+                style={{
+                  flexDirection: 'row',
+                  alignItems: 'center',
+                  backgroundColor: '#fff',
+                  paddingVertical: 12,
+                  paddingHorizontal: 0,
+                  borderBottomWidth: 1,
+                  borderBottomColor: '#eee',
+                }}
+                onPress={() => handleLocationSelect(item)}
+              >
+                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', marginRight: 14, marginLeft: 16 }}>{icon}</View>
+                <View style={{ flex: 1 }}>
+                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#222' }}>{item.name}</Text>
+                  <Text style={{ fontSize: 14, color: '#888' }}>{item.address}</Text>
+                </View>
+              </TouchableOpacity>
+            );
+          }}
+          contentContainerStyle={{ paddingTop: 0, paddingBottom: 80 }}
           showsVerticalScrollIndicator={false}
         />
       )}
-      {/* Confirm Drop Button */}
-      <TouchableOpacity
-        style={[styles.mapBtn, { backgroundColor: Colors.primary, alignSelf: 'center', marginTop: 12 }]}
-        onPress={handleConfirmDrop}
-        disabled={!dropLocation}
-      >
-        <Text style={[styles.mapBtnText, { color: '#fff', fontWeight: '700' }]}>Confirm Drop</Text>
-      </TouchableOpacity>
+      {/* Bottom Options */}
+      <View style={{ marginTop: 12 }}>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }}>
+          <MaterialCommunityIcons name="earth" size={22} color="#222" style={{ marginRight: 16 }} />
+          <Text style={{ color: '#222', fontSize: 16 }}>Search in a different city</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }} onPress={handleSelectOnMap}>
+          <Ionicons name="location-sharp" size={22} color="#222" style={{ marginRight: 16 }} />
+          <Text style={{ color: '#222', fontSize: 16 }}>Set location on map</Text>
+        </TouchableOpacity>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }}>
+          <MaterialCommunityIcons name="star-outline" size={22} color="#222" style={{ marginRight: 16 }} />
+          <Text style={{ color: '#222', fontSize: 16 }}>Saved places</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
@@ -339,19 +491,19 @@ const styles = StyleSheet.create({
     color: Colors.text,
     fontWeight: '500',
   },
-  summaryCard: {
+  summaryCardModern: {
     flexDirection: 'row',
     backgroundColor: '#fff',
-    borderRadius: 18,
+    borderRadius: 24,
     marginHorizontal: 16,
-    marginTop: 8,
-    padding: 16,
+    marginTop: 16,
+    padding: 20,
     alignItems: 'center',
-    elevation: 2,
+    elevation: 4,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
   },
   summaryIcons: {
     alignItems: 'center',
@@ -378,9 +530,9 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'space-between',
   },
-  summaryTitle: {
-    fontSize: 16,
-    fontWeight: '600',
+  summaryTitleModern: {
+    fontSize: 18,
+    fontWeight: '700',
     color: Colors.text,
     marginBottom: 8,
   },
@@ -390,74 +542,124 @@ const styles = StyleSheet.create({
     marginVertical: 2,
     borderRadius: 1,
   },
-  summarySubtitle: {
+  summarySubtitleModern: {
     fontSize: 16,
     fontWeight: '600',
     color: Colors.coral,
     marginTop: 8,
   },
-  buttonRow: {
-    flexDirection: 'row',
-    justifyContent: 'flex-start',
-    alignItems: 'center',
-    marginHorizontal: 16,
-    marginTop: 18,
-    marginBottom: 8,
-  },
-  mapBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  inputModern: {
+    color: Colors.text,
     backgroundColor: Colors.gray50,
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    marginRight: 10,
+    borderRadius: 12,
+    paddingHorizontal: 12,
+    fontSize: 16,
+    height: 40,
+    marginVertical: 4,
   },
-  addStopsBtn: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.gray50,
-    borderRadius: 16,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-  },
-  mapBtnText: {
-    fontSize: 15,
-    color: Colors.primary,
-    fontWeight: '600',
-    
-  },
-  listContent: {
+  listContentModern: {
     paddingHorizontal: 8,
     paddingBottom: 24,
     marginTop: 8,
   },
-  locationItem: {
+  locationItemModern: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#fff',
-    borderRadius: 14,
-    paddingVertical: 14,
-    paddingHorizontal: 14,
-    marginBottom: 8,
-    elevation: 1,
+    borderRadius: 18,
+    paddingVertical: 18,
+    paddingHorizontal: 18,
+    marginBottom: 10,
+    elevation: 2,
     shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.04,
-    shadowRadius: 2,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
   },
-  locationName: {
+  locationNameModern: {
     fontSize: 16,
     fontWeight: '700',
     color: Colors.text,
     marginBottom: 2,
   },
-  locationAddress: {
+  locationAddressModern: {
     fontSize: 14,
     color: Colors.gray400,
     fontWeight: '400',
   },
-  listDivider: {
-    height: 4,
+  iconCircleModern: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: 18,
+  },
+  allSavedModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 18,
+    paddingVertical: 18,
+    backgroundColor: '#fff',
+    marginTop: 10,
+    borderRadius: 18,
+    elevation: 2,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.06,
+    shadowRadius: 4,
+  },
+  allSavedTextModern: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#23235B',
+    flex: 1,
+  },
+  searchBarModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#F5F5F7',
+    borderRadius: 16,
+    marginHorizontal: 16,
+    paddingHorizontal: 16,
+    height: 48,
+    marginBottom: 12,
+    marginTop: 8,
+  },
+  searchInputModern: {
+    flex: 1,
+    fontSize: 16,
+    color: Colors.text,
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+  },
+  floatingButtonModern: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    zIndex: 100,
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingBottom: 12,
+  },
+  setOnMapButtonModern: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#23235B',
+    paddingVertical: 18,
+    width: '92%',
+    borderRadius: 18,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.10,
+    shadowRadius: 8,
+  },
+  setOnMapButtonTextModern: {
+    color: '#fff',
+    fontWeight: '700',
+    fontSize: 16,
+    letterSpacing: 0.2,
   },
 }); 
