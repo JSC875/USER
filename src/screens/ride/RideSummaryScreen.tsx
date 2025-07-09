@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
+import RateDriverScreen from '../ride/RateDriverScreen';
 
 const feedbackTags = [
   'Great ride',
@@ -27,8 +28,6 @@ export default function RideSummaryScreen({ navigation, route }: any) {
   const { destination, estimate, driver } = route.params;
   const [rating, setRating] = useState(0);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
-  const [tip, setTip] = useState(0);
-  const [customTip, setCustomTip] = useState('');
   const [comments, setComments] = useState('');
 
   const driverInfo = driver || {
@@ -50,27 +49,13 @@ export default function RideSummaryScreen({ navigation, route }: any) {
     }
   };
 
-  const handleTip = (amount: number) => {
-    setTip(amount);
-    setCustomTip('');
-  };
-
-  const handleCustomTip = (value: string) => {
-    setCustomTip(value);
-    setTip(0);
-  };
   const handleContinue = () => {
     navigation.navigate('RateDriver', { driver });
   };
-  
 
   const handleBookAnother = () => {
-    navigation.navigate('Home');
+    navigation.navigate('TabNavigator', { screen: 'Home' });
   };
-
-  
-
-  
 
   return (
     <SafeAreaView style={styles.container}>
@@ -86,10 +71,8 @@ export default function RideSummaryScreen({ navigation, route }: any) {
           </Text>
         </View>
 
-        {/* Trip Summary */}
+        {/* Ride Summary Card */}
         <View style={styles.summaryCard}>
-          <Text style={styles.cardTitle}>Trip Summary</Text>
-          
           <View style={styles.routeInfo}>
             <View style={styles.routePoint}>
               <View style={styles.pickupDot} />
@@ -105,75 +88,38 @@ export default function RideSummaryScreen({ navigation, route }: any) {
               <View style={styles.destinationDot} />
               <View style={styles.routeDetails}>
                 <Text style={styles.routeLabel}>To</Text>
-                <Text style={styles.routeAddress}>{destination.name}</Text>
+                <Text style={styles.routeAddress}>{destination?.name || 'Your destination'}</Text>
               </View>
             </View>
           </View>
 
           <View style={styles.tripStats}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{estimate.distance}</Text>
+              <Text style={styles.statValue}>{estimate?.distance || '--'}</Text>
               <Text style={styles.statLabel}>Distance</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{estimate.duration}</Text>
+              <Text style={styles.statValue}>{estimate?.duration || '--'}</Text>
               <Text style={styles.statLabel}>Duration</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>₹{estimate.fare}</Text>
+              <Text style={styles.statValue}>₹{estimate?.fare ?? '--'}</Text>
               <Text style={styles.statLabel}>Fare</Text>
             </View>
-          </View>
-        </View>
-
-        {/* Tip Driver */}
-        <View style={styles.tipCard}>
-          <Text style={styles.tipSubtitle}>Tip the driver</Text>
-          <View style={styles.tipOptions}>
-            {[10, 20, 50].map((amount) => (
-              <TouchableOpacity
-                key={amount}
-                style={[
-                  styles.tipButton,
-                  tip === amount && styles.tipButtonSelected,
-                ]}
-                onPress={() => handleTip(amount)}
-              >
-                <Text
-                  style={[
-                    styles.tipText,
-                    tip === amount && styles.tipTextSelected,
-                  ]}
-                >
-                  ₹{amount}
-                </Text>
-              </TouchableOpacity>
-            ))}
           </View>
         </View>
 
         {/* Payment Summary */}
         <View style={styles.paymentCard}>
           <Text style={styles.cardTitle}>Payment Summary</Text>
-          
           <View style={styles.paymentItem}>
             <Text style={styles.paymentLabel}>Ride Fare</Text>
-            <Text style={styles.paymentValue}>₹{estimate.fare}</Text>
+            <Text style={styles.paymentValue}>₹{estimate?.fare ?? '--'}</Text>
           </View>
-          
-          {tip > 0 && (
-            <View style={styles.paymentItem}>
-              <Text style={styles.paymentLabel}>Tip</Text>
-              <Text style={styles.paymentValue}>₹{tip}</Text>
-            </View>
-          )}
-          
           <View style={styles.paymentDivider} />
-          
           <View style={styles.paymentTotal}>
             <Text style={styles.paymentTotalLabel}>Total Paid</Text>
-            <Text style={styles.paymentTotalValue}>₹{estimate.fare + tip}</Text>
-            <Text>hellow this is our self</Text>
+            <Text style={styles.paymentTotalValue}>₹{estimate?.fare ?? '--'}</Text>
           </View>
         </View>
       </ScrollView>

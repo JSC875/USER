@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ScrollView, KeyboardAvoidingView, Platform } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, TITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
@@ -56,97 +56,108 @@ export default function EditProfileScreen({ navigation, route }: any) {
         <Text style={styles.headerTitle}>Edit Profile</Text>
         <View style={{ width: 24 }} />
       </View>
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
-        {/* Upload Photo */}
-        <TouchableOpacity style={styles.photoContainer} onPress={pickImage} accessibilityLabel="Upload Photo">
-          {photo ? (
-            <Image source={{ uri: photo }} style={styles.photo} />
-          ) : (
-            <Ionicons name="camera" size={40} color={Colors.gray400} />
-          )}
-          <Text style={styles.uploadText}>Upload Photo</Text>
-        </TouchableOpacity>
-        {/* Name */}
-        <Text style={styles.label}>Name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your name"
-          value={name}
-          onChangeText={setName}
-        />
-        {errors.name && <Text style={{ color: Colors.error }}>{errors.name}</Text>}
-        {/* Email */}
-        <Text style={styles.label}>Email</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your email"
-          value={email}
-          onChangeText={setEmail}
-          keyboardType="email-address"
-        />
-        {errors.email && <Text style={{ color: Colors.error }}>{errors.email}</Text>}
-        {/* Phone */}
-        <Text style={styles.label}>Phone</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter your phone number"
-          value={phone}
-          onChangeText={setPhone}
-          keyboardType="phone-pad"
-        />
-        {errors.phone && <Text style={{ color: Colors.error }}>{errors.phone}</Text>}
-        {/* Gender */}
-        <Text style={styles.label}>Gender</Text>
-        <View style={styles.genderRow}>
-          {['Male', 'Female', 'Other'].map((g) => (
-            <TouchableOpacity
-              key={g}
-              style={[styles.genderButton, gender === g && styles.genderButtonSelected]}
-              onPress={() => setGender(g)}
-            >
-              <Text style={[styles.genderText, gender === g && styles.genderTextSelected]}>{g}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        {errors.gender && <Text style={{ color: Colors.error }}>{errors.gender}</Text>}
-        {/* Emergency Contact Name */}
-        <Text style={styles.label}>Emergency Contact Name</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter emergency contact name"
-          value={emergencyName}
-          onChangeText={setEmergencyName}
-        />
-        {errors.emergencyName && <Text style={{ color: Colors.error }}>{errors.emergencyName}</Text>}
-        {/* Emergency Contact Phone */}
-        <Text style={styles.label}>Emergency Contact Phone</Text>
-        <TextInput
-          style={styles.input}
-          placeholder="Enter emergency contact phone"
-          value={emergencyPhone}
-          onChangeText={setEmergencyPhone}
-          keyboardType="phone-pad"
-        />
-        {errors.emergencyPhone && <Text style={{ color: Colors.error }}>{errors.emergencyPhone}</Text>}
-        <TouchableOpacity
-          style={styles.saveButton}
-          onPress={async () => {
-            if (validate()) {
-              navigation.navigate('PersonalDetails', {
-                name,
-                email,
-                phone,
-                gender,
-                emergencyName,
-                emergencyPhone,
-                photo,
-              });
-            }
-          }}
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}
+      >
+        <ScrollView
+          style={styles.content}
+          contentContainerStyle={{ paddingBottom: 40 }}
+          showsVerticalScrollIndicator={false}
+          keyboardShouldPersistTaps="handled"
         >
-          <Text style={styles.saveButtonText}>Save</Text>
-        </TouchableOpacity>
-      </ScrollView>
+          {/* Upload Photo */}
+          <TouchableOpacity style={styles.photoContainer} onPress={pickImage} accessibilityLabel="Upload Photo">
+            {photo ? (
+              <Image source={{ uri: photo }} style={styles.photo} />
+            ) : (
+              <Ionicons name="camera" size={40} color={Colors.gray400} />
+            )}
+            <Text style={styles.uploadText}>Upload Photo</Text>
+          </TouchableOpacity>
+          {/* Name */}
+          <Text style={styles.label}>Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your name"
+            value={name}
+            onChangeText={setName}
+          />
+          {errors.name && <Text style={{ color: Colors.error }}>{errors.name}</Text>}
+          {/* Email */}
+          <Text style={styles.label}>Email</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your email"
+            value={email}
+            onChangeText={setEmail}
+            keyboardType="email-address"
+          />
+          {errors.email && <Text style={{ color: Colors.error }}>{errors.email}</Text>}
+          {/* Phone */}
+          <Text style={styles.label}>Phone</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter your phone number"
+            value={phone}
+            onChangeText={setPhone}
+            keyboardType="phone-pad"
+          />
+          {errors.phone && <Text style={{ color: Colors.error }}>{errors.phone}</Text>}
+          {/* Gender */}
+          <Text style={styles.label}>Gender</Text>
+          <View style={styles.genderRow}>
+            {['Male', 'Female', 'Other'].map((g) => (
+              <TouchableOpacity
+                key={g}
+                style={[styles.genderButton, gender === g && styles.genderButtonSelected]}
+                onPress={() => setGender(g)}
+              >
+                <Text style={[styles.genderText, gender === g && styles.genderTextSelected]}>{g}</Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+          {errors.gender && <Text style={{ color: Colors.error }}>{errors.gender}</Text>}
+          {/* Emergency Contact Name */}
+          <Text style={styles.label}>Emergency Contact Name</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter emergency contact name"
+            value={emergencyName}
+            onChangeText={setEmergencyName}
+          />
+          {errors.emergencyName && <Text style={{ color: Colors.error }}>{errors.emergencyName}</Text>}
+          {/* Emergency Contact Phone */}
+          <Text style={styles.label}>Emergency Contact Phone</Text>
+          <TextInput
+            style={styles.input}
+            placeholder="Enter emergency contact phone"
+            value={emergencyPhone}
+            onChangeText={setEmergencyPhone}
+            keyboardType="phone-pad"
+          />
+          {errors.emergencyPhone && <Text style={{ color: Colors.error }}>{errors.emergencyPhone}</Text>}
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={async () => {
+              if (validate()) {
+                navigation.navigate('PersonalDetails', {
+                  name,
+                  email,
+                  phone,
+                  gender,
+                  emergencyName,
+                  emergencyPhone,
+                  photo,
+                });
+              }
+            }}
+          >
+            <Text style={styles.saveButtonText}>Save</Text>
+          </TouchableOpacity>
+        </ScrollView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
