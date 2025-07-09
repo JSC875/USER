@@ -1,5 +1,5 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator, Alert, ToastAndroid, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator, Alert, ToastAndroid, Platform, TextInput, Button, Modal, Keyboard } from 'react-native';
 import MapView, { Region, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
@@ -33,6 +33,10 @@ export default function DropPinLocationScreen({ navigation }: any) {
   const [isFetching, setIsFetching] = useState(false);
   const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const mapRef = useRef<MapView>(null);
+  const [showAddAddressInput, setShowAddAddressInput] = useState(false);
+  const [newAddress, setNewAddress] = useState('');
+  const [savedLocations, setSavedLocations] = useState<{ home?: any; work?: any; custom?: any[] }>({});
+  const [showSavedModal, setShowSavedModal] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -184,6 +188,17 @@ export default function DropPinLocationScreen({ navigation }: any) {
 
   const { house, rest } = parseAddress(address);
 
+  const handleConfirm = () => {
+    if (currentLocation && dropLocation) {
+      navigation.navigate('RideOptions', {
+        pickup: currentLocation,
+        drop: dropLocation,
+      });
+    } else {
+      alert('Please select both pickup and drop locations.');
+    }
+  };
+
   return (
     <View style={styles.screen}>
       <View style={styles.mapContainer}>
@@ -282,6 +297,44 @@ export default function DropPinLocationScreen({ navigation }: any) {
           <Text style={styles.selectDropButtonText}>Select Drop</Text>
         </TouchableOpacity>
       </View>
+      {showAddAddressInput && (
+        <View style={{ marginVertical: 10 }}>
+          <TextInput
+            value={newAddress}
+            onChangeText={setNewAddress}
+            placeholder="Enter new address"
+            style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 10 }}
+          />
+          <Button
+            title="Save"
+            onPress={async () => {
+              if (newAddress.trim()) {
+                // Load existing saved locations
+                let existing = await AsyncStorage.getItem('@saved_locations');
+                let saved = existing ? JSON.parse(existing) : {};
+                if (!saved.custom) saved.custom = [];
+                // Add the new custom location with current region and address
+                saved.custom.push({
+                  latitude: region.latitude,
+                  longitude: region.longitude,
+                  address,
+                  name: newAddress.trim(),
+                  label: newAddress.trim(),
+                });
+                await AsyncStorage.setItem('@saved_locations', JSON.stringify(saved));
+                setNewAddress('');
+                setShowAddAddressInput(false);
+                if (Platform.OS === 'android') {
+                  ToastAndroid.show('Location saved!', ToastAndroid.SHORT);
+                } else {
+                  Alert.alert('Success', 'Location saved!');
+                }
+              }
+            }}
+          />
+          <Button title="Cancel" onPress={() => setShowAddAddressInput(false)} />
+        </View>
+      )}
     </View>
   );
 }

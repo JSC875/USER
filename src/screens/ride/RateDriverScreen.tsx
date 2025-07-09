@@ -19,6 +19,19 @@ export default function RateDriverScreen({ navigation, route }: any) {
   const [comments, setComments] = useState('');
   const [tip, setTip] = useState(0);
   const [customTip, setCustomTip] = useState('');
+  const feedbackTags = [
+    'Polite',
+    'Clean Car',
+    'Good Music',
+    'Fast',
+    'Safe Driving',
+    'Late',
+    'Rude',
+    'Helpful',
+    'Friendly',
+    'Navigation Issue',
+  ];
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const driverInfo = driver || {
     name: 'Alex Robin',
@@ -40,6 +53,12 @@ export default function RateDriverScreen({ navigation, route }: any) {
   const handleSubmit = () => {
     // Submit review logic here
     navigation.navigate('Main');
+  };
+
+  const toggleTag = (tag: string) => {
+    setSelectedTags((prev) =>
+      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+    );
   };
 
   return (
@@ -66,6 +85,17 @@ export default function RateDriverScreen({ navigation, route }: any) {
                 size={32}
                 color={star <= rating ? Colors.accent : Colors.gray300}
               />
+            </TouchableOpacity>
+          ))}
+        </View>
+        <View style={styles.tagsContainer}>
+          {feedbackTags.map((tag) => (
+            <TouchableOpacity
+              key={tag}
+              style={[styles.tagPill, selectedTags.includes(tag) && styles.tagPillSelected]}
+              onPress={() => toggleTag(tag)}
+            >
+              <Text style={[styles.tagText, selectedTags.includes(tag) && styles.tagTextSelected]}>{tag}</Text>
             </TouchableOpacity>
           ))}
         </View>
@@ -215,5 +245,34 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontSize: Layout.fontSize.lg,
     fontWeight: 'bold',
+  },
+  tagsContainer: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    marginBottom: Layout.spacing.md,
+    width: '100%',
+    justifyContent: 'flex-start',
+  },
+  tagPill: {
+    backgroundColor: Colors.gray50,
+    borderRadius: 20,
+    paddingHorizontal: 14,
+    paddingVertical: 7,
+    marginRight: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  tagPillSelected: {
+    backgroundColor: Colors.primary,
+    borderColor: Colors.primary,
+  },
+  tagText: {
+    color: Colors.text,
+    fontSize: Layout.fontSize.sm,
+    fontWeight: '500',
+  },
+  tagTextSelected: {
+    color: Colors.white,
   },
 }); 

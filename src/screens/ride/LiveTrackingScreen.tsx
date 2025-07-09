@@ -119,7 +119,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         message: 'Check out my trip details! [Add trip info or link here]',
       });
     } catch (error) {
-      alert('Error sharing: ' + error.message);
+      alert('Error sharing: ' + (error?.message || error?.toString() || 'Unknown error'));
     }
   };
 
