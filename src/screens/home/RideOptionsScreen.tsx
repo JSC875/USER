@@ -5,6 +5,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import polyline from '@mapbox/polyline';
+import { getSocket, emitEvent, listenToEvent } from '../../utils/socket';
 
 const { width, height } = Dimensions.get('window');
 
@@ -75,25 +76,48 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     // navigation.navigate('LocationSearch', { type: 'drop' });
   };
   const handleBook = () => {
-    // Get the selected ride option details
     const selectedRide = rideOptions.find(o => o.id === selected);
-    
-    navigation.navigate('FindingDriver', { 
-      destination: {
-        name: drop.address,
-        latitude: drop.latitude,
-        longitude: drop.longitude
-      },
-      estimate: {
-        fare: selectedRide?.price || 0,
-        distance: '2.5 km', // You can calculate this dynamically
-        duration: '8 mins',  // You can calculate this dynamically
-        eta: '5 mins' // Dummy eta for now
-      },
-      paymentMethod: 'Cash', // Default payment method
-      driver: null // Will be set when driver is found
+    const success = emitEvent('book_ride', {
+      pickup,
+      drop,
+      rideType: selectedRide?.label,
+      price: selectedRide?.price,
+      userId: 'user123', // Replace with real user ID if available
     });
+    
+    if (!success) {
+      Alert.alert('Connection Error', 'Unable to connect to server. Please try again.');
+    }
   };
+
+  useEffect(() => {
+    const onRideBooked = (data: any) => {
+      if (data.success) {
+        // Navigate to FindingDriver or show confirmation
+        navigation.navigate('FindingDriver', {
+          destination: {
+            name: drop.address,
+            latitude: drop.latitude,
+            longitude: drop.longitude,
+          },
+          estimate: {
+            fare: data.price,
+            distance: '2.5 km',
+            duration: '8 mins',
+            eta: '5 mins',
+          },
+          paymentMethod: 'Cash',
+          driver: null,
+          rideId: data.rideId,
+        });
+      } else {
+        Alert.alert('Booking Failed', 'Unable to book ride.');
+      }
+    };
+    
+    const unsubscribe = listenToEvent('ride_booked', onRideBooked);
+    return unsubscribe;
+  }, [drop, navigation]);
 
   // Fit map to route on mount
   useEffect(() => {
