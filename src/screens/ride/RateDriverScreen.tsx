@@ -1,278 +1,152 @@
 import React, { useState } from 'react';
-import {
-  View,
-  Text,
-  StyleSheet,
-  TouchableOpacity,
-  Image,
-  TextInput,
-  ScrollView,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ScrollView } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import { Colors } from '../../constants/Colors';
-import { Layout } from '../../constants/Layout';
+
+const feedbackTags = [
+  'Great ride',
+  'On time',
+  'Safe driving',
+  'Friendly',
+  'Clean vehicle',
+  'Good route',
+];
 
 export default function RateDriverScreen({ navigation, route }: any) {
-  const { driver } = route.params || {};
-  const [rating, setRating] = useState(0);
-  const [comments, setComments] = useState('');
-  const [tip, setTip] = useState(0);
-  const [customTip, setCustomTip] = useState('');
-  const feedbackTags = [
-    'Polite',
-    'Clean Car',
-    'Good Music',
-    'Fast',
-    'Safe Driving',
-    'Late',
-    'Rude',
-    'Helpful',
-    'Friendly',
-    'Navigation Issue',
-  ];
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
-
-  const driverInfo = driver || {
+  const driver = route?.params?.driver || {
     name: 'Alex Robin',
     vehicleModel: 'Volkswagen',
     vehicleNumber: 'HG5045',
     photo: undefined,
   };
+  const estimate = route?.params?.estimate;
+  const destination = route?.params?.destination;
+  const [rating, setRating] = useState(0);
+  const [comment, setComment] = useState('');
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+  const [submitted, setSubmitted] = useState(false);
 
-  const handleTip = (amount: number) => {
-    setTip(amount);
-    setCustomTip('');
-  };
-
-  const handleCustomTip = (value: string) => {
-    setCustomTip(value);
-    setTip(0);
+  const handleTagToggle = (tag: string) => {
+    if (selectedTags.includes(tag)) {
+      setSelectedTags(selectedTags.filter(t => t !== tag));
+    } else {
+      setSelectedTags([...selectedTags, tag]);
+    }
   };
 
   const handleSubmit = () => {
-    // Submit review logic here
-    navigation.navigate('Main');
+    setSubmitted(true);
+    // Optionally, send rating/comment/tags to backend here
+    setTimeout(() => {
+      navigation.navigate('TabNavigator', { screen: 'Home' });
+    }, 1500);
   };
 
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+  if (submitted) {
+    return (
+      <View style={styles.centered}>
+        <Ionicons name="checkmark-circle" size={64} color="#22c55e" style={{ marginBottom: 16 }} />
+        <Text style={styles.thankYou}>Thank you for your feedback!</Text>
+      </View>
     );
-  };
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.content} showsVerticalScrollIndicator={false}>
-        <Text style={styles.title}>Rate Your Driver</Text>
-        <View style={styles.driverInfo}>
-          <Image source={driverInfo.photo ? { uri: driverInfo.photo } : require('../../../assets/images/scoooter1.jpg')} style={styles.driverPhoto} />
-          <View style={styles.driverDetails}>
-            <Text style={styles.driverName}>{driverInfo.name}</Text>
-            <Text style={styles.vehicleInfo}>{driverInfo.vehicleModel} - {driverInfo.vehicleNumber}</Text>
+    <ScrollView style={{ flex: 1, backgroundColor: '#fff' }} contentContainerStyle={{ padding: 24 }}>
+      {/* Driver Info */}
+      <View style={styles.driverCard}>
+        {driver.photo ? (
+          <Image source={{ uri: driver.photo }} style={styles.driverPhoto} />
+        ) : (
+          <Ionicons name="person-circle" size={64} color="#888" />
+        )}
+        <View style={{ marginLeft: 16 }}>
+          <Text style={styles.driverName}>{driver.name}</Text>
+          <Text style={styles.driverVehicle}>{driver.vehicleModel} • {driver.vehicleNumber}</Text>
+        </View>
+      </View>
+      {/* Ride Info */}
+      {(estimate || destination) && (
+        <View style={styles.rideInfoCard}>
+          {destination && (
+            <View style={styles.rideInfoRow}>
+              <Ionicons name="location" size={18} color="#22c55e" style={{ marginRight: 6 }} />
+              <Text style={styles.rideInfoText}>To: {destination?.name || destination?.address || 'Destination'}</Text>
+            </View>
+          )}
+          <View style={{ flexDirection: 'row', marginTop: 4 }}>
+            {estimate?.distance && (
+              <Text style={styles.rideInfoStat}>{estimate.distance} </Text>
+            )}
+            {estimate?.duration && (
+              <Text style={styles.rideInfoStat}>• {estimate.duration} </Text>
+            )}
+            {estimate?.fare !== undefined && (
+              <Text style={styles.rideInfoStat}>• ₹{estimate.fare}</Text>
+            )}
           </View>
         </View>
-        <Text style={styles.promptText}>How was your trip with {driverInfo.name}?</Text>
-        <View style={styles.starsContainer}>
-          {[1, 2, 3, 4, 5].map((star) => (
-            <TouchableOpacity
-              key={star}
-              onPress={() => setRating(star)}
-              style={styles.starButton}
-            >
-              <Ionicons
-                name={star <= rating ? 'star' : 'star-outline'}
-                size={32}
-                color={star <= rating ? Colors.accent : Colors.gray300}
-              />
-            </TouchableOpacity>
-          ))}
-        </View>
-        <View style={styles.tagsContainer}>
-          {feedbackTags.map((tag) => (
-            <TouchableOpacity
-              key={tag}
-              style={[styles.tagPill, selectedTags.includes(tag) && styles.tagPillSelected]}
-              onPress={() => toggleTag(tag)}
-            >
-              <Text style={[styles.tagText, selectedTags.includes(tag) && styles.tagTextSelected]}>{tag}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-        <TextInput
-          style={styles.commentsInput}
-          placeholder="Additional comments..."
-          value={comments}
-          onChangeText={setComments}
-          multiline
-          maxLength={300}
-        />
-        <Text style={styles.tipPrompt}>Add a tip to {driverInfo.name}</Text>
-        <View style={styles.tipOptions}>
-          {[10, 20, 30].map((amount) => (
-            <TouchableOpacity
-              key={amount}
-              style={[styles.tipButton, tip === amount && styles.tipButtonSelected]}
-              onPress={() => handleTip(amount)}
-            >
-              <Text style={[styles.tipText, tip === amount && styles.tipTextSelected]}>${amount}</Text>
-            </TouchableOpacity>
-          ))}
-          <TextInput
-            style={styles.customTipInput}
-            placeholder="Add custom"
-            value={customTip}
-            onChangeText={handleCustomTip}
-            keyboardType="numeric"
-          />
-        </View>
-        <TouchableOpacity style={styles.submitButton} onPress={handleSubmit}>
-          <Text style={styles.submitButtonText}>Submit Review</Text>
-        </TouchableOpacity>
-      </ScrollView>
-    </SafeAreaView>
+      )}
+      {/* Feedback Tags */}
+      <Text style={styles.label}>What went well?</Text>
+      <View style={styles.tagsRow}>
+        {feedbackTags.map(tag => (
+          <TouchableOpacity
+            key={tag}
+            style={[styles.tag, selectedTags.includes(tag) && styles.tagSelected]}
+            onPress={() => handleTagToggle(tag)}
+            activeOpacity={0.7}
+          >
+            <Text style={[styles.tagText, selectedTags.includes(tag) && styles.tagTextSelected]}>{tag}</Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+      {/* Rating */}
+      <Text style={styles.label}>How was your ride?</Text>
+      <View style={styles.starsRow}>
+        {[1,2,3,4,5].map(i => (
+          <TouchableOpacity key={i} onPress={() => setRating(i)}>
+            <Ionicons name={i <= rating ? 'star' : 'star-outline'} size={40} color="#fbbf24" style={{ marginHorizontal: 4 }} />
+          </TouchableOpacity>
+        ))}
+      </View>
+      {/* Comment */}
+      <TextInput
+        style={styles.commentBox}
+        placeholder="Leave a comment (optional)"
+        value={comment}
+        onChangeText={setComment}
+        multiline
+      />
+      <TouchableOpacity
+        style={[styles.submitButton, { backgroundColor: rating > 0 ? '#22c55e' : '#ccc' }]}
+        onPress={handleSubmit}
+        disabled={rating === 0}
+      >
+        <Text style={styles.submitText}>Submit</Text>
+      </TouchableOpacity>
+    </ScrollView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  content: {
-    padding: Layout.spacing.lg,
-    alignItems: 'center',
-  },
-  title: {
-    fontSize: Layout.fontSize.lg,
-    fontWeight: 'bold',
-    color: Colors.primary,
-    marginBottom: Layout.spacing.lg,
-  },
-  driverInfo: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Layout.spacing.md,
-  },
-  driverPhoto: {
-    width: 64,
-    height: 64,
-    borderRadius: 32,
-    marginRight: Layout.spacing.md,
-  },
-  driverDetails: {
-    flex: 1,
-  },
-  driverName: {
-    fontSize: Layout.fontSize.md,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  vehicleInfo: {
-    fontSize: Layout.fontSize.sm,
-    color: Colors.textSecondary,
-  },
-  promptText: {
-    fontSize: Layout.fontSize.md,
-    color: Colors.text,
-    marginBottom: Layout.spacing.md,
-  },
-  starsContainer: {
-    flexDirection: 'row',
-    marginBottom: Layout.spacing.md,
-  },
-  starButton: {
-    marginHorizontal: Layout.spacing.xs,
-  },
-  commentsInput: {
-    backgroundColor: Colors.gray50,
-    padding: Layout.spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    marginBottom: Layout.spacing.md,
-    width: '100%',
-    minHeight: 60,
-  },
-  tipPrompt: {
-    fontSize: Layout.fontSize.md,
-    color: Colors.text,
-    marginBottom: Layout.spacing.md,
-    alignSelf: 'flex-start',
-  },
-  tipOptions: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Layout.spacing.lg,
-    width: '100%',
-  },
-  tipButton: {
-    backgroundColor: Colors.gray50,
-    paddingHorizontal: Layout.spacing.lg,
-    paddingVertical: Layout.spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    minWidth: 70,
-    alignItems: 'center',
-    marginRight: Layout.spacing.sm,
-  },
-  tipButtonSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  tipText: {
-    fontSize: Layout.fontSize.md,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  tipTextSelected: {
-    color: Colors.white,
-  },
-  customTipInput: {
-    backgroundColor: Colors.gray50,
-    padding: Layout.spacing.md,
-    borderRadius: Layout.borderRadius.md,
-    minWidth: 80,
-    marginLeft: Layout.spacing.sm,
-  },
-  submitButton: {
-    backgroundColor: Colors.primary,
-    borderRadius: Layout.borderRadius.md,
-    paddingVertical: 14,
-    alignItems: 'center',
-    marginTop: 20,
-    width: '100%',
-  },
-  submitButtonText: {
-    color: Colors.white,
-    fontSize: Layout.fontSize.lg,
-    fontWeight: 'bold',
-  },
-  tagsContainer: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: Layout.spacing.md,
-    width: '100%',
-    justifyContent: 'flex-start',
-  },
-  tagPill: {
-    backgroundColor: Colors.gray50,
-    borderRadius: 20,
-    paddingHorizontal: 14,
-    paddingVertical: 7,
-    marginRight: 8,
-    marginBottom: 8,
-    borderWidth: 1,
-    borderColor: Colors.border,
-  },
-  tagPillSelected: {
-    backgroundColor: Colors.primary,
-    borderColor: Colors.primary,
-  },
-  tagText: {
-    color: Colors.text,
-    fontSize: Layout.fontSize.sm,
-    fontWeight: '500',
-  },
-  tagTextSelected: {
-    color: Colors.white,
-  },
+  driverCard: { flexDirection: 'row', alignItems: 'center', marginBottom: 24, marginTop: 24 },
+  driverPhoto: { width: 64, height: 64, borderRadius: 32, backgroundColor: '#eee' },
+  driverName: { fontSize: 20, fontWeight: 'bold', color: '#222' },
+  driverVehicle: { fontSize: 16, color: '#666', marginTop: 2 },
+  rideInfoCard: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 18 },
+  rideInfoRow: { flexDirection: 'row', alignItems: 'center', marginBottom: 2 },
+  rideInfoText: { fontSize: 15, color: '#222' },
+  rideInfoStat: { fontSize: 14, color: '#666', marginRight: 8 },
+  label: { fontSize: 17, fontWeight: '600', color: '#222', marginBottom: 10, marginTop: 10 },
+  tagsRow: { flexDirection: 'row', flexWrap: 'wrap', marginBottom: 18 },
+  tag: { backgroundColor: '#f3f4f6', borderRadius: 16, paddingHorizontal: 14, paddingVertical: 7, marginRight: 8, marginBottom: 8 },
+  tagSelected: { backgroundColor: '#22c55e' },
+  tagText: { color: '#222', fontWeight: '500' },
+  tagTextSelected: { color: '#fff' },
+  starsRow: { flexDirection: 'row', justifyContent: 'center', marginBottom: 18 },
+  commentBox: { borderWidth: 1, borderColor: '#eee', borderRadius: 12, padding: 12, minHeight: 60, fontSize: 16, marginBottom: 24, backgroundColor: '#fafafa' },
+  submitButton: { paddingVertical: 16, borderRadius: 12, alignItems: 'center' },
+  submitText: { color: '#fff', fontWeight: 'bold', fontSize: 18 },
+  centered: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
+  thankYou: { fontSize: 22, fontWeight: 'bold', color: '#22c55e', marginTop: 8 },
 }); 

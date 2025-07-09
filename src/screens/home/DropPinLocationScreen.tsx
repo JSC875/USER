@@ -188,16 +188,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
 
   const { house, rest } = parseAddress(address);
 
-  const handleConfirm = () => {
-    if (currentLocation && dropLocation) {
-      navigation.navigate('RideOptions', {
-        pickup: currentLocation,
-        drop: dropLocation,
-      });
-    } else {
-      alert('Please select both pickup and drop locations.');
-    }
-  };
+ 
 
   return (
     <View style={styles.screen}>
