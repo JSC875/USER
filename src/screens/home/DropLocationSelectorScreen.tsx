@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Animated } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Animated, Modal, Button } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
@@ -67,14 +67,28 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [noResults, setNoResults] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [savedLocations, setSavedLocations] = useState<any>({});
+  const [savedLocations, setSavedLocations] = useState<{ home?: any; work?: any; custom?: any[] }>({});
   const isFocused = useIsFocused();
   const [fadeAnim] = useState(new Animated.Value(0));
+  const [showSavedModal, setShowSavedModal] = useState(false);
+  const [cityModalVisible, setCityModalVisible] = useState(false);
+  const [cityQuery, setCityQuery] = useState('');
+  const [searchCity, setSearchCity] = useState(''); // The city to use for search
+  const autoProceedHandled = useRef(false);
 
   useEffect(() => {
     if (route.params?.destination) {
       setDropLocation(route.params.destination);
       if (editing === 'drop') setSearchQuery(route.params.destination.address || route.params.destination.name || '');
+      if (route.params?.autoProceed && !autoProceedHandled.current) {
+        autoProceedHandled.current = true;
+        setTimeout(() => {
+          navigation.navigate('RideOptions', {
+            pickup: currentLocation,
+            drop: route.params.destination,
+          });
+        }, 300);
+      }
     }
   }, [route.params?.destination]);
 
@@ -115,9 +129,11 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         const data = await AsyncStorage.getItem('@saved_locations');
         if (data) {
           setSavedLocations(JSON.parse(data));
+        } else {
+          setSavedLocations({});
         }
       } catch (e) {
-        // ignore
+        setSavedLocations({});
       }
     };
     if (isFocused) {
@@ -137,7 +153,18 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     setIsSearching(true);
     setNoResults(false);
     try {
-      const location = '28.6139,77.2090';
+      let location = '28.6139,77.2090'; // Default: Delhi
+      if (searchCity) {
+        // Use Google Geocoding API to get lat/lng for the city
+        const geoRes = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(searchCity)}&key=${GOOGLE_MAPS_API_KEY}`
+        );
+        const geoData = await geoRes.json();
+        if (geoData.status === 'OK' && geoData.results.length > 0) {
+          const loc = geoData.results[0].geometry.location;
+          location = `${loc.lat},${loc.lng}`;
+        }
+      }
       const radius = 50000;
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=${location}&radius=${radius}&components=country:in&key=${GOOGLE_MAPS_API_KEY}`
@@ -260,40 +287,27 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   const getListData = () => {
     let data: any[] = [];
-    // Add saved Home/Work if present, else fallback to hardcoded
-    if (savedLocations.home) {
-      data.push({ id: 'home', name: 'Home', address: savedLocations.home.address, latitude: savedLocations.home.latitude, longitude: savedLocations.home.longitude });
-    } else {
-      data.push({ id: 'home', name: 'Home', address: 'Set your home location' });
-    }
-    if (savedLocations.work) {
-      data.push({ id: 'work', name: 'Work', address: savedLocations.work.address, latitude: savedLocations.work.latitude, longitude: savedLocations.work.longitude });
-    } else {
-      data.push({ id: 'work', name: 'Work', address: 'Set your work location' });
-    }
-    // Add custom saved locations
+    if (savedLocations.home) data.push({ ...savedLocations.home, id: 'home' });
+    if (savedLocations.work) data.push({ ...savedLocations.work, id: 'work' });
     if (savedLocations.custom && Array.isArray(savedLocations.custom)) {
-      savedLocations.custom.forEach((loc: any, idx: number) => {
-        data.push({ id: `custom_${idx}`, name: loc.name, address: loc.address, latitude: loc.latitude, longitude: loc.longitude });
-      });
+      data = data.concat(savedLocations.custom.map((loc, idx) => ({ ...loc, id: `custom_${idx}` })));
     }
     // Add recents/hardcoded
     data = data.concat([
       { id: 'recent1', name: 'KFC Joint', address: '2972 Westheimer Rd. Santa Ana, Illinois 85486' },
       { id: 'recent2', name: "Amy's Office", address: '6391 Elgin St. Celina, Delaware 10299' },
       { id: 'recent3', name: 'Rachel Home', address: '2464 Royal Ln. Mesa, New Jersey 45463' },
-      { id: 'all', name: 'All Saved Places', address: '' },
     ]);
     return data;
   };
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
+      <TouchableOpacity onPress={() => navigation.goBack()} style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
+        <Ionicons name="arrow-back" size={28} color={Colors.text} />
+      </TouchableOpacity>
       {/* Top Bar */}
       <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: '#fff' }}>
-        <TouchableOpacity onPress={() => navigation.goBack()} style={{ padding: 4 }}>
-          <Ionicons name="arrow-back" size={26} color="#222" />
-        </TouchableOpacity>
         <Text style={{ fontSize: 22, fontWeight: '700', color: '#222', flex: 1, textAlign: 'center', marginLeft: -26 }}>Drop Location</Text>
         <View style={{ width: 26 }} />
       </View>
@@ -360,6 +374,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
                     placeholder="Where to?"
                     autoFocus
                     clearButtonMode="while-editing"
+                    returnKeyType="send"
                     onSubmitEditing={() => {
                       if (dropLocation) {
                         navigation.navigate('RideOptions', {
@@ -400,17 +415,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         <FlatList
           data={getListData()}
           keyExtractor={item => item.id}
-          renderItem={({ item, index }) => {
-            if (item.id === 'all') {
-              const { icon, bg } = getLocationIcon(item.name);
-              return (
-                <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 0, paddingVertical: 16 }}>
-                  <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', marginRight: 14, marginLeft: 16 }}>{icon}</View>
-                  <Text style={{ fontSize: 16, fontWeight: '700', color: '#23235B', flex: 1 }}>All Saved Places</Text>
-                  <MaterialIcons name="chevron-right" size={24} color="#23235B" />
-                </TouchableOpacity>
-              );
-            }
+          renderItem={({ item }) => {
             const { icon, bg } = getLocationIcon(item.name);
             return (
               <TouchableOpacity
@@ -439,7 +444,10 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       )}
       {/* Bottom Options */}
       <View style={{ marginTop: 12 }}>
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }}>
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }}
+          onPress={() => setCityModalVisible(true)}
+        >
           <MaterialCommunityIcons name="earth" size={22} color="#222" style={{ marginRight: 16 }} />
           <Text style={{ color: '#222', fontSize: 16 }}>Search in a different city</Text>
         </TouchableOpacity>
@@ -447,11 +455,120 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           <Ionicons name="location-sharp" size={22} color="#222" style={{ marginRight: 16 }} />
           <Text style={{ color: '#222', fontSize: 16 }}>Set location on map</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }}>
+        <TouchableOpacity
+          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }}
+          onPress={() => setShowSavedModal(true)}
+        >
           <MaterialCommunityIcons name="star-outline" size={22} color="#222" style={{ marginRight: 16 }} />
-          <Text style={{ color: '#222', fontSize: 16 }}>Saved places</Text>
+          <Text style={{ color: '#222', fontSize: 16 }}>Saved locations</Text>
         </TouchableOpacity>
       </View>
+      <Modal
+        visible={cityModalVisible}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setCityModalVisible(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' }}>
+          <View style={{ margin: 20, backgroundColor: 'white', borderRadius: 10, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Enter City Name</Text>
+            <TextInput
+              value={cityQuery}
+              onChangeText={setCityQuery}
+              placeholder="e.g. Mumbai"
+              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 20 }}
+            />
+            <Button
+              title="Set City"
+              onPress={() => {
+                setSearchCity(cityQuery);
+                setCityModalVisible(false);
+              }}
+            />
+            <Button title="Cancel" onPress={() => setCityModalVisible(false)} />
+          </View>
+        </View>
+      </Modal>
+      <Modal
+        visible={showSavedModal}
+        animationType="slide"
+        transparent={true}
+        onRequestClose={() => setShowSavedModal(false)}
+      >
+        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' }}>
+          <View style={{ margin: 20, backgroundColor: 'white', borderRadius: 10, padding: 20 }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Saved Locations</Text>
+            {(!savedLocations.home && !savedLocations.work && (!savedLocations.custom || savedLocations.custom.length === 0)) ? (
+              <Text style={{ fontSize: 16, color: '#888', marginBottom: 20 }}>No saved locations.</Text>
+            ) : (
+              <>
+                {savedLocations.home && (
+                  <TouchableOpacity
+                    style={{ paddingVertical: 10 }}
+                    onPress={() => {
+                      setDropLocation(savedLocations.home);
+                      setSearchQuery(savedLocations.home.address || savedLocations.home.name);
+                      setShowSavedModal(false);
+                      setEditing(null);
+                      setSearchResults([]);
+                      setNoResults(false);
+                      Keyboard.dismiss();
+                      navigation.navigate('RideOptions', {
+                        pickup: currentLocation,
+                        drop: savedLocations.home,
+                      });
+                    }}
+                  >
+                    <Text style={{ fontSize: 16 }}>🏠 {savedLocations.home.name} - {savedLocations.home.address}</Text>
+                  </TouchableOpacity>
+                )}
+                {savedLocations.work && (
+                  <TouchableOpacity
+                    style={{ paddingVertical: 10 }}
+                    onPress={() => {
+                      setDropLocation(savedLocations.work);
+                      setSearchQuery(savedLocations.work.address || savedLocations.work.name);
+                      setShowSavedModal(false);
+                      setEditing(null);
+                      setSearchResults([]);
+                      setNoResults(false);
+                      Keyboard.dismiss();
+                      navigation.navigate('RideOptions', {
+                        pickup: currentLocation,
+                        drop: savedLocations.work,
+                      });
+                    }}
+                  >
+                    <Text style={{ fontSize: 16 }}>💼 {savedLocations.work.name} - {savedLocations.work.address}</Text>
+                  </TouchableOpacity>
+                )}
+                {savedLocations.custom && savedLocations.custom.map((loc, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={{ paddingVertical: 10 }}
+                    onPress={() => {
+                      setDropLocation(loc);
+                      setSearchQuery(loc.address || loc.name);
+                      setShowSavedModal(false);
+                      setEditing(null);
+                      setSearchResults([]);
+                      setNoResults(false);
+                      Keyboard.dismiss();
+                      navigation.navigate('RideOptions', {
+                        pickup: currentLocation,
+                        drop: loc,
+                      });
+                    }}
+                  >
+                    <Text style={{ fontSize: 16 }}>⭐ {loc.name} - {loc.address}</Text>
+                  </TouchableOpacity>
+                ))}
+              </>
+            )}
+            <Button title="Close" onPress={() => setShowSavedModal(false)} />
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }

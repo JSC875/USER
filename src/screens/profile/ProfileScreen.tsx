@@ -195,35 +195,31 @@ export default function ProfileScreen({ navigation, route }: any) {
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
-          <View style={styles.actionGridWrap}>
-            <View style={styles.actionGridRow}>
-              <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('ScheduleRide')}>
-                <View style={styles.actionIcon}>
-                  <Ionicons name="time" size={24} color={Colors.primary} />
-                </View>
-                <Text style={styles.actionText}>Schedule{'\n'}Ride</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('History')}>
-                <View style={styles.actionIcon}>
-                  <Ionicons name="receipt" size={24} color={Colors.accent} />
-                </View>
-                <Text style={styles.actionText}>Ride{'\n'}History</Text>
-              </TouchableOpacity>
-            </View>
-            <View style={styles.actionGridRow}>
-              <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.getParent()?.navigate('Offers')}>
-                <View style={styles.actionIcon}>
-                  <Ionicons name="gift" size={24} color={Colors.coral} />
-                </View>
-                <Text style={styles.actionText}>View{'\n'}Offers</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('HelpSupport')}>
-                <View style={styles.actionIcon}>
-                  <Ionicons name="help-circle" size={24} color={Colors.info} />
-                </View>
-                <Text style={styles.actionText}>Get{'\n'}Support</Text>
-              </TouchableOpacity>
-            </View>
+          <View style={styles.actionGridRow}>
+            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('ScheduleRide')}>
+              <View style={styles.actionIcon}>
+                <Ionicons name="time" size={24} color={Colors.primary} />
+              </View>
+              <Text style={styles.actionText}>{`Schedule\nRide`}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('History')}>
+              <View style={styles.actionIcon}>
+                <Ionicons name="receipt" size={24} color={Colors.accent} />
+              </View>
+              <Text style={styles.actionText}>{`Ride\nHistory`}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.getParent()?.navigate('Offers')}>
+              <View style={styles.actionIcon}>
+                <Ionicons name="gift" size={24} color={Colors.coral} />
+              </View>
+              <Text style={styles.actionText}>{`View\nOffers`}</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('HelpSupport')}>
+              <View style={styles.actionIcon}>
+                <Ionicons name="help-circle" size={24} color={Colors.info} />
+              </View>
+              <Text style={styles.actionText}>{`Get\nSupport`}</Text>
+            </TouchableOpacity>
           </View>
         </View>
 
@@ -374,9 +370,6 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: Colors.text,
     marginBottom: Layout.spacing.md,
-  },
-  actionGridWrap: {
-    flexDirection: 'column',
   },
   actionGridRow: {
     flexDirection: 'row',

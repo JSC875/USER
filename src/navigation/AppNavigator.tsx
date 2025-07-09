@@ -171,6 +171,7 @@ function MainNavigator() {
       <Stack.Screen name="LiveTracking" component={LiveTrackingScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="RideSummary" component={RideSummaryScreen} />
+      <Stack.Screen name="RateDriver" component={require('../screens/ride/RateDriverScreen').default} />
       
       {/* Profile Flow */}
       <Stack.Screen name="Settings" component={SettingsScreen} />

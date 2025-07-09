@@ -6,6 +6,7 @@ import BottomSheet from '@gorhom/bottom-sheet';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import polyline from '@mapbox/polyline';
 import { getSocket, emitEvent, listenToEvent } from '../../utils/socket';
+import * as Location from 'expo-location';
 
 const { width, height } = Dimensions.get('window');
 
@@ -18,10 +19,16 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const mapRef = useRef<MapView>(null);
   const snapPoints = useMemo(() => ['50%', '90%'], []);
   const [routeCoords, setRouteCoords] = useState([]);
+  const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
 
   // Use params from navigation
   const pickup = route?.params?.pickup || { latitude: 17.444, longitude: 78.382, address: 'Pickup Location' };
   const drop = route?.params?.drop || { latitude: 17.4418, longitude: 78.38, address: 'Drop Location' };
+
+  console.log('pickup:', pickup);
+  console.log('pickup latitude:', pickup.latitude, 'pickup longitude:', pickup.longitude);
+  console.log('drop:', drop);
+  console.log('drop latitude:', drop.latitude, 'drop longitude:', drop.longitude);
 
   const mockVehicles = [
     { id: 1, latitude: 17.443, longitude: 78.381, heading: 45 },
@@ -70,10 +77,10 @@ export default function RideOptionsScreen({ navigation, route }: any) {
 
   // Handlers
   const handleEditPickup = () => {
-    // navigation.navigate('LocationSearch', { type: 'pickup' });
+    navigation.navigate('DropLocationSelector', { type: 'pickup', currentLocation: pickup, dropLocation: drop });
   };
   const handleEditDrop = () => {
-    // navigation.navigate('LocationSearch', { type: 'drop' });
+    navigation.navigate('DropLocationSelector', { type: 'drop', currentLocation: pickup, dropLocation: drop });
   };
   const handleBook = () => {
     const selectedRide = rideOptions.find(o => o.id === selected);
@@ -154,6 +161,19 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     fetchRouteDirections();
   }, [pickup, drop]);
 
+  useEffect(() => {
+    (async () => {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Permission to access location was denied');
+        return;
+      }
+
+      let loc = await Location.getCurrentPositionAsync({});
+      setLocation(loc.coords);
+    })();
+  }, []);
+
   console.log('rideOptions:', rideOptions);
 
   return (
@@ -199,6 +219,15 @@ export default function RideOptionsScreen({ navigation, route }: any) {
               </Animated.View>
             </Marker>
           ))}
+          {location && (
+            <Marker
+              coordinate={{
+                latitude: location.latitude,
+                longitude: location.longitude,
+              }}
+              pinColor="blue"
+            />
+          )}
         </MapView>
         {/* Chips overlay */}
         <View style={styles.chipContainer} pointerEvents="box-none">
