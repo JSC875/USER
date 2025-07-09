@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Animated, Modal, Button } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Animated, Modal, Button, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
@@ -222,10 +222,14 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       setSearchResults([]);
       setNoResults(false);
       Keyboard.dismiss();
-      navigation.navigate('RideOptions', {
-        pickup: currentLocation,
-        drop: location,
-      });
+      if (currentLocation && location) {
+        navigation.navigate('RideOptions', {
+          pickup: currentLocation,
+          drop: location,
+        });
+      } else {
+        Alert.alert('Error', 'Current location or drop location is missing.');
+      }
       return;
     } else if (editing === 'current') {
       setCurrentLocation(location);
@@ -242,11 +246,13 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   };
 
   const handleConfirmDrop = () => {
-    if (dropLocation) {
+    if (dropLocation && currentLocation) {
       navigation.navigate('RideOptions', {
         pickup: currentLocation,
         drop: dropLocation,
       });
+    } else {
+      Alert.alert('Error', 'Current location or drop location is missing.');
     }
   };
 
@@ -292,12 +298,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     if (savedLocations.custom && Array.isArray(savedLocations.custom)) {
       data = data.concat(savedLocations.custom.map((loc, idx) => ({ ...loc, id: `custom_${idx}` })));
     }
-    // Add recents/hardcoded
-    data = data.concat([
-      { id: 'recent1', name: 'KFC Joint', address: '2972 Westheimer Rd. Santa Ana, Illinois 85486' },
-      { id: 'recent2', name: "Amy's Office", address: '6391 Elgin St. Celina, Delaware 10299' },
-      { id: 'recent3', name: 'Rachel Home', address: '2464 Royal Ln. Mesa, New Jersey 45463' },
-    ]);
+    // Removed dummy recents/hardcoded
     return data;
   };
 

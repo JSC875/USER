@@ -126,14 +126,15 @@ export default function RideSummaryScreen({ navigation, route }: any) {
 
       {/* Bottom Actions */}
       <View style={styles.bottomActions}>
-        <TouchableOpacity style={styles.bookAnotherButton} onPress={handleBookAnother}>
-          <Text style={styles.bookAnotherText}>Book Another Ride </Text>
-        </TouchableOpacity>
+        
         <Button
           title="Continue"
           onPress={handleContinue}
           style={styles.submitButton}
         />
+        <TouchableOpacity style={styles.bookAnotherButton} onPress={handleBookAnother}>
+          <Text style={styles.bookAnotherText}>Book Another Ride </Text>
+        </TouchableOpacity>
       </View>
     </SafeAreaView>
   );

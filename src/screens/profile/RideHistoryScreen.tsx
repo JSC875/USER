@@ -11,20 +11,21 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import { mockRideHistory } from '../../data/mockData';
 import * as Location from 'expo-location';
 
 export default function RideHistoryScreen({ navigation }: any) {
   const [filterVisible, setFilterVisible] = useState(false);
   const [filter, setFilter] = useState<'all' | 'completed' | 'cancelled'>('all');
 
+  // TODO: Replace with real ride history data from API or props
+  const [rideHistory, setRideHistory] = useState<any[]>([]);
   const filteredHistory =
     filter === 'all'
-      ? mockRideHistory
-      : mockRideHistory.filter((item) => item.status === filter);
+      ? rideHistory
+      : rideHistory.filter((item) => item.status === filter);
 
   const renderRideItem = ({ item }: any) => (
-    <TouchableOpacity style={styles.rideCard}>
+    <TouchableOpacity style={styles.rideCard} onPress={() => navigation.navigate('HistoryDetail', { ride: item })}>
       <View style={styles.rideHeader}>
         <View style={styles.rideDate}>
           <Text style={styles.dateText}>{item.date}</Text>
