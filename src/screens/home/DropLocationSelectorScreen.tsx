@@ -1,11 +1,12 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Animated, Modal, Button, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Animated, Modal, Button, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import MapView, { Marker } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
+import { Modal as RNModal } from 'react-native';
 
 const { width } = Dimensions.get('window');
 
@@ -58,6 +59,22 @@ const getLocationIcon = (name: string) => {
 // Add a helper for distance formatting (mock for now)
 const formatDistance = (distance: number) => `${distance} mi`;
 
+function isValidLocation(loc: any) {
+  return (
+    loc &&
+    typeof loc.latitude === 'number' &&
+    typeof loc.longitude === 'number'
+  );
+}
+
+// Helper: Default location (Hyderabad)
+const DEFAULT_LOCATION = {
+  latitude: 17.4448,
+  longitude: 78.3498,
+  address: 'Default Current Location',
+  name: 'Current Location',
+};
+
 export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [dropLocation, setDropLocation] = useState<any>(null);
   const [currentLocation, setCurrentLocation] = useState<any>(null);
@@ -71,26 +88,45 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const isFocused = useIsFocused();
   const [fadeAnim] = useState(new Animated.Value(0));
   const [showSavedModal, setShowSavedModal] = useState(false);
-  const [cityModalVisible, setCityModalVisible] = useState(false);
-  const [cityQuery, setCityQuery] = useState('');
-  const [searchCity, setSearchCity] = useState(''); // The city to use for search
   const autoProceedHandled = useRef(false);
+  const [forWhom, setForWhom] = useState<'me' | 'friend'>('me');
+  const [showForWhomModal, setShowForWhomModal] = useState(false);
+  const [friendName, setFriendName] = useState('');
+  const [friendPhone, setFriendPhone] = useState('');
+
+  useEffect(() => {
+    if (!currentLocation) {
+      setCurrentLocation(DEFAULT_LOCATION);
+    }
+  }, [currentLocation]);
 
   useEffect(() => {
     if (route.params?.destination) {
       setDropLocation(route.params.destination);
       if (editing === 'drop') setSearchQuery(route.params.destination.address || route.params.destination.name || '');
-      if (route.params?.autoProceed && !autoProceedHandled.current) {
+      // Always auto-proceed to RideOptions if destination is set from map
+      if (!autoProceedHandled.current) {
         autoProceedHandled.current = true;
         setTimeout(() => {
-          navigation.navigate('RideOptions', {
-            pickup: currentLocation,
+          // Defensive: fallback to default if currentLocation is null
+          const pickup = isValidLocation(currentLocation) ? currentLocation : DEFAULT_LOCATION;
+          if (!isValidLocation(pickup) || !isValidLocation(route.params.destination)) {
+            Alert.alert('Error', 'Current location or drop location is missing or invalid.');
+            return;
+          }
+          navigation.replace('RideOptions', {
+            pickup,
             drop: route.params.destination,
+            forWhom,
+            friendName,
+            friendPhone,
           });
         }, 300);
       }
+    } else {
+      autoProceedHandled.current = false;
     }
-  }, [route.params?.destination]);
+  }, [route.params?.destination, currentLocation, forWhom, friendName, friendPhone]);
 
   useEffect(() => {
     if (editing && searchQuery.length > 2) {
@@ -154,17 +190,6 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     setNoResults(false);
     try {
       let location = '28.6139,77.2090'; // Default: Delhi
-      if (searchCity) {
-        // Use Google Geocoding API to get lat/lng for the city
-        const geoRes = await fetch(
-          `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(searchCity)}&key=${GOOGLE_MAPS_API_KEY}`
-        );
-        const geoData = await geoRes.json();
-        if (geoData.status === 'OK' && geoData.results.length > 0) {
-          const loc = geoData.results[0].geometry.location;
-          location = `${loc.lat},${loc.lng}`;
-        }
-      }
       const radius = 50000;
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=${location}&radius=${radius}&components=country:in&key=${GOOGLE_MAPS_API_KEY}`
@@ -201,7 +226,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     }
   };
 
-  const handleLocationSelect = async (item: any) => {
+  const handleLocationSelect = async (item: any, autoProceed: boolean = false) => {
     let location;
     if (item.place_id) {
       const placeDetails = await getPlaceDetails(item.place_id);
@@ -215,20 +240,25 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     } else {
       location = item;
     }
-    if (editing === 'drop') {
+    if (editing === 'drop' || autoProceed) {
       setDropLocation(location);
       setEditing(null);
       setSearchQuery(location.address || location.name || '');
       setSearchResults([]);
       setNoResults(false);
       Keyboard.dismiss();
-      if (currentLocation && location) {
-        navigation.navigate('RideOptions', {
-          pickup: currentLocation,
+      // Defensive: fallback to default if currentLocation is null
+      const pickup = isValidLocation(currentLocation) ? currentLocation : DEFAULT_LOCATION;
+      if (isValidLocation(pickup) && isValidLocation(location)) {
+        navigation.replace('RideOptions', {
+          pickup,
           drop: location,
+          forWhom,
+          friendName,
+          friendPhone,
         });
       } else {
-        Alert.alert('Error', 'Current location or drop location is missing.');
+        Alert.alert('Error', 'Current location or drop location is missing or invalid.');
       }
       return;
     } else if (editing === 'current') {
@@ -246,25 +276,64 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   };
 
   const handleConfirmDrop = () => {
-    if (dropLocation && currentLocation) {
-      navigation.navigate('RideOptions', {
-        pickup: currentLocation,
+    // Defensive: fallback to default if currentLocation is null
+    const pickup = isValidLocation(currentLocation) ? currentLocation : DEFAULT_LOCATION;
+    if (isValidLocation(pickup) && isValidLocation(dropLocation)) {
+      navigation.replace('RideOptions', {
+        pickup,
         drop: dropLocation,
+        forWhom,
+        friendName,
+        friendPhone,
       });
     } else {
-      Alert.alert('Error', 'Current location or drop location is missing.');
+      Alert.alert('Error', 'Current location or drop location is missing or invalid.');
     }
   };
 
-  const renderSearchResult = ({ item }: { item: any }) => (
-    <TouchableOpacity style={styles.locationItemModern} onPress={() => handleLocationSelect(item)}>
-      <Ionicons name="location-outline" size={22} color={Colors.primary} style={{ marginRight: 14 }} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.locationNameModern}>{item.structured_formatting?.main_text || item.name || item.description}</Text>
-        <Text style={styles.locationAddressModern} numberOfLines={1}>{item.structured_formatting?.secondary_text || item.address}</Text>
-      </View>
-    </TouchableOpacity>
-  );
+  // Update renderSearchResult to match the desired UI
+  const renderSearchResult = ({ item, index }: { item: any, index: number }) => {
+    // Mock distance for UI (replace with real calculation if you have lat/lng)
+    const mockDistance = 11 + (index % 3); // 11, 12, 13 km cycling
+
+    return (
+      <TouchableOpacity
+        style={{
+          flexDirection: 'row',
+          alignItems: 'center',
+          backgroundColor: '#fff',
+          borderRadius: 16,
+          paddingVertical: 14,
+          paddingHorizontal: 16,
+          marginHorizontal: 16,
+          marginBottom: 10,
+          elevation: 2,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 4,
+        }}
+        onPress={() => handleLocationSelect(item)}
+      >
+        {/* Location pin and distance */}
+        <View style={{ alignItems: 'center', width: 40 }}>
+          <Ionicons name="location-outline" size={20} color="#888" />
+          <Text style={{ fontSize: 13, color: '#888', marginTop: 2 }}>{mockDistance} km</Text>
+        </View>
+        {/* Main content */}
+        <View style={{ flex: 1, marginLeft: 10 }}>
+          <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#222' }}>
+            {item.structured_formatting?.main_text || item.name || item.description}
+          </Text>
+          <Text style={{ fontSize: 14, color: '#888' }} numberOfLines={1}>
+            {item.structured_formatting?.secondary_text || item.address}
+          </Text>
+        </View>
+        {/* Heart icon */}
+        <Ionicons name="heart-outline" size={20} color="#bbb" style={{ marginLeft: 10 }} />
+      </TouchableOpacity>
+    );
+  };
 
   const renderLocation = ({ item }: { item: any }) => (
     <TouchableOpacity
@@ -303,273 +372,302 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#fff' }}>
-      <TouchableOpacity onPress={() => navigation.goBack()} style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
-        <Ionicons name="arrow-back" size={28} color={Colors.text} />
-      </TouchableOpacity>
-      {/* Top Bar */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: '#fff' }}>
-        <Text style={{ fontSize: 22, fontWeight: '700', color: '#222', flex: 1, textAlign: 'center', marginLeft: -26 }}>Drop Location</Text>
-        <View style={{ width: 26 }} />
-      </View>
-      {/* Selectors */}
-      <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 10 }}>
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F7', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 8, marginRight: 8 }}>
-          <MaterialCommunityIcons name="clock-outline" size={18} color="#222" style={{ marginRight: 6 }} />
-          <Text style={{ fontWeight: '600', color: '#222' }}>Pick-up now</Text>
-          <Ionicons name="chevron-down" size={16} color="#222" style={{ marginLeft: 4 }} />
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
+      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
+        <TouchableOpacity onPress={() => navigation.goBack()} style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
+          <Ionicons name="arrow-back" size={28} color={Colors.text} />
         </TouchableOpacity>
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F7', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 8 }}>
-          <MaterialCommunityIcons name="account-outline" size={18} color="#222" style={{ marginRight: 6 }} />
-          <Text style={{ fontWeight: '600', color: '#222' }}>For me</Text>
-          <Ionicons name="chevron-down" size={16} color="#222" style={{ marginLeft: 4 }} />
-        </TouchableOpacity>
-      </View>
-      {/* Location Card - Outlined, rounded, vertical icon style */}
-      <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 16 }}>
-        <View style={{ flex: 1 }}>
-          <View style={{
-            flexDirection: 'row',
-            alignItems: 'stretch',
-            backgroundColor: '#fff',
-            borderRadius: 16,
-            borderWidth: 2,
-            borderColor: '#222',
-            paddingVertical: 10,
-            paddingHorizontal: 14,
-            minHeight: 64,
-          }}>
-            {/* Vertical icons and line */}
-            <View style={{ alignItems: 'center', marginRight: 10, width: 20 }}>
-              <Ionicons name="ellipse" size={18} color="#222" style={{ marginBottom: 2 }} />
-              <View style={{ width: 2, flex: 1, backgroundColor: '#E0E0E0', marginVertical: 2 }} />
-              <Ionicons name="square" size={18} color="#222" style={{ marginTop: 2 }} />
-            </View>
-            {/* Pickup and Drop fields */}
-            <View style={{ flex: 1, justifyContent: 'center' }}>
-              {/* Pickup field */}
-              <TouchableOpacity onPress={() => { setEditing('current'); setSearchQuery(currentLocation?.address || currentLocation?.name || ''); }} activeOpacity={0.8}>
-                {editing === 'current' ? (
-                  <TextInput
-                    style={{ color: '#222', fontWeight: 'bold', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginBottom: 0 }}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder={currentLocation?.address ? currentLocation.address : 'Current Location'}
-                    autoFocus
-                    clearButtonMode="while-editing"
-                    onSubmitEditing={() => setEditing(null)}
-                  />
-                ) : (
-                  <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 15 }}>{currentLocation?.address || currentLocation?.name || 'Current Location'}</Text>
-                )}
-              </TouchableOpacity>
-              {/* Add gap between pickup and drop fields */}
-              <View style={{ height: 20 }} />
-              {/* Drop field */}
-              <TouchableOpacity onPress={() => { setEditing('drop'); setSearchQuery(dropLocation?.address || dropLocation?.name || ''); }} activeOpacity={0.8}>
-                {editing === 'drop' ? (
-                  <TextInput
-                    style={{ color: '#888', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginTop: 2 }}
-                    value={searchQuery}
-                    onChangeText={setSearchQuery}
-                    placeholder="Where to?"
-                    autoFocus
-                    clearButtonMode="while-editing"
-                    returnKeyType="send"
-                    onSubmitEditing={() => {
-                      if (dropLocation) {
-                        navigation.navigate('RideOptions', {
-                          pickup: currentLocation,
-                          drop: dropLocation,
-                        });
-                      }
-                    }}
-                  />
-                ) : (
-                  <Text style={{ color: '#888', fontSize: 15, marginTop: 2 }}>{dropLocation ? dropLocation.address || dropLocation.name : 'Where to?'}</Text>
-                )}
-              </TouchableOpacity>
+        {/* Top Bar */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, paddingTop: 8, paddingBottom: 10, backgroundColor: '#fff' }}>
+          <Text style={{ fontSize: 22, fontWeight: '700', color: '#222', flex: 1, textAlign: 'center', marginLeft: -26 }}>Drop Location</Text>
+          <View style={{ width: 26 }} />
+        </View>
+        {/* Selectors */}
+        <View style={{ flexDirection: 'row', justifyContent: 'space-between', paddingHorizontal: 16, marginBottom: 10 }}>
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F7', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 8, marginRight: 8 }}>
+            <MaterialCommunityIcons name="clock-outline" size={18} color="#222" style={{ marginRight: 6 }} />
+            <Text style={{ fontWeight: '600', color: '#222' }}>Pick-up now</Text>
+            <Ionicons name="chevron-down" size={16} color="#222" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F7', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 8 }}
+            onPress={() => setShowForWhomModal(true)}
+          >
+            <MaterialCommunityIcons name="account-outline" size={18} color="#222" style={{ marginRight: 6 }} />
+            <Text style={{ fontWeight: '600', color: '#222' }}>{forWhom === 'me' ? 'For me' : `For friend${friendName ? ': ' + friendName : ''}`}</Text>
+            <Ionicons name="chevron-down" size={16} color="#222" style={{ marginLeft: 4 }} />
+          </TouchableOpacity>
+        </View>
+        {/* Location Card - Outlined, rounded, vertical icon style */}
+        <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 16 }}>
+          <View style={{ flex: 1 }}>
+            <View style={{
+              flexDirection: 'row',
+              alignItems: 'stretch',
+              backgroundColor: '#fff',
+              borderRadius: 16,
+              borderWidth: 2,
+              borderColor: '#222',
+              paddingVertical: 10,
+              paddingHorizontal: 14,
+              minHeight: 64,
+            }}>
+              {/* Vertical icons and line */}
+              <View style={{ alignItems: 'center', marginRight: 10, width: 20 }}>
+                <Ionicons name="ellipse" size={18} color="#222" style={{ marginBottom: 2 }} />
+                <View style={{ width: 2, flex: 1, backgroundColor: '#E0E0E0', marginVertical: 2 }} />
+                <Ionicons name="square" size={18} color="#222" style={{ marginTop: 2 }} />
+              </View>
+              {/* Pickup and Drop fields */}
+              <View style={{ flex: 1, justifyContent: 'center' }}>
+                {/* Pickup field */}
+                <TouchableOpacity onPress={() => { setEditing('current'); setSearchQuery(currentLocation?.address || currentLocation?.name || ''); }} activeOpacity={0.8}>
+                  {editing === 'current' ? (
+                    <TextInput
+                      style={{ color: '#222', fontWeight: 'bold', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginBottom: 0 }}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder={currentLocation?.address ? currentLocation.address : 'Current Location'}
+                      autoFocus
+                      clearButtonMode="while-editing"
+                      onSubmitEditing={() => setEditing(null)}
+                    />
+                  ) : (
+                    <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 15 }}>{currentLocation?.address || currentLocation?.name || 'Current Location'}</Text>
+                  )}
+                </TouchableOpacity>
+                {/* Add gap between pickup and drop fields */}
+                <View style={{ height: 20 }} />
+                {/* Drop field */}
+                <TouchableOpacity onPress={() => { setEditing('drop'); setSearchQuery(dropLocation?.address || dropLocation?.name || ''); }} activeOpacity={0.8}>
+                  {editing === 'drop' ? (
+                    <TextInput
+                      style={{ color: '#888', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginTop: 2 }}
+                      value={searchQuery}
+                      onChangeText={setSearchQuery}
+                      placeholder="Where to?"
+                      autoFocus
+                      clearButtonMode="while-editing"
+                      returnKeyType="send"
+                      onSubmitEditing={() => {
+                        if (dropLocation) {
+                          navigation.replace('RideOptions', {
+                            pickup: currentLocation,
+                            drop: dropLocation,
+                            forWhom,
+                            friendName,
+                            friendPhone,
+                          });
+                        }
+                      }}
+                    />
+                  ) : (
+                    <Text style={{ color: '#888', fontSize: 15, marginTop: 2 }}>{dropLocation ? dropLocation.address || dropLocation.name : 'Where to?'}</Text>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
           </View>
         </View>
-      </View>
-      {/* Search Results or Recent Locations List */}
-      {editing === 'drop' && searchQuery.length > 2 ? (
-        isSearching ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <ActivityIndicator color={Colors.primary} />
-          </View>
-        ) : noResults ? (
-          <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-            <Text style={{ color: Colors.textLight }}>No suggestions found</Text>
-          </View>
+        {/* Show suggestions OR recent/saved locations depending on typing state */}
+        {editing === 'drop' && searchQuery.length > 2 ? (
+          isSearching ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <ActivityIndicator color={Colors.primary} />
+            </View>
+          ) : noResults ? (
+            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+              <Text style={{ color: Colors.textLight }}>No suggestions found</Text>
+            </View>
+          ) : (
+            <FlatList
+              data={searchResults}
+              keyExtractor={item => item.place_id || item.address || item.name}
+              renderItem={({ item, index }) => renderSearchResult({ item, index })}
+              contentContainerStyle={{ paddingBottom: 16 }}
+              keyboardShouldPersistTaps="handled"
+            />
+          )
         ) : (
-          <FlatList
-            data={searchResults}
-            keyExtractor={item => item.place_id || item.address || item.name}
-            renderItem={renderSearchResult}
-            contentContainerStyle={{ paddingBottom: 16 }}
-            keyboardShouldPersistTaps="handled"
-          />
-        )
-      ) : (
-        <FlatList
-          data={getListData()}
-          keyExtractor={item => item.id}
-          renderItem={({ item }) => {
-            const { icon, bg } = getLocationIcon(item.name);
-            return (
-              <TouchableOpacity
-                style={{
-                  flexDirection: 'row',
-                  alignItems: 'center',
-                  backgroundColor: '#fff',
-                  paddingVertical: 12,
-                  paddingHorizontal: 0,
-                  borderBottomWidth: 1,
-                  borderBottomColor: '#eee',
-                }}
-                onPress={() => handleLocationSelect(item)}
-              >
-                <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', marginRight: 14, marginLeft: 16 }}>{icon}</View>
-                <View style={{ flex: 1 }}>
-                  <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#222' }}>{item.name}</Text>
-                  <Text style={{ fontSize: 14, color: '#888' }}>{item.address}</Text>
-                </View>
-              </TouchableOpacity>
-            );
-          }}
-          contentContainerStyle={{ paddingTop: 0, paddingBottom: 80 }}
-          showsVerticalScrollIndicator={false}
-        />
-      )}
-      {/* Bottom Options */}
-      <View style={{ marginTop: 12 }}>
-        <TouchableOpacity
-          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }}
-          onPress={() => setCityModalVisible(true)}
-        >
-          <MaterialCommunityIcons name="earth" size={22} color="#222" style={{ marginRight: 16 }} />
-          <Text style={{ color: '#222', fontSize: 16 }}>Search in a different city</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }} onPress={handleSelectOnMap}>
-          <Ionicons name="location-sharp" size={22} color="#222" style={{ marginRight: 16 }} />
-          <Text style={{ color: '#222', fontSize: 16 }}>Set location on map</Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }}
-          onPress={() => setShowSavedModal(true)}
-        >
-          <MaterialCommunityIcons name="star-outline" size={22} color="#222" style={{ marginRight: 16 }} />
-          <Text style={{ color: '#222', fontSize: 16 }}>Saved locations</Text>
-        </TouchableOpacity>
-      </View>
-      <Modal
-        visible={cityModalVisible}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setCityModalVisible(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' }}>
-          <View style={{ margin: 20, backgroundColor: 'white', borderRadius: 10, padding: 20 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Enter City Name</Text>
-            <TextInput
-              value={cityQuery}
-              onChangeText={setCityQuery}
-              placeholder="e.g. Mumbai"
-              style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 20 }}
-            />
-            <Button
-              title="Set City"
-              onPress={() => {
-                setSearchCity(cityQuery);
-                setCityModalVisible(false);
-              }}
-            />
-            <Button title="Cancel" onPress={() => setCityModalVisible(false)} />
-          </View>
-        </View>
-      </Modal>
-      <Modal
-        visible={showSavedModal}
-        animationType="slide"
-        transparent={true}
-        onRequestClose={() => setShowSavedModal(false)}
-      >
-        <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center' }}>
-          <View style={{ margin: 20, backgroundColor: 'white', borderRadius: 10, padding: 20 }}>
-            <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 10 }}>Saved Locations</Text>
-            {(!savedLocations.home && !savedLocations.work && (!savedLocations.custom || savedLocations.custom.length === 0)) ? (
-              <Text style={{ fontSize: 16, color: '#888', marginBottom: 20 }}>No saved locations.</Text>
-            ) : (
-              <>
+          <>
+            {RECENT_LOCATIONS.length > 0 && (
+              <View style={{ marginHorizontal: 16, marginBottom: 10 }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8 }}>Recent Locations</Text>
+                {RECENT_LOCATIONS.map((loc, idx) => {
+                  // Avoid showing if already in saved locations
+                  const isDuplicate = (savedLocations.home && loc.address === savedLocations.home.address) ||
+                    (savedLocations.work && loc.address === savedLocations.work.address) ||
+                    (savedLocations.custom && savedLocations.custom.some((c) => c.address === loc.address));
+                  if (isDuplicate) return null;
+                  const { icon, bg } = getLocationIcon(loc.name);
+                  return (
+                    <TouchableOpacity
+                      key={loc.id}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: '#fff',
+                        paddingVertical: 12,
+                        paddingHorizontal: 0,
+                        borderBottomWidth: 1,
+                        borderBottomColor: '#eee',
+                      }}
+                      onPress={() => handleLocationSelect(loc, true)}
+                    >
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', marginRight: 14, marginLeft: 0 }}>{icon}</View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#222' }}>{loc.name}</Text>
+                        <Text style={{ fontSize: 14, color: '#888' }}>{loc.address}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
+            )}
+            {(savedLocations.home || savedLocations.work || (savedLocations.custom && savedLocations.custom.length > 0)) && (
+              <View style={{ marginHorizontal: 16, marginBottom: 10 }}>
+                <Text style={{ fontSize: 16, fontWeight: 'bold', marginBottom: 8 }}>Saved Locations</Text>
                 {savedLocations.home && (
                   <TouchableOpacity
-                    style={{ paddingVertical: 10 }}
-                    onPress={() => {
-                      setDropLocation(savedLocations.home);
-                      setSearchQuery(savedLocations.home.address || savedLocations.home.name);
-                      setShowSavedModal(false);
-                      setEditing(null);
-                      setSearchResults([]);
-                      setNoResults(false);
-                      Keyboard.dismiss();
-                      navigation.navigate('RideOptions', {
-                        pickup: currentLocation,
-                        drop: savedLocations.home,
-                      });
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#fff',
+                      paddingVertical: 12,
+                      paddingHorizontal: 0,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#eee',
                     }}
+                    onPress={() => handleLocationSelect(savedLocations.home, true)}
                   >
-                    <Text style={{ fontSize: 16 }}>🏠 {savedLocations.home.name} - {savedLocations.home.address}</Text>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#E53935', alignItems: 'center', justifyContent: 'center', marginRight: 14, marginLeft: 0 }}>
+                      <MaterialIcons name="home" size={24} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#222' }}>{savedLocations.home.name}</Text>
+                      <Text style={{ fontSize: 14, color: '#888' }}>{savedLocations.home.address}</Text>
+                    </View>
                   </TouchableOpacity>
                 )}
                 {savedLocations.work && (
                   <TouchableOpacity
-                    style={{ paddingVertical: 10 }}
-                    onPress={() => {
-                      setDropLocation(savedLocations.work);
-                      setSearchQuery(savedLocations.work.address || savedLocations.work.name);
-                      setShowSavedModal(false);
-                      setEditing(null);
-                      setSearchResults([]);
-                      setNoResults(false);
-                      Keyboard.dismiss();
-                      navigation.navigate('RideOptions', {
-                        pickup: currentLocation,
-                        drop: savedLocations.work,
-                      });
+                    style={{
+                      flexDirection: 'row',
+                      alignItems: 'center',
+                      backgroundColor: '#fff',
+                      paddingVertical: 12,
+                      paddingHorizontal: 0,
+                      borderBottomWidth: 1,
+                      borderBottomColor: '#eee',
                     }}
+                    onPress={() => handleLocationSelect(savedLocations.work, true)}
                   >
-                    <Text style={{ fontSize: 16 }}>💼 {savedLocations.work.name} - {savedLocations.work.address}</Text>
+                    <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: '#F57C00', alignItems: 'center', justifyContent: 'center', marginRight: 14, marginLeft: 0 }}>
+                      <MaterialIcons name="work" size={24} color="#fff" />
+                    </View>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#222' }}>{savedLocations.work.name}</Text>
+                      <Text style={{ fontSize: 14, color: '#888' }}>{savedLocations.work.address}</Text>
+                    </View>
                   </TouchableOpacity>
                 )}
-                {savedLocations.custom && savedLocations.custom.map((loc, idx) => (
-                  <TouchableOpacity
-                    key={idx}
-                    style={{ paddingVertical: 10 }}
-                    onPress={() => {
-                      setDropLocation(loc);
-                      setSearchQuery(loc.address || loc.name);
-                      setShowSavedModal(false);
-                      setEditing(null);
-                      setSearchResults([]);
-                      setNoResults(false);
-                      Keyboard.dismiss();
-                      navigation.navigate('RideOptions', {
-                        pickup: currentLocation,
-                        drop: loc,
-                      });
-                    }}
-                  >
-                    <Text style={{ fontSize: 16 }}>⭐ {loc.name} - {loc.address}</Text>
-                  </TouchableOpacity>
-                ))}
-              </>
+                {savedLocations.custom && savedLocations.custom.map((loc, idx) => {
+                  const { icon, bg } = getLocationIcon(loc.name);
+                  return (
+                    <TouchableOpacity
+                      key={idx}
+                      style={{
+                        flexDirection: 'row',
+                        alignItems: 'center',
+                        backgroundColor: '#fff',
+                        paddingVertical: 12,
+                        paddingHorizontal: 0,
+                        borderBottomWidth: 1,
+                        borderBottomColor: '#eee',
+                      }}
+                      onPress={() => handleLocationSelect(loc, true)}
+                    >
+                      <View style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: bg, alignItems: 'center', justifyContent: 'center', marginRight: 14, marginLeft: 0 }}>
+                        {icon}
+                      </View>
+                      <View style={{ flex: 1 }}>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#222' }}>{loc.name}</Text>
+                        <Text style={{ fontSize: 14, color: '#888' }}>{loc.address}</Text>
+                      </View>
+                    </TouchableOpacity>
+                  );
+                })}
+              </View>
             )}
-            <Button title="Close" onPress={() => setShowSavedModal(false)} />
-          </View>
+          </>
+        )}
+        {/* Bottom Options */}
+        <View style={{ marginTop: 12 }}>
+          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }} onPress={handleSelectOnMap}>
+            <Ionicons name="location-sharp" size={22} color="#222" style={{ marginRight: 16 }} />
+            <Text style={{ color: '#222', fontSize: 16 }}>Set location on map</Text>
+          </TouchableOpacity>
         </View>
-      </Modal>
+        <RNModal
+          visible={showForWhomModal}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowForWhomModal(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%' }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16 }}>Who is this ride for?</Text>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
+                onPress={() => { setForWhom('me'); setShowForWhomModal(false); }}
+              >
+                <Ionicons name={forWhom === 'me' ? 'radio-button-on' : 'radio-button-off'} size={22} color="#23235B" style={{ marginRight: 10 }} />
+                <Text style={{ fontSize: 16 }}>For me</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 8 }}
+                onPress={() => setForWhom('friend')}
+              >
+                <Ionicons name={forWhom === 'friend' ? 'radio-button-on' : 'radio-button-off'} size={22} color="#23235B" style={{ marginRight: 10 }} />
+                <Text style={{ fontSize: 16 }}>For a friend</Text>
+              </TouchableOpacity>
+              {forWhom === 'friend' && (
+                <View style={{ marginTop: 10 }}>
+                  <TextInput
+                    placeholder="Friend's Name"
+                    value={friendName}
+                    onChangeText={setFriendName}
+                    style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 10 }}
+                  />
+                  <TextInput
+                    placeholder="Friend's Phone"
+                    value={friendPhone}
+                    onChangeText={setFriendPhone}
+                    keyboardType="phone-pad"
+                    style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 10 }}
+                  />
+                </View>
+              )}
+              <View style={{ flexDirection: 'row', justifyContent: 'flex-end', marginTop: 10 }}>
+                <TouchableOpacity onPress={() => setShowForWhomModal(false)} style={{ marginRight: 16 }}>
+                  <Text style={{ color: '#23235B', fontWeight: 'bold' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => {
+                    if (forWhom === 'friend' && (!friendName.trim() || !friendPhone.trim())) {
+                      Alert.alert('Please enter your friend\'s name and phone number.');
+                      return;
+                    }
+                    setShowForWhomModal(false);
+                  }}
+                >
+                  <Text style={{ color: '#23235B', fontWeight: 'bold' }}>OK</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </RNModal>
+      </ScrollView>
     </SafeAreaView>
   );
 }
