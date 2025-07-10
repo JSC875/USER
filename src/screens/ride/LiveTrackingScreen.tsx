@@ -14,40 +14,43 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import { onRideStatus, onDriverLocation, clearCallbacks } from '../../utils/socket';
 
 export default function LiveTrackingScreen({ navigation, route }: any) {
-  const { destination, estimate, driver } = route.params;
-  const [rideStatus, setRideStatus] = useState('arriving'); // arriving, picked_up, in_progress
+  const { destination, estimate, driver, rideId } = route.params;
+  const [rideStatus, setRideStatus] = useState('arriving');
   const [currentETA, setCurrentETA] = useState(driver?.eta || estimate?.eta || 'N/A');
   const [callModalVisible, setCallModalVisible] = useState(false);
-
-  const dummyDriver = {
-    name: 'Ravi Kumar',
-    phone: '+91 98765 43210',
-  };
-  const driverInfo = driver || dummyDriver;
+  const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  const driverInfo = driver;
 
   useEffect(() => {
-    // Simulate ride progression
-    const timer1 = setTimeout(() => {
-      setRideStatus('picked_up');
-      setCurrentETA(estimate?.duration || 'N/A');
-    }, 5000);
-
-    const timer2 = setTimeout(() => {
-      setRideStatus('in_progress');
-    }, 8000);
-
-    const timer3 = setTimeout(() => {
-      handleCompleteRide();
-    }, 15000);
-
+    // Listen for real-time ride status and driver location updates
+    onRideStatus((data: { rideId: string; status: string; message?: string; }) => {
+      if (data.rideId === rideId) {
+        setRideStatus(data.status);
+        if (data.status === 'completed') {
+          navigation.navigate('RideSummary', {
+            destination,
+            estimate,
+            driver: driverInfo,
+          });
+        }
+        if (data.status === 'cancelled') {
+          Alert.alert('Ride Cancelled', data.message || 'Your ride has been cancelled.');
+          navigation.navigate('TabNavigator', { screen: 'Home' });
+        }
+      }
+    });
+    onDriverLocation((data: { driverId: string; latitude: number; longitude: number; }) => {
+      if (data.driverId === driverInfo?.id) {
+        setDriverLocation({ latitude: data.latitude, longitude: data.longitude });
+      }
+    });
     return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
+      clearCallbacks();
     };
-  }, []);
+  }, [rideId, driverInfo, navigation, destination, estimate]);
 
   const handleChat = () => {
     navigation.navigate('Chat', { driver: driverInfo });

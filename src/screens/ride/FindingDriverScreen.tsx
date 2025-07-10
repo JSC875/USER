@@ -5,16 +5,20 @@ import {
   StyleSheet,
   Animated,
   TouchableOpacity,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { connectSocketWithJWT, onRideAccepted, onRideStatus, clearCallbacks } from '../../utils/socket';
 
 export default function FindingDriverScreen({ navigation, route }: any) {
-  const { destination, estimate, paymentMethod, driver } = route.params;
+  const { destination, estimate, paymentMethod, driver, rideId } = route.params;
   const [searchText, setSearchText] = useState('Finding nearby drivers...');
+  const [isDriverFound, setIsDriverFound] = useState(false);
+  const [driverInfo, setDriverInfo] = useState<any>(null);
   const pulseAnim = new Animated.Value(1);
 
   useEffect(() => {
@@ -35,29 +39,79 @@ export default function FindingDriverScreen({ navigation, route }: any) {
     );
     pulse.start();
 
-    // Simulate finding driver process
-    const timer1 = setTimeout(() => {
-      setSearchText('Driver found! Confirming ride...');
-    }, 3000);
+    // Connect to socket and listen for real events
+    const setupSocketListeners = async () => {
+      try {
+        // Listen for ride acceptance
+        onRideAccepted((data) => {
+          console.log('✅ Driver accepted ride:', data);
+          setIsDriverFound(true);
+          setDriverInfo(data);
+          setSearchText('Driver found! Confirming ride...');
+          
+          // Navigate to LiveTracking after a short delay to show confirmation
+          setTimeout(() => {
+            navigation.replace('LiveTracking', {
+              destination,
+              estimate,
+              paymentMethod,
+              driver: {
+                id: data.driverId,
+                name: data.driverName,
+                phone: data.driverPhone,
+                eta: data.estimatedArrival,
+              },
+              rideId: data.rideId,
+            });
+          }, 2000);
+        });
 
-    const timer2 = setTimeout(() => {
-      navigation.replace('LiveTracking', {
-        destination,
-        estimate,
-        paymentMethod,
-        driver,
-      });
-    }, 5000);
+        // Listen for ride status updates
+        onRideStatus((data) => {
+          console.log('🔄 Ride status update:', data);
+          if (data.status === 'cancelled') {
+            Alert.alert('Ride Cancelled', 'Your ride has been cancelled.');
+            navigation.navigate('TabNavigator', { screen: 'Home' });
+          }
+        });
+
+        // Cleanup function
+        return () => {
+          clearCallbacks();
+        };
+      } catch (error) {
+        console.error('Error setting up socket listeners:', error);
+      }
+    };
+
+    setupSocketListeners();
 
     return () => {
       pulse.stop();
-      clearTimeout(timer1);
-      clearTimeout(timer2);
+      clearCallbacks();
     };
-  }, []);
+  }, [navigation, destination, estimate, paymentMethod, rideId]);
 
   const handleCancel = () => {
-    navigation.navigate('TabNavigator', { screen: 'Home' });
+    Alert.alert(
+      'Cancel Ride',
+      'Are you sure you want to cancel this ride?',
+      [
+        {
+          text: 'No',
+          style: 'cancel',
+        },
+        {
+          text: 'Yes',
+          style: 'destructive',
+          onPress: () => {
+            // Emit cancel ride event to server
+            // You can add socket emit here if needed
+            navigation.navigate('TabNavigator', { screen: 'Home' });
+          },
+        },
+      ]
+    );
   };
 
   return (
@@ -79,15 +133,19 @@ export default function FindingDriverScreen({ navigation, route }: any) {
               { transform: [{ scale: pulseAnim }] },
             ]}
           >
-            <Ionicons name="bicycle" size={40} color={Colors.white} />
+            <Ionicons 
+              name={isDriverFound ? "checkmark-circle" : "bicycle"} 
+              size={40} 
+              color={Colors.white} 
+            />
           </Animated.View>
           
           <Text style={styles.statusText}>{searchText}</Text>
           <Text style={styles.statusSubtext}>
-            This usually takes 1-2 minutes
+            {isDriverFound ? 'Preparing your ride...' : 'This usually takes 1-2 minutes'}
           </Text>
 
-          <LoadingSpinner size="large" color={Colors.primary} />
+          {!isDriverFound && <LoadingSpinner size="large" color={Colors.primary} />}
         </View>
 
         {/* Trip Details */}

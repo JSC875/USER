@@ -14,20 +14,23 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
-import { mockDrivers } from '../../data/mockData';
+// Remove: import { mockDrivers } from '../../data/mockData';
+// Remove: const [selectedDriver] = useState(mockDrivers[0]);
+// Remove any simulated driver logic.
+// The Book Ride button should just navigate to FindingDriverScreen or the next real step.
 
 export default function ConfirmRideScreen({ navigation, route }: any) {
   const { destination, estimate, paymentMethod } = route.params;
-  const [selectedDriver] = useState(mockDrivers[0]);
+  // Remove: const [selectedDriver] = useState(mockDrivers[0]);
 
-  const handleBookRide = () => {
-    navigation.navigate('FindingDriver', {
-      destination,
-      estimate,
-      paymentMethod,
-      driver: selectedDriver,
-    });
-  };
+  // Remove: const handleBookRide = () => {
+  // Remove:   navigation.navigate('FindingDriver', {
+  // Remove:     destination,
+  // Remove:     estimate,
+  // Remove:     paymentMethod,
+  // Remove:     driver: selectedDriver,
+  // Remove:   });
+  // Remove: };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -49,23 +52,23 @@ export default function ConfirmRideScreen({ navigation, route }: any) {
             <Text style={styles.driverTitle}>Your Driver</Text>
             <View style={styles.etaContainer}>
               <Ionicons name="time" size={16} color={Colors.primary} />
-              <Text style={styles.etaText}>{selectedDriver.eta} mins away</Text>
+              <Text style={styles.etaText}>{/* Placeholder for ETA */}</Text>
             </View>
           </View>
 
           <View style={styles.driverInfo}>
             <Image
-              source={{ uri: selectedDriver.photo }}
+              source={{ uri: 'https://via.placeholder.com/60' }} // Placeholder photo
               style={styles.driverPhoto}
             />
             <View style={styles.driverDetails}>
-              <Text style={styles.driverName}>{selectedDriver.name}</Text>
+              <Text style={styles.driverName}>{/* Placeholder for driver name */}</Text>
               <View style={styles.ratingContainer}>
                 <Ionicons name="star" size={16} color={Colors.accent} />
-                <Text style={styles.rating}>{selectedDriver.rating}</Text>
+                <Text style={styles.rating}>{/* Placeholder for rating */}</Text>
               </View>
               <Text style={styles.vehicleInfo}>
-                {selectedDriver.vehicleModel} • {selectedDriver.vehicleNumber}
+                {/* Placeholder for vehicle info */}
               </Text>
             </View>
             <TouchableOpacity style={styles.callButton}>
@@ -144,7 +147,7 @@ export default function ConfirmRideScreen({ navigation, route }: any) {
               <TouchableOpacity
                 style={styles.safetyFeature}
                 onPress={() => {
-                  Linking.openURL(`tel:${emergencyPhone}`);
+                  Linking.openURL(`tel:${'9999999999'}`); // Placeholder emergency phone
                 }}
               >
                 <Ionicons name="call" size={20} color={Colors.success} />
@@ -180,7 +183,11 @@ export default function ConfirmRideScreen({ navigation, route }: any) {
         </View>
         <Button
           title="Book Ride"
-          onPress={handleBookRide}
+          onPress={() => navigation.navigate('FindingDriver', {
+            destination,
+            estimate,
+            paymentMethod,
+          })}
           style={styles.bookButton}
         />
       </View>
