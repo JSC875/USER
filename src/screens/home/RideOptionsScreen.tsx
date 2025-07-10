@@ -7,11 +7,19 @@ import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-na
 import polyline from '@mapbox/polyline';
 import { getSocket, emitEvent, listenToEvent } from '../../utils/socket';
 import * as Location from 'expo-location';
+import { useIsFocused } from '@react-navigation/native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const { width, height } = Dimensions.get('window');
 
 // Add this at the top of the file or in a declarations.d.ts file if you have one
 // declare module '@mapbox/polyline';
+
+export async function saveCompletedRide(ride: any) {
+  const history = JSON.parse(await AsyncStorage.getItem('rideHistory') || '[]');
+  history.unshift(ride); // Add new ride to the top
+  await AsyncStorage.setItem('rideHistory', JSON.stringify(history));
+}
 
 export default function RideOptionsScreen({ navigation, route }: any) {
   const [selected, setSelected] = useState('bike');
@@ -20,10 +28,12 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const snapPoints = useMemo(() => ['50%', '90%'], []);
   const [routeCoords, setRouteCoords] = useState([]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
+  const [pickup, setPickup] = useState(route?.params?.pickup || null);
+  const [drop, setDrop] = useState(route?.params?.drop || null);
 
   // Use params from navigation
-  const pickup = route?.params?.pickup || { latitude: 17.444, longitude: 78.382, address: 'Pickup Location' };
-  const drop = route?.params?.drop || { latitude: 17.4418, longitude: 78.38, address: 'Drop Location' };
+  // const pickup = route?.params?.pickup || { latitude: 17.444, longitude: 78.382, address: 'Pickup Location' };
+  // const drop = route?.params?.drop || { latitude: 17.4418, longitude: 78.38, address: 'Drop Location' };
 
   console.log('pickup:', pickup);
   console.log('pickup latitude:', pickup.latitude, 'pickup longitude:', pickup.longitude);
@@ -83,6 +93,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     navigation.navigate('DropLocationSelector', { type: 'drop', currentLocation: pickup, dropLocation: drop });
   };
   const handleBook = () => {
+    // Get the selected ride option details
     const selectedRide = rideOptions.find(o => o.id === selected);
     const success = emitEvent('book_ride', {
       pickup,
@@ -101,22 +112,22 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     const onRideBooked = (data: any) => {
       if (data.success) {
         // Navigate to FindingDriver or show confirmation
-        navigation.navigate('FindingDriver', {
-          destination: {
-            name: drop.address,
-            latitude: drop.latitude,
-            longitude: drop.longitude,
-          },
-          estimate: {
+    navigation.navigate('FindingDriver', { 
+      destination: {
+        name: drop.address,
+        latitude: drop.latitude,
+        longitude: drop.longitude
+      },
+      estimate: {
             fare: data.price,
             distance: '2.5 km',
             duration: '8 mins',
             eta: '5 mins',
-          },
+      },
           paymentMethod: 'Cash',
           driver: null,
           rideId: data.rideId,
-        });
+    });
       } else {
         Alert.alert('Booking Failed', 'Unable to book ride.');
       }
@@ -138,14 +149,18 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     }
   }, [pickup, drop]);
 
+  // Fetch route directions from current location to drop
   useEffect(() => {
     const fetchRouteDirections = async () => {
+      if (!location || !drop) {
+        setRouteCoords([]);
+        return;
+      }
       const apiKey = 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU'; // <-- Replace with your actual API key
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${pickup.latitude},${pickup.longitude}&destination=${drop.latitude},${drop.longitude}&key=${apiKey}`;
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${location.latitude},${location.longitude}&destination=${drop.latitude},${drop.longitude}&key=${apiKey}`;
       try {
         const response = await fetch(url);
         const json = await response.json();
-        console.log('Directions API response:', json);
         if (json.routes && json.routes.length) {
           const points = polyline.decode(json.routes[0].overview_polyline.points);
           const coords = points.map((point: [number, number]) => ({ latitude: point[0], longitude: point[1] }));
@@ -154,25 +169,54 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           setRouteCoords([]);
         }
       } catch (error) {
-        console.error('Error fetching directions:', error);
         setRouteCoords([]);
       }
     };
     fetchRouteDirections();
-  }, [pickup, drop]);
+  }, [location, drop]);
 
+  // Dynamically update current location marker as user moves
   useEffect(() => {
+    let locationSubscription: any;
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission to access location was denied');
-        return;
+      if (status === 'granted') {
+        locationSubscription = await Location.watchPositionAsync(
+          { accuracy: Location.Accuracy.High, timeInterval: 2000, distanceInterval: 2 },
+          (loc) => setLocation(loc.coords)
+        );
       }
-
-      let loc = await Location.getCurrentPositionAsync({});
-      setLocation(loc.coords);
     })();
+    return () => {
+      if (locationSubscription) locationSubscription.remove();
+    };
   }, []);
+
+  // Dynamically update drop marker when user selects a destination
+  useEffect(() => {
+    if (route?.params?.drop) setDrop(route.params.drop);
+  }, [route?.params?.drop]);
+
+  useEffect(() => {
+    if (!pickup) {
+      (async () => {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status === 'granted') {
+          let loc = await Location.getCurrentPositionAsync({});
+          setPickup({
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            address: 'Current Location'
+          });
+        }
+      })();
+    }
+  }, []);
+
+  useEffect(() => {
+    if (route?.params?.pickup) setPickup(route.params.pickup);
+    if (route?.params?.drop) setDrop(route.params.drop);
+  }, [route?.params]);
 
   console.log('rideOptions:', rideOptions);
 
@@ -192,8 +236,8 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           }}
           showsUserLocation
         >
-          {/* Render the real route */}
-          {routeCoords.length > 0 && (
+          {/* Render the route from current location (blue dot) to destination (red pin) */}
+          {location && drop && routeCoords.length > 0 && (
             <Polyline
               coordinates={routeCoords}
               strokeColor="#222"
@@ -201,13 +245,14 @@ export default function RideOptionsScreen({ navigation, route }: any) {
             />
           )}
           {/* Pickup Marker */}
-          <Marker coordinate={pickup} pinColor="green">
-            <Ionicons name="location" size={32} color="#22c55e" />
-          </Marker>
+          {/* Removed pickup marker as requested */}
           {/* Drop Marker */}
-          <Marker coordinate={drop} pinColor="red">
-            <Ionicons name="location" size={32} color="#ef4444" />
-          </Marker>
+          {/* Drop Marker (red pin) - only if set */}
+          {drop && (
+            <Marker coordinate={drop} pinColor="red">
+              <Ionicons name="location" size={32} color="#ef4444" />
+            </Marker>
+          )}
           {/* Animated Vehicle Markers */}
           {animatedMarkers.map((v) => (
             <Marker key={v.id} coordinate={v} anchor={{ x: 0.5, y: 0.5 }}>
@@ -219,14 +264,11 @@ export default function RideOptionsScreen({ navigation, route }: any) {
               </Animated.View>
             </Marker>
           ))}
+          {/* Current Location Marker (green pin) - updates dynamically */}
           {location && (
-            <Marker
-              coordinate={{
-                latitude: location.latitude,
-                longitude: location.longitude,
-              }}
-              pinColor="blue"
-            />
+            <Marker coordinate={location} pinColor="green">
+              <Ionicons name="location" size={32} color="#22c55e" />
+            </Marker>
           )}
         </MapView>
         {/* Chips overlay */}

@@ -37,6 +37,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
   const [newAddress, setNewAddress] = useState('');
   const [savedLocations, setSavedLocations] = useState<{ home?: any; work?: any; custom?: any[] }>({});
   const [showSavedModal, setShowSavedModal] = useState(false);
+  const [isSaving, setIsSaving] = useState(false); // Add at top with other useState
 
   useEffect(() => {
     (async () => {
@@ -119,10 +120,14 @@ export default function DropPinLocationScreen({ navigation }: any) {
     setRegion(newRegion);
   };
 
-  // When user taps Select Drop, pass locationName, address, and coordinates back to HomeScreen
+  // When user taps Select Drop, pass locationName, address, and coordinates back to DropLocationSelectorScreen
   const handleSelectDrop = () => {
-    navigation.navigate('RideOptions', {
-      drop: {
+    if (!region.latitude || !region.longitude || !address || address === 'Fetching address...' || address === 'not found') {
+      Alert.alert('Error', 'Please select a valid location.');
+      return;
+    }
+    navigation.replace('DropLocationSelector', {
+      destination: {
         latitude: region.latitude,
         longitude: region.longitude,
         name: locationName,
@@ -133,6 +138,8 @@ export default function DropPinLocationScreen({ navigation }: any) {
 
   // Save location handler
   const saveLocation = async (type: 'home' | 'work' | 'custom', customLabel?: string) => {
+    if (isSaving) return;
+    setIsSaving(true);
     const locationToSave = {
       latitude: region.latitude,
       longitude: region.longitude,
@@ -141,6 +148,16 @@ export default function DropPinLocationScreen({ navigation }: any) {
       label: type === 'custom' ? (customLabel || 'Custom') : type,
     };
     try {
+      if (!address || address === 'Fetching address...' || address === 'not found') {
+        Alert.alert('Error', 'Cannot save an invalid address.');
+        setIsSaving(false);
+        return;
+      }
+      if (type === 'custom' && (!customLabel || !customLabel.trim())) {
+        Alert.alert('Label required', 'Please enter a label for the location.');
+        setIsSaving(false);
+        return;
+      }
       // Get existing saved locations
       const existing = await AsyncStorage.getItem('@saved_locations');
       let saved = existing ? JSON.parse(existing) : {};
@@ -158,32 +175,35 @@ export default function DropPinLocationScreen({ navigation }: any) {
       }
     } catch (e) {
       Alert.alert('Error', 'Failed to save location');
+    } finally {
+      setIsSaving(false);
     }
   };
 
   // Handler for Add New
   const handleAddNew = () => {
-    Alert.prompt(
-      'Save Location',
-      'Enter a label for this location:',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Save',
-          onPress: (label) => {
-            if (label && label.trim().length > 0) {
-              saveLocation('custom', label.trim());
-            } else {
-              Alert.alert('Label required', 'Please enter a label for the location.');
-            }
+    if (Platform.OS === 'android') {
+      Alert.prompt(
+        'Save Location',
+        'Enter a label for this location:',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          {
+            text: 'Save',
+            onPress: async (label) => {
+              if (!label || !label.trim()) {
+                Alert.alert('Label required', 'Please enter a label for the location.');
+                return;
+              }
+              await saveLocation('custom', label.trim());
+            },
           },
-        },
-      ],
-      'plain-text'
-    );
+        ],
+        'plain-text'
+      );
+    } else {
+      setShowAddAddressInput(true);
+    }
   };
 
   const { house, rest } = parseAddress(address);
@@ -295,35 +315,22 @@ export default function DropPinLocationScreen({ navigation }: any) {
             onChangeText={setNewAddress}
             placeholder="Enter new address"
             style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 10 }}
+            editable={!isSaving}
           />
           <Button
-            title="Save"
+            title={isSaving ? 'Saving...' : 'Save'}
             onPress={async () => {
-              if (newAddress.trim()) {
-                // Load existing saved locations
-                let existing = await AsyncStorage.getItem('@saved_locations');
-                let saved = existing ? JSON.parse(existing) : {};
-                if (!saved.custom) saved.custom = [];
-                // Add the new custom location with current region and address
-                saved.custom.push({
-                  latitude: region.latitude,
-                  longitude: region.longitude,
-                  address,
-                  name: newAddress.trim(),
-                  label: newAddress.trim(),
-                });
-                await AsyncStorage.setItem('@saved_locations', JSON.stringify(saved));
-                setNewAddress('');
-                setShowAddAddressInput(false);
-                if (Platform.OS === 'android') {
-                  ToastAndroid.show('Location saved!', ToastAndroid.SHORT);
-                } else {
-                  Alert.alert('Success', 'Location saved!');
-                }
+              if (!newAddress.trim()) {
+                Alert.alert('Label required', 'Please enter a label for the location.');
+                return;
               }
+              await saveLocation('custom', newAddress.trim());
+              setNewAddress('');
+              setShowAddAddressInput(false);
             }}
+            disabled={isSaving || !newAddress.trim()}
           />
-          <Button title="Cancel" onPress={() => setShowAddAddressInput(false)} />
+          <Button title="Cancel" onPress={() => setShowAddAddressInput(false)} disabled={isSaving} />
         </View>
       )}
     </View>
