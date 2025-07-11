@@ -1,5 +1,6 @@
 import { useEffect } from 'react';
 import { useUser } from '@clerk/clerk-expo';
+import { useAuth } from '@clerk/clerk-expo';
 
 export const formatCurrency = (amount: number): string => {
   return `₹${amount.toLocaleString('en-IN')}`;
@@ -7,11 +8,11 @@ export const formatCurrency = (amount: number): string => {
 
 export const formatTime = (minutes: number): string => {
   if (minutes < 60) {
-    return `${minutes} mins`;
+    return `${minutes}mins`;
   }
   const hours = Math.floor(minutes / 60);
   const remainingMinutes = minutes % 60;
-  return `${hours}h ${remainingMinutes}m`;
+  return `${hours}h ${remainingMinutes} m`;
 };
 
 export const formatDistance = (kilometers: number): string => {
@@ -55,8 +56,8 @@ export const getGreeting = (): string => {
 };
 
 /**
- * Custom hook to assign unsafeMetadata.type = "user" to Clerk user if not already set.
- * @param {string} type - The user type to assign (e.g., "user").
+ * Custom hook to assign unsafeMetadata.type = "customer" to Clerk user if not already set.
+ * @param {string} type - The user type to assign (e.g., "customer").
  */
 export function useAssignUserType(type: string) {
   const { user, isLoaded } = useUser();
@@ -68,4 +69,24 @@ export function useAssignUserType(type: string) {
       user.update({ unsafeMetadata: { ...user.unsafeMetadata, type } });
     }
   }, [isLoaded, user, type]);
+}
+
+/**
+ * Helper hook to make authenticated API calls with the custom Clerk JWT.
+ * Usage: const apiCall = useApiWithAuth(); await apiCall(url, options)
+ */
+export function useApiWithAuth() {
+  const { getToken } = useAuth();
+
+  const apiCall = async (url: string, options: any = {}) => {
+    const token = await getToken({ template: 'my_app_token', skipCache: true });
+    const headers = {
+      ...(options.headers || {}),
+      'Authorization':` Bearer ${token}`,
+      'Content-Type': 'application/json',
+    };
+    return fetch(url, { ...options, headers });
+  };
+
+  return apiCall;
 }

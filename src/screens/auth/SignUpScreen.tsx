@@ -40,6 +40,8 @@ interface PhoneStepProps {
   onNext: () => void;
   onBack: () => void;
   isLoading: boolean;
+  selectedCountry: CountryItem;
+  setSelectedCountry: (c: CountryItem) => void;
 }
 
 interface OtpStepProps {
@@ -66,10 +68,28 @@ interface PhotoStepProps {
 interface CountryItem {
   code: string;
   name: string;
+  flag: string;
+}
+
+// Add a helper function for alphabetic and space validation
+function isAlphaSpace(str: string) {
+  return /^[A-Za-z\s]+$/.test(str);
 }
 
 // Step 1: Name Entry
 function NameStep({ firstName, lastName, setFirstName, setLastName, onNext }: NameStepProps) {
+  // Local handler for Next button
+  const handleNext = () => {
+    if (!isAlphaSpace(firstName.trim())) {
+      Alert.alert('Invalid First Name', 'First name should contain only letters and spaces.');
+      return;
+    }
+    if (!isAlphaSpace(lastName.trim())) {
+      Alert.alert('Invalid Last Name', 'Last name should contain only letters and spaces.');
+      return;
+    }
+    onNext();
+  };
   return (
     <View style={styles.stepContainer}>
       <Text style={styles.progress}>Step 1 of 4</Text>
@@ -90,7 +110,7 @@ function NameStep({ firstName, lastName, setFirstName, setLastName, onNext }: Na
       />
       <Button
         title="Next"
-        onPress={onNext}
+        onPress={handleNext}
         fullWidth
         disabled={!firstName.trim() || !lastName.trim()}
         style={{ marginTop: 24 }}
@@ -109,19 +129,21 @@ function PhoneStep({
   setCountryModalVisible, 
   onNext, 
   onBack, 
-  isLoading 
+  isLoading,
+  selectedCountry,
+  setSelectedCountry
 }: PhoneStepProps) {
   const countryList: CountryItem[] = [
-    { code: '+91', name: 'India' },
-    { code: '+1', name: 'USA' },
-    { code: '+44', name: 'UK' },
-    { code: '+86', name: 'China' },
-    { code: '+49', name: 'Germany' },
-    { code: '+33', name: 'France' },
-    { code: '+81', name: 'Japan' },
-    { code: '+82', name: 'South Korea' },
-    { code: '+61', name: 'Australia' },
-    { code: '+55', name: 'Brazil' },
+    { code: '+91', name: 'India', flag: '🇮🇳' },
+    { code: '+1', name: 'USA', flag: '🇺🇸' },
+    { code: '+44', name: 'UK', flag: '🇬🇧' },
+    { code: '+86', name: 'China', flag: '🇨🇳' },
+    { code: '+49', name: 'Germany', flag: '🇩🇪' },
+    { code: '+33', name: 'France', flag: '🇫🇷' },
+    { code: '+81', name: 'Japan', flag: '🇯🇵' },
+    { code: '+82', name: 'South Korea', flag: '🇰🇷' },
+    { code: '+61', name: 'Australia', flag: '🇦🇺' },
+    { code: '+55', name: 'Brazil', flag: '🇧🇷' },
   ];
 
   return (
@@ -140,7 +162,7 @@ function PhoneStep({
             onPress={() => setCountryModalVisible(true)}
             style={styles.countryCodeButton}
           >
-            <Text style={styles.countryCodeText}>{countryCode}</Text>
+            <Text style={styles.countryCodeText}>{selectedCountry.flag}</Text>
             <Ionicons name="chevron-down" size={18} color={Colors.gray400} />
           </TouchableOpacity>
         }
@@ -172,11 +194,12 @@ function PhoneStep({
                   style={styles.countryItem}
                   onPress={() => {
                     setCountryCode(item.code);
+                    setSelectedCountry(item);
                     setCountryModalVisible(false);
                   }}
                 >
                   <Text style={styles.countryItemText}>
-                    {item.name} ({item.code})
+                    {item.flag} {item.name} ({item.code})
                   </Text>
                 </TouchableOpacity>
               )}
@@ -406,7 +429,8 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
   const [signUpCreated, setSignUpCreated] = useState<boolean>(false);
   const { signUp, setActive: setSignUpActive, isLoaded } = useSignUp();
   const { user } = useUser();
-  const { isSignedIn } = useAuth();
+  const { isSignedIn, getToken } = useAuth();
+  const [selectedCountry, setSelectedCountry] = useState<CountryItem>({ code: '+91', name: 'India', flag: '🇮🇳' });
 
   // Timer for OTP resend
   useEffect(() => {
@@ -446,28 +470,7 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
   const goToNextStep = () => setStep((s) => s + 1);
   const goToPrevStep = () => setStep((s) => s - 1);
 
-  // Debug function to test session activation
-  const testSessionActivation = async () => {
-    console.log('=== TESTING SESSION ACTIVATION ===');
-    console.log('SignUp status:', signUp?.status);
-    console.log('SignUp createdSessionId:', signUp?.createdSessionId);
-    console.log('Is signed in:', isSignedIn);
-    
-    if (signUp && signUp.createdSessionId) {
-      try {
-        console.log('Attempting to activate session...');
-        await setSignUpActive({ session: signUp.createdSessionId });
-        console.log('Session activation successful!');
-        Alert.alert('Success', 'Session activated successfully!');
-      } catch (err) {
-        console.error('Session activation error:', err);
-        Alert.alert('Error', 'Failed to activate session');
-      }
-    } else {
-      console.log('No session ID available');
-      Alert.alert('Info', 'No session ID available');
-    }
-  };
+
 
   // Step 2: Send OTP
   const handleSendOTP = async () => {
@@ -642,6 +645,18 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
         setIsLoading(false);
         return;
       }
+
+      // Add validation for alphabetic characters and spaces
+      if (!isAlphaSpace(firstName.trim())) {
+        Alert.alert('Invalid First Name', 'First name should contain only letters and spaces.');
+        setIsLoading(false);
+        return;
+      }
+      if (!isAlphaSpace(lastName.trim())) {
+        Alert.alert('Invalid Last Name', 'Last name should contain only letters and spaces.');
+        setIsLoading(false);
+        return;
+      }
       
       // Update the signup with first and last name
       if (signUp) {
@@ -680,6 +695,11 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
           unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
         });
         console.log('SignUpScreen - Clerk user updated with name');
+        // Force new JWT with updated userType
+        if (typeof getToken === 'function') {
+          const newToken = await getToken({ template: 'my_app_token', skipCache: true });
+          console.log('SignUpScreen - New JWT with userType:', newToken);
+        }
       }
       
       // TODO: Handle profile image upload if needed
@@ -790,6 +810,8 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
                 onNext={handleSendOTP}
                 onBack={goToPrevStep}
                 isLoading={isLoading}
+                selectedCountry={selectedCountry}
+                setSelectedCountry={setSelectedCountry}
               />
             )}
             
@@ -819,20 +841,7 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
                   firstName={firstName}
                   lastName={lastName}
                 />
-                {/* Debug button - remove in production */}
-                <TouchableOpacity
-                  onPress={testSessionActivation}
-                  style={{
-                    backgroundColor: '#ff6600',
-                    padding: 10,
-                    margin: 10,
-                    borderRadius: 5,
-                  }}
-                >
-                  <Text style={{ color: 'white', textAlign: 'center' }}>
-                    Test Session Activation
-                  </Text>
-                </TouchableOpacity>
+
               </>
             )}
           </View>

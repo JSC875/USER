@@ -20,12 +20,12 @@ import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
 
 const COUNTRY_CODES = [
-  { code: '+91', label: 'IN' },
-  { code: '+1', label: 'US' },
+  { code: '+91', label: 'IN', flag: '🇮🇳' },
+  { code: '+1', label: 'US', flag: '🇺🇸' },
 ];
 
 export default function LoginScreen({ navigation }: any) {
-  const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].code);
+  const [selectedCountry, setSelectedCountry] = useState(COUNTRY_CODES[0]);
   const [showDropdown, setShowDropdown] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -44,7 +44,7 @@ export default function LoginScreen({ navigation }: any) {
 
     try {
       // Format phone number for Clerk (add selected country code)
-      const formattedPhone = `${countryCode}${phoneNumber}`;
+      const formattedPhone = `${selectedCountry.code}${phoneNumber}`;
       // Start the sign-in process using the phone number method
       const { supportedFirstFactors } = await signIn.create({
         identifier: formattedPhone,
@@ -83,7 +83,7 @@ export default function LoginScreen({ navigation }: any) {
         onPress={() => setShowDropdown(true)}
         activeOpacity={0.7}
       >
-        <Text style={styles.countryCodeText}>{countryCode}</Text>
+        <Text style={styles.countryCodeText}>{selectedCountry.flag}</Text>
         <Ionicons name={showDropdown ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.gray400} />
       </TouchableOpacity>
       <Modal
@@ -102,11 +102,11 @@ export default function LoginScreen({ navigation }: any) {
               key={item.code}
               style={styles.modalItem}
               onPress={() => {
-                setCountryCode(item.code);
+                setSelectedCountry(item);
                 setShowDropdown(false);
               }}
             >
-              <Text style={styles.modalItemText}>{item.label} {item.code}</Text>
+              <Text style={styles.modalItemText}>{item.flag} {item.label} {item.code}</Text>
             </TouchableOpacity>
           ))}
         </View>

@@ -373,7 +373,10 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
-      <ScrollView keyboardShouldPersistTaps="handled" contentContainerStyle={{ flexGrow: 1 }}>
+      <ScrollView
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{ flexGrow: 1, paddingBottom: 100 }} // ensures content is not hidden behind the button
+      >
         <TouchableOpacity onPress={() => navigation.goBack()} style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
           <Ionicons name="arrow-back" size={28} color={Colors.text} />
         </TouchableOpacity>
@@ -601,13 +604,6 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
             )}
           </>
         )}
-        {/* Bottom Options */}
-        <View style={{ marginTop: 12 }}>
-          <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16 }} onPress={handleSelectOnMap}>
-            <Ionicons name="location-sharp" size={22} color="#222" style={{ marginRight: 16 }} />
-            <Text style={{ color: '#222', fontSize: 16 }}>Set location on map</Text>
-          </TouchableOpacity>
-        </View>
         <RNModal
           visible={showForWhomModal}
           transparent
@@ -668,6 +664,12 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           </View>
         </RNModal>
       </ScrollView>
+      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', paddingBottom: 16, paddingTop: 8, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#eee', zIndex: 100 }}>
+        <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16, width: '92%', borderRadius: 18, justifyContent: 'center' }} onPress={handleSelectOnMap}>
+          <Ionicons name="location-sharp" size={22} color="#23235B" style={{ marginRight: 16 }} />
+          <Text style={{ color: '#23235B', fontSize: 16, fontWeight: '700' }}>Set location on map</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }

@@ -11,10 +11,11 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useSignIn, useSignUp } from '@clerk/clerk-expo';
+import { useSignIn, useSignUp, useUser } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
+import { useAssignUserType } from '../../utils/helpers';
 
 export default function OTPVerificationScreen({ navigation, route }: any) {
   const { phoneNumber, isSignIn } = route.params;
@@ -25,8 +26,12 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
   
   const { signIn, setActive: setSignInActive } = useSignIn();
   const { signUp, setActive: setSignUpActive } = useSignUp();
+  const { user } = useUser();
   
   const inputRefs = useRef<(TextInput | null)[]>([]);
+
+  // Assign customer type to user
+  useAssignUserType('customer');
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -96,6 +101,14 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
           console.log('OTPVerificationScreen - Sign in successful, setting active session...');
           console.log('OTPVerificationScreen - Created session ID:', completeSignIn.createdSessionId);
           
+          // Set user type as customer
+          if (user) {
+            await user.update({
+              unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
+            });
+            console.log('OTPVerificationScreen - User type set to customer');
+          }
+          
           if (setSignInActive) {
             await setSignInActive({ session: completeSignIn.createdSessionId });
             console.log('OTPVerificationScreen - Session activated successfully');
@@ -132,6 +145,14 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
         if (isPhoneVerified) {
           console.log('OTPVerificationScreen - Phone verification successful!');
           console.log('OTPVerificationScreen - Missing fields:', completeSignUp?.missingFields);
+          
+          // Set user type as customer
+          if (user) {
+            await user.update({
+              unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
+            });
+            console.log('OTPVerificationScreen - User type set to customer');
+          }
           
           if (setSignUpActive && completeSignUp.createdSessionId) {
             await setSignUpActive({ session: completeSignUp.createdSessionId });
