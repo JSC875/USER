@@ -95,9 +95,18 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const handleBook = () => {
     // Get the selected ride option details
     const selectedRide = rideOptions.find(o => o.id === selected);
-    const success = emitEvent('book_ride', {
+    
+    console.log('🚗 Booking ride with data:', {
       pickup,
       drop,
+      rideType: selectedRide?.label,
+      price: selectedRide?.price,
+      userId: 'user123'
+    });
+    
+    const success = emitEvent('book_ride', {
+      pickup: pickup.address || 'Current Location',
+      drop: drop.address,
       rideType: selectedRide?.label,
       price: selectedRide?.price,
       userId: 'user123', // Replace with real user ID if available
@@ -105,31 +114,35 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     
     if (!success) {
       Alert.alert('Connection Error', 'Unable to connect to server. Please try again.');
+    } else {
+      console.log('✅ Ride booking request sent successfully');
     }
   };
 
   useEffect(() => {
     const onRideBooked = (data: any) => {
+      console.log('✅ Ride booked response received:', data);
       if (data.success) {
+        console.log('🎉 Ride booked successfully, navigating to FindingDriver');
         // Navigate to FindingDriver or show confirmation
-    navigation.navigate('FindingDriver', { 
-      destination: {
-        name: drop.address,
-        latitude: drop.latitude,
-        longitude: drop.longitude
-      },
-      estimate: {
+        navigation.navigate('FindingDriver', { 
+          destination: {
+            name: drop.address,
+            latitude: drop.latitude,
+            longitude: drop.longitude
+          },
+          estimate: {
             fare: data.price,
             distance: '2.5 km',
             duration: '8 mins',
             eta: '5 mins',
-      },
+          },
           paymentMethod: 'Cash',
           driver: null,
           rideId: data.rideId,
-    });
+        });
       } else {
-        Alert.alert('Booking Failed', 'Unable to book ride.');
+        Alert.alert('Booking Failed', data.message || 'Unable to book ride.');
       }
     };
     
