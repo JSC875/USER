@@ -202,9 +202,19 @@ export const listenToEvent = (eventName: string, callback: (data: any) => void) 
 };
 
 // Ride booking specific functions
+// Update the bookRide function type signature
+type PickupDropLocation = {
+  latitude: number;
+  longitude: number;
+  address: string;
+  name: string;
+  id?: string;
+  type?: string;
+};
+
 export const bookRide = (rideData: {
-  pickup: string;
-  drop: string;
+  pickup: PickupDropLocation;
+  drop: PickupDropLocation;
   rideType: string;
   price: number;
   userId: string;

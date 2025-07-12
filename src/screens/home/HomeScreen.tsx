@@ -260,8 +260,20 @@ export default function HomeScreen({ navigation, route }: any) {
     }
 
     const rideRequest = {
-      pickup: pickupLocation?.address || 'Current Location',
-      drop: dropLocation.name,
+      pickup: {
+        latitude: pickupLocation?.latitude,
+        longitude: pickupLocation?.longitude,
+        address: pickupLocation?.address || 'Current Location',
+        name: pickupLocation?.name || pickupLocation?.address || 'Pickup Location',
+      },
+      drop: {
+        id: dropLocation?.id || '1',
+        name: dropLocation?.name || dropLocation?.address || 'Drop Location',
+        address: dropLocation?.address || dropLocation?.name || 'Drop Location',
+        latitude: dropLocation?.latitude,
+        longitude: dropLocation?.longitude,
+        type: dropLocation?.type || 'recent',
+      },
       rideType: 'Bike',
       price: Math.floor(Math.random() * 50) + 20, // Random price for demo
       userId: user?.id || 'user123',

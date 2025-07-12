@@ -95,23 +95,31 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const handleBook = () => {
     // Get the selected ride option details
     const selectedRide = rideOptions.find(o => o.id === selected);
-    
-    console.log('🚗 Booking ride with data:', {
-      pickup,
-      drop,
-      rideType: selectedRide?.label,
-      price: selectedRide?.price,
-      userId: 'user123'
-    });
-    
-    const success = emitEvent('book_ride', {
-      pickup: pickup.address || 'Current Location',
-      drop: drop.address,
+
+    // Send full pickup and drop objects
+    const rideRequest = {
+      pickup: {
+        latitude: pickup.latitude,
+        longitude: pickup.longitude,
+        address: pickup.address || 'Current Location',
+        name: pickup.name || pickup.address || 'Pickup Location',
+      },
+      drop: {
+        id: drop.id || '1',
+        name: drop.name || drop.address || 'Drop Location',
+        address: drop.address || drop.name || 'Drop Location',
+        latitude: drop.latitude,
+        longitude: drop.longitude,
+        type: drop.type || 'recent',
+      },
       rideType: selectedRide?.label,
       price: selectedRide?.price,
       userId: 'user123', // Replace with real user ID if available
-    });
-    
+    };
+
+    console.log('🚗 Booking ride with data:', rideRequest);
+    const success = emitEvent('book_ride', rideRequest);
+
     if (!success) {
       Alert.alert('Connection Error', 'Unable to connect to server. Please try again.');
     } else {
