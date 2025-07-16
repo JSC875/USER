@@ -174,7 +174,6 @@ export default function FindingDriverScreen({ navigation, route }: any) {
   const [socketConnected, setSocketConnected] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
   const [hasNavigated, setHasNavigated] = useState(false);
-  const pulseAnim = useRef(new Animated.Value(1)).current;
   const searchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState<string | null>(null);
@@ -259,22 +258,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
     checkConnection();
 
-    // Pulse animation
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    pulse.start();
+
 
     // Set up socket event listeners
     const setupSocketListeners = () => {
@@ -477,7 +461,6 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
     return () => {
       console.log('🧹 Cleaning up FindingDriverScreen');
-      pulse.stop();
       clearCallbacks();
       if (searchTimer.current) {
         clearInterval(searchTimer.current);
@@ -492,7 +475,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
         socket.off('disconnect');
       }
     };
-  }, [navigation, destination, estimate, paymentMethod, rideId, isDriverFound, pickup, hasNavigated, pulseAnim]);
+  }, [navigation, destination, estimate, paymentMethod, rideId, isDriverFound, pickup, hasNavigated]);
 
   const handleCancel = () => {
     setShowCancelModal(true);
@@ -517,7 +500,11 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Connection Status */}
         {!socketConnected && (
           <View style={styles.connectionWarning}>
@@ -543,19 +530,6 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
         {/* Search Status */}
         <View style={styles.statusContainer}>
-          <Animated.View
-            style={[
-              styles.searchIcon,
-              { transform: [{ scale: pulseAnim }] },
-            ]}
-          >
-            <Ionicons 
-              name={isDriverFound ? "checkmark-circle" : "bicycle"} 
-              size={40} 
-              color={Colors.white} 
-            />
-          </Animated.View>
-          
           <Text style={styles.statusText}>{searchText}</Text>
           <Text style={styles.statusSubtext}>
             {isDriverFound ? 'Preparing your ride...' : 'This usually takes 1-2 minutes'}
@@ -614,16 +588,16 @@ export default function FindingDriverScreen({ navigation, route }: any) {
           <Ionicons name="close-circle" size={20} color={Colors.coral} />
           <Text style={styles.cancelButtonText}>Cancel Ride</Text>
         </TouchableOpacity>
-              </View>
+      </ScrollView>
         
-        {/* Cancel Ride Modal */}
-        <CancelRideModal
-          visible={showCancelModal}
-          onClose={() => setShowCancelModal(false)}
-          onConfirm={handleConfirmCancel}
-        />
-      </SafeAreaView>
-    );
+      {/* Cancel Ride Modal */}
+      <CancelRideModal
+        visible={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleConfirmCancel}
+      />
+    </SafeAreaView>
+  );
 }
 
 const styles = StyleSheet.create({
@@ -633,6 +607,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: Layout.spacing.xl,
   },
   connectionWarning: {
     flexDirection: 'row',
