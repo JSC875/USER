@@ -163,7 +163,7 @@ export default function MpinEntryScreen({ route, navigation }: MpinEntryScreenPr
         </TouchableOpacity>
         
         <View style={{ alignItems: 'center', marginBottom: 20 }}>
-          <Ionicons name="car" size={48} color={Colors.primary} style={{ marginBottom: 10 }} />
+          <Ionicons name="bicycle" size={48} color={Colors.primary} style={{ marginBottom: 10 }} />
           <Text style={{ fontSize: 24, fontWeight: 'bold', marginBottom: 8, color: '#1877f2', letterSpacing: 1 }}>
             Driver Arrived!
           </Text>
