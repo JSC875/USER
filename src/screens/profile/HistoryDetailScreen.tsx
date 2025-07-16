@@ -54,7 +54,7 @@ export default function HistoryDetailScreen({ route }: any) {
             style={styles.driverImage}
           />
           <View style={{ flex: 1, marginLeft: 16 }}>
-            <Text style={styles.driverName}>{ride.driverName || 'Driver Name'}</Text>
+            <Text style={styles.driverName}>{ride.driverName || 'Pilot Name'}</Text>
             <StarRating rating={ride.driverRating || 0} />
             <TouchableOpacity style={styles.callRow} onPress={handleCallDriver}>
               <Ionicons name="call" size={18} color={Colors.primary} />

@@ -168,7 +168,7 @@ export default function MpinEntryScreen({ route, navigation }: MpinEntryScreenPr
             Driver Arrived!
           </Text>
           <Text style={{ fontSize: 16, color: '#666', textAlign: 'center', marginBottom: 8 }}>
-            {driver?.name || 'Your driver'} has arrived at pickup location
+            {driver?.name || 'Your pilot'} has arrived at pickup location
           </Text>
           <Text style={{ fontSize: 14, color: '#888', textAlign: 'center' }}>
             Enter the 4-digit MPIN to start your ride

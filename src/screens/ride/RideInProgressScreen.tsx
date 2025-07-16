@@ -150,7 +150,7 @@ export default function RideInProgressScreen({ navigation, route }: any) {
   const onShareTrip = async () => {
     try {
       await Share.share({
-        message: `I'm on my way to ${destination?.name || 'destination'} with ${driverInfo?.name || 'my driver'}. Track my ride!`,
+        message: `I'm on my way to ${destination?.name || 'destination'} with ${driverInfo?.name || 'my pilot'}. Track my ride!`,
       });
     } catch (error: any) {
       alert('Error sharing: ' + (error?.message || error?.toString() || 'Unknown error'));
@@ -168,8 +168,8 @@ export default function RideInProgressScreen({ navigation, route }: any) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.callModal}>
-            <Text style={styles.modalTitle}>Call Driver</Text>
-            <Text style={styles.modalDriverName}>{driverInfo.name || 'Driver'}</Text>
+            <Text style={styles.modalTitle}>Call Pilot</Text>
+            <Text style={styles.modalDriverName}>{driverInfo.name || 'Pilot'}</Text>
             <Text style={styles.modalPhone}>{driverInfo.phone || 'No phone number'}</Text>
             <View style={{ flexDirection: 'row', marginTop: 20 }}>
               <TouchableOpacity style={styles.modalButton} onPress={handleCallNow}>

@@ -168,9 +168,17 @@ function CancelRideModal({ visible, onClose, onConfirm }: { visible: boolean; on
 
 export default function FindingDriverScreen({ navigation, route }: any) {
   const { destination, estimate, paymentMethod, driver, rideId, pickup } = route.params;
-  const [searchText, setSearchText] = useState('Finding nearby drivers...');
+  const [searchText, setSearchText] = useState('Finding nearby pilots...');
   const [isDriverFound, setIsDriverFound] = useState(false);
   const [driverInfo, setDriverInfo] = useState<any>(null);
+  
+  // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
+  const transformDriverName = (name: string) => {
+    if (name && name.includes('Driver')) {
+      return name.replace(/Driver/g, 'Pilot');
+    }
+    return name;
+  };
   const [socketConnected, setSocketConnected] = useState(false);
   const [searchTime, setSearchTime] = useState(0);
   const [hasNavigated, setHasNavigated] = useState(false);
@@ -184,7 +192,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       if (!isDriverFound) {
         Alert.alert(
           'Cancel Search',
-          'Are you sure you want to cancel searching for drivers?',
+          'Are you sure you want to cancel searching for pilots?',
           [
             { text: 'Continue Searching', style: 'cancel' },
             { 
@@ -225,9 +233,9 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       
       // Update search text based on time
       if (elapsed < 30) {
-        setSearchText('Finding nearby drivers...');
+        setSearchText('Finding nearby pilots...');
       } else if (elapsed < 60) {
-        setSearchText('Still searching for drivers...');
+                  setSearchText('Still searching for pilots...');
       } else {
         setSearchText('Searching in wider area...');
       }
@@ -302,20 +310,20 @@ export default function FindingDriverScreen({ navigation, route }: any) {
           searchTimer.current = null;
         }
         
-        // Navigate immediately without alert
-        navigation.replace('LiveTracking', {
-          destination,
-          estimate,
-          paymentMethod,
-          driver: {
-            id: data.driverId,
-            name: data.driverName,
-            phone: data.driverPhone,
-            eta: data.estimatedArrival,
-          },
-          rideId: data.rideId,
-          origin: pickup,
-        });
+                  // Navigate immediately without alert
+          navigation.replace('LiveTracking', {
+            destination,
+            estimate,
+            paymentMethod,
+            driver: {
+              id: data.driverId,
+              name: transformDriverName(data.driverName),
+              phone: data.driverPhone,
+              eta: data.estimatedArrival,
+            },
+            rideId: data.rideId,
+            origin: pickup,
+          });
       });
 
       // Listen for ride status updates
@@ -331,8 +339,8 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       onRideTimeout((data) => {
         console.log('⏰ Ride request timed out:', data);
         Alert.alert(
-          'No Drivers Found', 
-          data.message || 'No drivers were found. Please try again.',
+                    'No Pilots Found',
+          data.message || 'No pilots were found. Please try again.',
           [
             { text: 'Try Again', onPress: () => navigation.navigate('TabNavigator', { screen: 'Home' }) }
           ]
@@ -343,8 +351,8 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       onDriverOffline((data) => {
         console.log('🔴 Driver went offline:', data);
         Alert.alert(
-          'Driver Unavailable',
-          'The assigned driver is no longer available. We\'ll find you another driver.',
+          'Pilot Unavailable',
+          'The assigned pilot is no longer available. We\'ll find you another pilot.',
           [
             { text: 'OK' }
           ]
@@ -390,7 +398,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
           console.log('✅ Processing ride acceptance for correct ride (direct)');
           setIsDriverFound(true);
           setDriverInfo(data);
-          setSearchText('Driver found! Confirming ride...');
+          setSearchText('Pilot found! Confirming ride...');
           
           console.log('🚗 Navigating to LiveTracking from direct event with driver data:', {
             id: data.driverId,
@@ -414,7 +422,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
             paymentMethod,
             driver: {
               id: data.driverId,
-              name: data.driverName,
+              name: transformDriverName(data.driverName),
               phone: data.driverPhone,
               eta: data.estimatedArrival,
             },

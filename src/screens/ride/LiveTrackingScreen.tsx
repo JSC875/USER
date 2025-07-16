@@ -34,7 +34,18 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   const [callModalVisible, setCallModalVisible] = useState(false);
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [driverPath, setDriverPath] = useState<{latitude: number, longitude: number}[]>([]);
-  const driverInfo = driver;
+  // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
+  const transformDriverName = (name: string) => {
+    if (name && name.includes('Driver')) {
+      return name.replace(/Driver/g, 'Pilot');
+    }
+    return name;
+  };
+  
+  const driverInfo = {
+    ...driver,
+    name: driver?.name ? transformDriverName(driver.name) : undefined
+  };
   
   console.log('🚀 LiveTrackingScreen: Initial state:', {
     rideStatus,
@@ -224,7 +235,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   const getStatusText = () => {
     switch (rideStatus) {
       case 'arriving':
-        return `${driverInfo.name || 'Driver'} is arriving in ${currentETA} mins`;
+        return `${driverInfo.name || 'Pilot'} is arriving in ${currentETA} mins`;
       case 'picked_up':
         return 'Ride started - Heading to destination';
       case 'in_progress':
@@ -268,8 +279,8 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.callModal}>
-            <Text style={styles.modalTitle}>Call Driver</Text>
-            <Text style={styles.modalDriverName}>{driverInfo.name || 'Driver'}</Text>
+            <Text style={styles.modalTitle}>Call Pilot</Text>
+            <Text style={styles.modalDriverName}>{driverInfo.name || 'Pilot'}</Text>
             <Text style={styles.modalPhone}>{driverInfo.phone || 'No phone number'}</Text>
             <View style={{ flexDirection: 'row', marginTop: 20 }}>
               <TouchableOpacity style={styles.modalButton} onPress={handleCallNow}>
@@ -380,7 +391,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         <View style={styles.driverInfo}>
           <Image source={driverInfo.photo ? { uri: driverInfo.photo } : Images.SCOOTER_1} style={styles.driverPhoto} />
           <View style={styles.driverDetails}>
-            <Text style={styles.driverName}>{driverInfo.name || 'Driver'}</Text>
+            <Text style={styles.driverName}>{driverInfo.name || 'Pilot'}</Text>
             <View style={styles.ratingContainer}>
               <Ionicons name="star" size={16} color={Colors.accent} />
               <Text style={styles.rating}>{driverInfo.rating || '-'}</Text>

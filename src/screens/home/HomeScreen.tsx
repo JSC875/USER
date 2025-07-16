@@ -171,22 +171,33 @@ export default function HomeScreen({ navigation, route }: any) {
           status: 'searching'
         });
         setIsBookingRide(true);
-        Alert.alert('Ride Booked!', `Searching for drivers...\nRide ID: ${data.rideId}`);
+        Alert.alert('Ride Booked!', `Searching for pilots...\nRide ID: ${data.rideId}`);
       });
 
       onRideAccepted((data) => {
         console.log('✅ HomeScreen: Ride accepted by driver:', data);
+        
+        // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
+        const transformDriverName = (name: string) => {
+          if (name && name.includes('Driver')) {
+            return name.replace(/Driver/g, 'Pilot');
+          }
+          return name;
+        };
+        
+        const transformedDriverName = transformDriverName(data.driverName);
+        
         setCurrentRide((prev: any) => ({
           ...prev,
           driverId: data.driverId,
-          driverName: data.driverName,
+          driverName: transformedDriverName,
           driverPhone: data.driverPhone,
           estimatedArrival: data.estimatedArrival,
           status: 'accepted'
         }));
-        setRideStatus('Driver accepted your ride!');
+        setRideStatus('Pilot accepted your ride!');
         setShowRideModal(true);
-        Alert.alert('Driver Found!', `${data.driverName} will arrive in ${data.estimatedArrival}`);
+        Alert.alert('Pilot Found!', `${transformedDriverName} will arrive in ${data.estimatedArrival}`);
       });
 
       onDriverLocation((data) => {
@@ -216,7 +227,7 @@ export default function HomeScreen({ navigation, route }: any) {
 
       onDriverOffline((data) => {
         console.log('🔴 HomeScreen: Driver went offline:', data);
-        Alert.alert('Driver Offline', 'Your driver went offline. Finding a new driver...');
+        Alert.alert('Pilot Offline', 'Your pilot went offline. Finding a new pilot...');
       });
 
       // Cleanup callbacks on unmount
@@ -455,7 +466,7 @@ export default function HomeScreen({ navigation, route }: any) {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Ride Accepted!</Text>
             {currentRide?.driverName && (
-              <Text style={styles.modalText}>Driver: {currentRide.driverName}</Text>
+              <Text style={styles.modalText}>Pilot: {currentRide.driverName}</Text>
             )}
             {currentRide?.estimatedArrival && (
               <Text style={styles.modalText}>ETA: {currentRide.estimatedArrival}</Text>

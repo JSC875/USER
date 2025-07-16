@@ -251,8 +251,8 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     const handleRideTimeout = (data: any) => {
       console.log('⏰ Ride request timed out:', data);
       setIsBooking(false);
-      setBookingError('No drivers found. Please try again.');
-      Alert.alert('No Drivers Found', data.message || 'No drivers were found. Please try again.');
+              setBookingError('No pilots found. Please try again.');
+              Alert.alert('No Pilots Found', data.message || 'No pilots were found. Please try again.');
     };
     
     const handleRideError = (data: any) => {

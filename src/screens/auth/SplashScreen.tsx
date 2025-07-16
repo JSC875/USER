@@ -38,7 +38,7 @@ const screens = [
       </View>
     ),
     title: 'Safe & Reliable',
-    subtitle: 'Verified drivers, tracked rides, and 24/7 support. Your safety is our top priority on every journey.',
+    subtitle: 'Verified pilots, tracked rides, and 24/7 support. Your safety is our top priority on every journey.',
   },
   {
     key: 'eco',
