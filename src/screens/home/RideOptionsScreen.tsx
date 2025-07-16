@@ -13,6 +13,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { useUser, useAuth } from '@clerk/clerk-expo';
 import { calculateRideFare, getDistanceFromLatLonInKm } from '../../utils/helpers';
 import { getUserIdFromJWT } from '../../utils/jwtDecoder';
+import { Images } from '../../constants/Images';
 
 const { width, height } = Dimensions.get('window');
 
@@ -375,7 +376,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
             <Marker key={v.id} coordinate={v} anchor={{ x: 0.5, y: 0.5 }}>
               <Animated.View style={v.style}>
                 <Image
-                  source={require('../../../assets/images/iconAnimation1.png')}
+                  source={Images.ICON_ANIMATION_1}
                   style={{ width: 32, height: 32, resizeMode: 'contain' }}
                 />
               </Animated.View>
@@ -433,7 +434,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
                 >
                   {/* Replace icon with logo */}
                   <Image
-                    source={require('../../../assets/images/iconAnimation.jpg')}
+                    source={Images.ICON_ANIMATION}
                     style={{ width: 32, height: 32, marginRight: 16, resizeMode: 'contain' }}
                   />
                   <View style={{ flex: 1 }}>

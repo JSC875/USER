@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Image, Linking, ScrollView } 
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import { Images } from '../../constants/Images';
 
 // Star rating component
 const StarRating = ({ rating }: { rating: number }) => {
@@ -49,7 +50,7 @@ export default function HistoryDetailScreen({ route }: any) {
         <Text style={styles.sectionTitle}>Driver</Text>
         <View style={styles.driverRow}>
           <Image
-            source={ride.driverImage ? { uri: ride.driverImage } : require('../../../assets/images/iconAnimation1.png')}
+            source={ride.driverImage ? { uri: ride.driverImage } : Images.ICON_ANIMATION_1}
             style={styles.driverImage}
           />
           <View style={{ flex: 1, marginLeft: 16 }}>

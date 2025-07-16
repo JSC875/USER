@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { View, Text, Dimensions, TouchableOpacity, FlatList, Image } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { Images } from '../../constants/Images';
 
 const { width, height } = Dimensions.get('window');
 
@@ -13,7 +14,7 @@ const screens = [
     key: 'booking',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={require('../../../assets/images/splash5.png')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
+        <Image source={Images.SPLASH_5} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
       </View>
     ),
     title: 'Quick & Easy Booking',
@@ -23,7 +24,7 @@ const screens = [
     key: 'affordable',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={require('../../../assets/images/splash14.png')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
+        <Image source={Images.SPLASH_14} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
       </View>
     ),
     title: 'Affordable Rides',
@@ -33,7 +34,7 @@ const screens = [
     key: 'safe',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={require('../../../assets/images/safeandrelaible.png')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
+        <Image source={Images.SAFE_AND_RELIABLE} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
       </View>
     ),
     title: 'Safe & Reliable',
@@ -43,7 +44,7 @@ const screens = [
     key: 'eco',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={require('../../../assets/images/splash12.jpg')} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
+        <Image source={Images.SPLASH_12} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
       </View>
     ),
     title: 'she-to-she',

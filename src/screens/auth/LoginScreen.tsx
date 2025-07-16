@@ -18,6 +18,7 @@ import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import Logo from '../../components/common/Logo';
 
 const COUNTRY_CODES = [
   { code: '+91', label: 'IN', flag: '🇮🇳' },
@@ -123,7 +124,7 @@ export default function LoginScreen({ navigation }: any) {
         <ScrollView contentContainerStyle={styles.scrollContent}>
           <View style={styles.header}>
             <View style={styles.iconContainer}>
-              <Ionicons name="bicycle" size={60} color={Colors.primary} />
+              <Logo size={350} />
             </View>
             <Text style={styles.title}>Welcome Back</Text>
             <Text style={styles.subtitle}>

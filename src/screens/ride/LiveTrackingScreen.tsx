@@ -16,6 +16,7 @@ import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks } from '../../utils/socket';
 import MapView, { Marker, Polyline } from 'react-native-maps';
+import { Images } from '../../constants/Images';
 
 export default function LiveTrackingScreen({ navigation, route }: any) {
   const { destination, estimate, driver, rideId, origin } = route.params;
@@ -377,7 +378,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       {/* Driver Info Card */}
       <View style={styles.driverCard}>
         <View style={styles.driverInfo}>
-          <Image source={driverInfo.photo ? { uri: driverInfo.photo } : require('../../../assets/images/scoooter1.jpg')} style={styles.driverPhoto} />
+          <Image source={driverInfo.photo ? { uri: driverInfo.photo } : Images.SCOOTER_1} style={styles.driverPhoto} />
           <View style={styles.driverDetails}>
             <Text style={styles.driverName}>{driverInfo.name || 'Driver'}</Text>
             <View style={styles.ratingContainer}>
