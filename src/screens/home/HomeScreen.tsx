@@ -148,10 +148,6 @@ export default function HomeScreen({ navigation, route }: any) {
           result = null; // Not JSON, or empty
         }
         console.log('Backend response:', result, 'Status:', response.status);
-        if (response.status >= 200 && response.status < 300) {
-          // Show a visual confirmation
-          Alert.alert('Success', 'Custom JWT sent to backend!');
-        }
         setHasSentToBackend(true);
       } catch (err) {
         console.error('Failed to send custom JWT to backend:', err);
@@ -346,6 +342,7 @@ export default function HomeScreen({ navigation, route }: any) {
       console.error('Failed to send custom JWT to backend:', err);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container}>
