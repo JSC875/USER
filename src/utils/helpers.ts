@@ -1,6 +1,7 @@
 import { useEffect } from 'react';
 import { useUser } from '@clerk/clerk-expo';
 import { useAuth } from '@clerk/clerk-expo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export const formatCurrency = (amount: number): string => {
   return `₹${amount.toLocaleString('en-IN')}`;
@@ -179,3 +180,52 @@ export function calculateRideFare(
     duration
   };
 }
+
+/**
+ * Calculate the total bottom spacing needed for screens with bottom tab bar
+ * @param bottomInset - The bottom safe area inset
+ * @param tabBarHeight - The height of the tab bar (default: 52 from Layout.buttonHeight)
+ * @param additionalSpacing - Additional spacing to add (default: 24)
+ * @returns The total bottom spacing
+ */
+export const getBottomTabBarSpacing = (
+  bottomInset: number,
+  tabBarHeight: number = 52,
+  additionalSpacing: number = 24
+): number => {
+  return bottomInset + tabBarHeight + additionalSpacing;
+};
+
+/**
+ * Get safe area aware bottom positioning for floating elements
+ * @param bottomInset - The bottom safe area inset
+ * @param baseSpacing - Base spacing from bottom (default: 24)
+ * @param tabBarHeight - The height of the tab bar (default: 52 from Layout.buttonHeight)
+ * @returns The bottom position value
+ */
+export const getFloatingElementBottom = (
+  bottomInset: number,
+  baseSpacing: number = 24,
+  tabBarHeight: number = 52
+): number => {
+  return baseSpacing + bottomInset + tabBarHeight;
+};
+
+/**
+ * Custom hook for safe area handling with bottom tab bar
+ * @returns Object with safe area insets and calculated spacing values
+ */
+export const useSafeAreaWithTabBar = () => {
+  const insets = useSafeAreaInsets();
+  
+  const tabBarHeight = 52; // Layout.buttonHeight
+  const totalTabBarHeight = tabBarHeight + Math.max(insets.bottom, 8); // 8 = Layout.spacing.sm
+  
+  return {
+    insets,
+    tabBarHeight,
+    totalTabBarHeight,
+    getFloatingBottom: (baseSpacing: number = 24) => getFloatingElementBottom(insets.bottom, baseSpacing, tabBarHeight),
+    getBottomSpacing: (additionalSpacing: number = 24) => getBottomTabBarSpacing(insets.bottom, tabBarHeight, additionalSpacing),
+  };
+};

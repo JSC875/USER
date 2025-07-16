@@ -15,7 +15,7 @@ import { useUser, useAuth } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { mockLocations } from '../../data/mockData';
-import { getGreeting, useAssignUserType } from '../../utils/helpers';
+import { getGreeting, useAssignUserType, useSafeAreaWithTabBar } from '../../utils/helpers';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useLocationStore } from '../../store/useLocationStore';
@@ -40,6 +40,7 @@ const { width } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation, route }: any) {
   const { user } = useUser();
+  const { insets, getFloatingBottom } = useSafeAreaWithTabBar();
   const {
     pickupLocation,
     setPickupLocation,
@@ -403,7 +404,7 @@ export default function HomeScreen({ navigation, route }: any) {
         </MapView>
         {/* Current Location Button */}
         <TouchableOpacity
-          style={styles.currentLocationButton}
+          style={[styles.currentLocationButton, { bottom: getFloatingBottom(Layout.spacing.md) }]}
           onPress={async () => {
             let loc = await Location.getCurrentPositionAsync({});
             const coords = {
@@ -424,7 +425,7 @@ export default function HomeScreen({ navigation, route }: any) {
           <Ionicons name="locate" size={20} color={Colors.primary} />
         </TouchableOpacity>
         {/* Where to? Card Overlay */}
-        <View style={styles.whereToCard}>
+        <View style={[styles.whereToCard, { bottom: getFloatingBottom() }]}>
           <Text style={styles.whereToTitle}>Where to?</Text>
           <TouchableOpacity style={styles.whereToRow} activeOpacity={0.7}>
             <View style={[styles.dot, { backgroundColor: 'green' }]} />

@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@clerk/clerk-expo';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 // Auth Screens
 import SplashScreen from '../screens/auth/SplashScreen';
@@ -65,6 +66,8 @@ const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function TabNavigator() {
+  const insets = useSafeAreaInsets();
+  
   return (
     <Tab.Navigator
       id={undefined}
@@ -91,13 +94,26 @@ function TabNavigator() {
         tabBarStyle: {
           backgroundColor: Colors.white,
           borderTopColor: Colors.border,
-          paddingBottom: Layout.spacing.sm,
+          paddingBottom: Math.max(insets.bottom, Layout.spacing.sm),
           paddingTop: Layout.spacing.sm,
-          height: 60,
+          height: Layout.buttonHeight + Math.max(insets.bottom, Layout.spacing.sm),
+          position: 'absolute',
+          bottom: 0,
+          left: 0,
+          right: 0,
+          elevation: 8,
+          shadowColor: '#000',
+          shadowOffset: {
+            width: 0,
+            height: -2,
+          },
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
         },
         tabBarLabelStyle: {
           fontSize: Layout.fontSize.xs,
           fontWeight: '600',
+          marginBottom: 4,
         },
         headerShown: false,
       })}
