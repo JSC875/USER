@@ -34,6 +34,7 @@ import {
   clearCallbacks,
   connectSocketWithJWT
 } from "../../utils/socket";
+import { getUserIdFromJWT } from "../../utils/jwtDecoder";
 
 const { width } = Dimensions.get('window');
 
@@ -162,9 +163,11 @@ export default function HomeScreen({ navigation, route }: any) {
   useEffect(() => {
     // Connect to socket using JWT
     connectSocketWithJWT(getToken).then((socket) => {
+      console.log('🔗 HomeScreen: Socket connected successfully');
+      
       // Set up event callbacks
       onRideBooked((data) => {
-        console.log('✅ Ride booked:', data);
+        console.log('✅ HomeScreen: Ride booked:', data);
         setCurrentRide({
           rideId: data.rideId,
           price: data.price,
@@ -175,7 +178,7 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onRideAccepted((data) => {
-        console.log('✅ Ride accepted by driver:', data);
+        console.log('✅ HomeScreen: Ride accepted by driver:', data);
         setCurrentRide((prev: any) => ({
           ...prev,
           driverId: data.driverId,
@@ -190,7 +193,7 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onDriverLocation((data) => {
-        console.log('📍 Driver location update:', data);
+        console.log('📍 HomeScreen: Driver location update:', data);
         setDriverLocation({
           latitude: data.latitude,
           longitude: data.longitude
@@ -198,7 +201,7 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onRideStatus((data) => {
-        console.log('🔄 Ride status update:', data);
+        console.log('🔄 HomeScreen: Ride status update:', data);
         setRideStatus(data.message);
         setCurrentRide((prev: any) => ({
           ...prev,
@@ -215,14 +218,17 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onDriverOffline((data) => {
-        console.log('🔴 Driver went offline:', data);
+        console.log('🔴 HomeScreen: Driver went offline:', data);
         Alert.alert('Driver Offline', 'Your driver went offline. Finding a new driver...');
       });
 
       // Cleanup callbacks on unmount
       return () => {
+        console.log('🧹 HomeScreen: Cleaning up socket callbacks');
         clearCallbacks();
       };
+    }).catch((error) => {
+      console.error('❌ HomeScreen: Failed to connect socket:', error);
     });
   }, [getToken]);
 
@@ -253,19 +259,35 @@ export default function HomeScreen({ navigation, route }: any) {
   };
 
   // Enhanced ride booking function
-  const handleBookRide = () => {
+  const handleBookRide = async () => {
     if (!dropLocation) {
       Alert.alert('Select Destination', 'Please select a destination first.');
       return;
     }
-
+    // Fetch real-time GPS location
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Location permission is required to book a ride.');
+      return;
+    }
+    let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+    console.log('Fetched GPS position:', loc.coords);
+    const pickup = {
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+      address: 'Current Location',
+      name: 'Current Location',
+    };
+    console.log('pickup:', pickup);
+    console.log('drop:', dropLocation);
+    console.log('drop latitude:', dropLocation?.latitude, 'drop longitude:', dropLocation?.longitude);
+    
+    // Get user ID from JWT to ensure consistency with socket connection
+    const userId = await getUserIdFromJWT(getToken);
+    console.log('🔑 Using user ID for ride booking:', userId);
+    
     const rideRequest = {
-      pickup: {
-        latitude: pickupLocation?.latitude,
-        longitude: pickupLocation?.longitude,
-        address: pickupLocation?.address || 'Current Location',
-        name: pickupLocation?.name || pickupLocation?.address || 'Pickup Location',
-      },
+      pickup,
       drop: {
         id: dropLocation?.id || '1',
         name: dropLocation?.name || dropLocation?.address || 'Drop Location',
@@ -276,17 +298,13 @@ export default function HomeScreen({ navigation, route }: any) {
       },
       rideType: 'Bike',
       price: Math.floor(Math.random() * 50) + 20, // Random price for demo
-      userId: user?.id || 'user123',
+      userId: userId,
     };
-
     console.log('🚗 Booking ride:', rideRequest);
     const success = bookRide(rideRequest);
-    
     if (success) {
       setIsBookingRide(true);
       Alert.alert('Booking Ride...', 'Request sent to server!');
-    } else {
-      Alert.alert('Error', 'Socket not connected! Please check your connection.');
     }
   };
 

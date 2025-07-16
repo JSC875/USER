@@ -90,3 +90,92 @@ export function useApiWithAuth() {
 
   return apiCall;
 }
+
+/**
+ * Calculate the distance between two lat/lng points in kilometers (Haversine formula)
+ */
+export function getDistanceFromLatLonInKm(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371; // Radius of the earth in km
+  const dLat = deg2rad(lat2 - lat1);
+  const dLon = deg2rad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+    Math.cos(deg2rad(lat1)) * Math.cos(deg2rad(lat2)) *
+    Math.sin(dLon / 2) * Math.sin(dLon / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  const d = R * c; // Distance in km
+  return d;
+}
+function deg2rad(deg: number): number {
+  return deg * (Math.PI / 180);
+}
+
+/**
+ * Calculate ride fare based on distance, duration, and ride type
+ */
+export interface FareBreakdown {
+  baseFare: number;
+  distanceFare: number;
+  timeFare: number;
+  totalFare: number;
+  distance: string;
+  duration: string;
+}
+
+export function calculateRideFare(
+  distanceKm: number, 
+  durationMinutes: number, 
+  rideType: string = 'bike'
+): FareBreakdown {
+  // Fare structure based on ride type
+  const fareStructure = {
+    bike: {
+      baseFare: 20,
+      perKm: 8,
+      perMinute: 0.5,
+      minFare: 25,
+      maxFare: 200
+    },
+    scooty: {
+      baseFare: 25,
+      perKm: 10,
+      perMinute: 0.6,
+      minFare: 30,
+      maxFare: 250
+    },
+    auto: {
+      baseFare: 30,
+      perKm: 12,
+      perMinute: 0.8,
+      minFare: 40,
+      maxFare: 300
+    }
+  };
+
+  const structure = fareStructure[rideType as keyof typeof fareStructure] || fareStructure.bike;
+  
+  // Calculate fare components
+  const baseFare = structure.baseFare;
+  const distanceFare = Math.round(distanceKm * structure.perKm);
+  const timeFare = Math.round(durationMinutes * structure.perMinute);
+  
+  // Calculate total fare
+  let totalFare = baseFare + distanceFare + timeFare;
+  
+  // Apply minimum and maximum fare limits
+  totalFare = Math.max(structure.minFare, totalFare);
+  totalFare = Math.min(structure.maxFare, totalFare);
+  
+  // Format distance and duration
+  const distance = formatDistance(distanceKm);
+  const duration = formatTime(durationMinutes);
+  
+  return {
+    baseFare,
+    distanceFare,
+    timeFare,
+    totalFare,
+    distance,
+    duration
+  };
+}

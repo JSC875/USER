@@ -27,6 +27,8 @@ import RideOptionsScreen from '../screens/home/RideOptionsScreen';
 // Ride Screens
 import FindingDriverScreen from '../screens/ride/FindingDriverScreen';
 import LiveTrackingScreen from '../screens/ride/LiveTrackingScreen';
+import MpinEntryScreen from '../screens/ride/MpinEntryScreen';
+import RideInProgressScreen from '../screens/ride/RideInProgressScreen';
 import ChatScreen from '../screens/ride/ChatScreen';
 import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
 
@@ -169,6 +171,8 @@ function MainNavigator() {
       {/* Ride Flow */}
       <Stack.Screen name="FindingDriver" component={FindingDriverScreen} />
       <Stack.Screen name="LiveTracking" component={LiveTrackingScreen} />
+      <Stack.Screen name="MpinEntry" component={MpinEntryScreen} />
+      <Stack.Screen name="RideInProgress" component={RideInProgressScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="RideSummary" component={RideSummaryScreen} />
       <Stack.Screen name="RateDriver" component={require('../screens/ride/RateDriverScreen').default} />

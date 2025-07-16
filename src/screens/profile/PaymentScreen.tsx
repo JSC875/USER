@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, FlatList } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView } from 'react-native';
 import { Ionicons, MaterialCommunityIcons, FontAwesome5 } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
@@ -128,12 +128,9 @@ export default function PaymentScreen({ navigation }: any) {
       ) : (
         <View style={styles.card}>
           <Text style={styles.sectionTitle}>Payment History</Text>
-          <FlatList
-            data={paymentHistory}
-            keyExtractor={item => item.id}
-            scrollEnabled={false}
-            renderItem={({ item }) => (
-              <View style={styles.historyRow}>
+          <View>
+            {paymentHistory.map((item) => (
+              <View key={item.id} style={styles.historyRow}>
                 <View style={styles.historyIcon}>
                   <Ionicons name="receipt-outline" size={24} color="#6366f1" />
                 </View>
@@ -146,8 +143,8 @@ export default function PaymentScreen({ navigation }: any) {
                   <Text style={styles.statusText}>{item.status}</Text>
                 </View>
               </View>
-            )}
-          />
+            ))}
+          </View>
         </View>
       )}
 

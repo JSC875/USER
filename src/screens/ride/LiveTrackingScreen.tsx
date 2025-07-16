@@ -14,22 +14,51 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import { onRideStatus, onDriverLocation, clearCallbacks } from '../../utils/socket';
+import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks } from '../../utils/socket';
+import MapView, { Marker, Polyline } from 'react-native-maps';
 
 export default function LiveTrackingScreen({ navigation, route }: any) {
-  const { destination, estimate, driver, rideId } = route.params;
+  const { destination, estimate, driver, rideId, origin } = route.params;
+  
+  console.log('🚀 LiveTrackingScreen: Component initialized with params:', {
+    destination,
+    estimate,
+    driver,
+    rideId,
+    origin
+  });
+  
   const [rideStatus, setRideStatus] = useState('arriving');
   const [currentETA, setCurrentETA] = useState(driver?.eta || estimate?.eta || 'N/A');
   const [callModalVisible, setCallModalVisible] = useState(false);
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  const [driverPath, setDriverPath] = useState<{latitude: number, longitude: number}[]>([]);
   const driverInfo = driver;
+  
+  console.log('🚀 LiveTrackingScreen: Initial state:', {
+    rideStatus,
+    currentETA,
+    driverInfo
+  });
 
   useEffect(() => {
+    console.log('🔧 LiveTrackingScreen: Setting up ride status and driver location listeners');
+    console.log('🔧 Current rideId:', rideId);
+    console.log('🔧 Current driverInfo:', driverInfo);
+    
     // Listen for real-time ride status and driver location updates
     onRideStatus((data: { rideId: string; status: string; message?: string; }) => {
+      console.log('🔄 LiveTrackingScreen received ride status update:', data);
+      console.log('🔄 Checking if rideId matches:', data.rideId, '===', rideId);
+      
       if (data.rideId === rideId) {
+        console.log('✅ RideId matches, updating status from', rideStatus, 'to', data.status);
         setRideStatus(data.status);
+        
+        // Only handle completion and cancellation here
+        // Driver arrival and ride start are handled by direct socket listeners
         if (data.status === 'completed') {
+          console.log('✅ Ride completed, navigating to RideSummary');
           navigation.navigate('RideSummary', {
             destination,
             estimate,
@@ -37,20 +66,121 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           });
         }
         if (data.status === 'cancelled') {
-          Alert.alert('Ride Cancelled', data.message || 'Your ride has been cancelled.');
+          console.log('❌ Ride cancelled');
+          Alert.alert('Ride Cancelled', (data as any).message || 'Your ride has been cancelled.');
           navigation.navigate('TabNavigator', { screen: 'Home' });
         }
+      } else {
+        console.log('🚫 Ignoring ride status update for different ride:', data.rideId, 'expected:', rideId);
       }
     });
+
+    // Listen for ride completed event specifically
+    onRideCompleted((data: { rideId: string; status: string; message: string; timestamp: number; }) => {
+      console.log('✅ LiveTrackingScreen received ride completed event:', data);
+      console.log('✅ Checking if rideId matches:', data.rideId, '===', rideId);
+      
+      if (data.rideId === rideId) {
+        console.log('✅ Ride completed event matches current ride, navigating to RideSummary');
+        navigation.navigate('RideSummary', {
+          destination,
+          estimate,
+          driver: driverInfo,
+        });
+      } else {
+        console.log('🚫 Ignoring ride completed event for different ride:', data.rideId, 'expected:', rideId);
+      }
+    });
+    
     onDriverLocation((data: { driverId: string; latitude: number; longitude: number; }) => {
+      console.log('📍 LiveTrackingScreen received driver location:', data);
+      console.log('📍 Expected driverId:', driverInfo?.id);
+      
       if (data.driverId === driverInfo?.id) {
+        console.log('✅ DriverId matches, updating location');
         setDriverLocation({ latitude: data.latitude, longitude: data.longitude });
+        setDriverPath(prev => {
+          // Only add if different from last
+          if (!prev.length || prev[prev.length-1].latitude !== data.latitude || prev[prev.length-1].longitude !== data.longitude) {
+            return [...prev, { latitude: data.latitude, longitude: data.longitude }];
+          }
+          return prev;
+        });
+      } else {
+        console.log('🚫 Ignoring driver location for different driver:', data.driverId, 'expected:', driverInfo?.id);
       }
     });
+    
     return () => {
+      console.log('🧹 LiveTrackingScreen: Cleaning up ride status and driver location listeners');
       clearCallbacks();
     };
   }, [rideId, driverInfo, navigation, destination, estimate]);
+
+  // Listen for driver_arrived event to show MPIN entry
+  useEffect(() => {
+    console.log('🔧 LiveTrackingScreen: Setting up direct socket listeners');
+    console.log('🔧 Current rideId for direct listeners:', rideId);
+    
+    const handleDriverArrived = (data: { rideId: string; driverId: string; message?: string; status?: string }) => {
+      console.log('🎯 LiveTrackingScreen received driver_arrived event:', data);
+      console.log('🎯 Checking if rideId matches:', data.rideId, '===', rideId);
+      
+      if (data.rideId === rideId) {
+        console.log('🚗 Driver arrived at pickup location, navigating to MpinEntry');
+        console.log('🚗 Current screen state before navigation:', { rideStatus, currentETA });
+        
+        // Navigate to MPIN entry screen
+        navigation.navigate('MpinEntry', {
+          driver: driverInfo,
+          rideId,
+          destination,
+          origin,
+        });
+      } else {
+        console.log('🚫 Ignoring driver_arrived event for different ride:', data.rideId, 'expected:', rideId);
+      }
+    };
+
+    // Listen for ride_started event to go to ride in progress
+    const handleRideStarted = (data: { rideId: string; driverId: string; message?: string; status?: string }) => {
+      console.log('🎯 LiveTrackingScreen received ride_started event:', data);
+      console.log('🎯 Checking if rideId matches:', data.rideId, '===', rideId);
+      
+      if (data.rideId === rideId) {
+        console.log('🚀 Ride started, navigating to RideInProgress');
+        console.log('🚀 Current screen state before navigation:', { rideStatus, currentETA });
+        
+        navigation.replace('RideInProgress', {
+          driver: driverInfo,
+          rideId,
+          destination,
+          origin,
+        });
+      } else {
+        console.log('🚫 Ignoring ride_started event for different ride:', data.rideId, 'expected:', rideId);
+      }
+    };
+
+    // Add event listeners
+    const socket = require('../../utils/socket').getSocket();
+    if (socket) {
+      console.log('🔗 Adding direct socket listeners to socket:', socket.id);
+      console.log('🔗 Socket connected:', socket.connected);
+      socket.on('driver_arrived', handleDriverArrived);
+      socket.on('ride_started', handleRideStarted);
+    } else {
+      console.warn('⚠️ No socket available for direct event listeners');
+    }
+
+    return () => {
+      if (socket) {
+        console.log('🧹 LiveTrackingScreen: Cleaning up direct socket listeners');
+        socket.off('driver_arrived', handleDriverArrived);
+        socket.off('ride_started', handleRideStarted);
+      }
+    };
+  }, [rideId, driverInfo, navigation, destination, origin]);
 
   const handleChat = () => {
     navigation.navigate('Chat', { driver: driverInfo });
@@ -121,7 +251,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       await Share.share({
         message: 'Check out my trip details! [Add trip info or link here]',
       });
-    } catch (error) {
+    } catch (error: any) {
       alert('Error sharing: ' + (error?.message || error?.toString() || 'Unknown error'));
     }
   };
@@ -154,11 +284,51 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       </Modal>
       {/* Map Container */}
       <View style={styles.mapContainer}>
-        <View style={styles.mapPlaceholder}>
-          <Ionicons name="map" size={48} color={Colors.gray400} />
-          <Text style={styles.mapText}>Live Tracking</Text>
-          <Text style={styles.statusIndicator}>{rideStatus.replace('_', ' ').toUpperCase()}</Text>
-        </View>
+        <MapView
+          style={{ flex: 1 }}
+          initialRegion={{
+            latitude: driverLocation?.latitude || destination?.latitude || 17.4448,
+            longitude: driverLocation?.longitude || destination?.longitude || 78.3498,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
+          region={driverLocation ? {
+            latitude: driverLocation.latitude,
+            longitude: driverLocation.longitude,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          } : undefined}
+        >
+          {/* Polyline from driver to pickup (origin) when arriving */}
+          {rideStatus === 'arriving' && driverLocation && origin && origin.latitude && origin.longitude && (
+            <Polyline
+              coordinates={[
+                { latitude: driverLocation.latitude, longitude: driverLocation.longitude },
+                { latitude: origin.latitude, longitude: origin.longitude }
+              ]}
+              strokeColor="#007AFF"
+              strokeWidth={4}
+            />
+          )}
+          {/* Show driver's path as polyline after pickup if needed */}
+          {rideStatus !== 'arriving' && driverPath.length > 1 && (
+            <Polyline
+              coordinates={driverPath}
+              strokeColor="#007AFF"
+              strokeWidth={4}
+            />
+          )}
+          {driverLocation && (
+            <Marker coordinate={driverLocation} title="Driver" pinColor="blue" />
+          )}
+          {/* Pickup marker */}
+          {origin && origin.latitude && origin.longitude && (
+            <Marker coordinate={{ latitude: origin.latitude, longitude: origin.longitude }} title="Pickup" pinColor="#00C853" />
+          )}
+          {destination && destination.latitude && destination.longitude && (
+            <Marker coordinate={{ latitude: destination.latitude, longitude: destination.longitude }} title="Destination" pinColor="#FF5A5F" />
+          )}
+        </MapView>
 
         {/* Status Overlay */}
         <View style={styles.statusOverlay}>
@@ -185,6 +355,21 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           </TouchableOpacity>
           <TouchableOpacity style={[styles.actionButton, styles.sosButton]} onPress={handleSOS}>
             <Ionicons name="warning" size={20} color={Colors.white} />
+          </TouchableOpacity>
+          {/* Debug button for testing */}
+          <TouchableOpacity 
+            style={[styles.actionButton, { backgroundColor: '#FF6B6B' }]} 
+            onPress={() => {
+              console.log('🔧 DEBUG: Manual navigation to MpinEntry');
+              navigation.navigate('MpinEntry', {
+                driver: driverInfo,
+                rideId,
+                destination,
+                origin,
+              });
+            }}
+          >
+            <Ionicons name="bug" size={20} color={Colors.white} />
           </TouchableOpacity>
         </View>
       </View>

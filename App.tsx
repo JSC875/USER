@@ -33,16 +33,8 @@ if (!publishableKey) {
 }
 
 export default function App() {
-  useEffect(() => {
-    const socket = connectSocket();
-    
-    // The socket connection events are now handled in the socket.ts file
-    // Additional app-specific socket event listeners can be added here
-    
-    return () => {
-      disconnectSocket();
-    };
-  }, []);
+  // Socket connection will be handled in individual screens when needed
+  // This prevents connecting without a valid user ID
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
