@@ -147,6 +147,14 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     console.log("❌ Ride cancellation error:", data);
     Alert.alert('Cancellation Error', data.message || 'Ride could not be cancelled.');
   });
+
+  socket.on("ride_cancellation_success", (data) => {
+    console.log("✅ Ride cancellation successful:", data);
+    const message = data.cancellationFee > 0 
+      ? `${data.message}\n\nCancellation fee: ₹${data.cancellationFee}`
+      : data.message;
+    Alert.alert('Ride Cancelled', message);
+  });
   
   socket.on("disconnect", (reason) => {
     console.log("🔴 Socket.IO disconnected:", reason);
@@ -250,6 +258,13 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   socket.on("ride_completed", (data) => {
     console.log("✅ Ride completed:", data);
     onRideCompletedCallback?.(data);
+  });
+
+  // Ride cancelled event
+  socket.on("ride_cancelled", (data) => {
+    console.log("❌ Ride cancelled:", data);
+    // Use the same callback as ride status updates for consistency
+    onRideStatusCallback?.(data);
   });
 
   // Test events
@@ -369,8 +384,8 @@ export const bookRide = (rideData: {
   return requestRide(rideData);
 };
 
-export const cancelRide = (rideId: string) => {
-  return emitEvent("cancel_ride", { rideId });
+export const cancelRide = (rideId: string, reason: string = '') => {
+  return emitEvent("cancel_ride", { rideId, reason });
 };
 
 // Event callback setters

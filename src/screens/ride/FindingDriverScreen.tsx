@@ -7,8 +7,10 @@ import {
   TouchableOpacity,
   Alert,
   BackHandler,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
@@ -24,6 +26,145 @@ import {
   onRideTimeout
 } from '../../utils/socket';
 
+const { width } = Dimensions.get('window');
+
+function CancelRideModal({ visible, onClose, onConfirm }: { visible: boolean; onClose: () => void; onConfirm: (reason: string) => void }) {
+  const [selectedReason, setSelectedReason] = useState<string>('');
+  const anim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+
+  const cancelReasons = [
+    'Found another ride',
+    'Changed my mind',
+    'Emergency situation',
+    'Wrong pickup location',
+    'Price too high',
+    'Waiting too long',
+    'Other'
+  ];
+
+  React.useEffect(() => {
+    Animated.timing(anim, {
+      toValue: visible ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
+
+  const handleConfirm = () => {
+    if (selectedReason) {
+      onConfirm(selectedReason);
+      setSelectedReason('');
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={{
+      position: 'absolute',
+      top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: anim.interpolate({ inputRange: [0, 1], outputRange: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)'] }),
+      justifyContent: 'center',
+      alignItems: 'center',
+      opacity: anim,
+      zIndex: 10000,
+    }}>
+      <Animated.View style={{
+        width: width - 40,
+        backgroundColor: '#fff',
+        borderRadius: 20,
+        padding: 24,
+        transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+      }}>
+        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#222', marginBottom: 16, textAlign: 'center' }}>
+          Cancel Ride
+        </Text>
+        <Text style={{ fontSize: 16, color: '#666', marginBottom: 20, textAlign: 'center' }}>
+          Please select a reason for cancelling this ride
+        </Text>
+        
+        <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+          {cancelReasons.map((reason, index) => (
+            <TouchableOpacity
+              key={index}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                backgroundColor: selectedReason === reason ? '#e3f2fd' : '#f8f9fa',
+                marginBottom: 8,
+                borderWidth: 2,
+                borderColor: selectedReason === reason ? '#1877f2' : 'transparent',
+              }}
+              onPress={() => setSelectedReason(reason)}
+              activeOpacity={0.7}
+            >
+              <View style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                borderWidth: 2,
+                borderColor: selectedReason === reason ? '#1877f2' : '#ccc',
+                backgroundColor: selectedReason === reason ? '#1877f2' : 'transparent',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 12,
+              }}>
+                {selectedReason === reason && (
+                  <Ionicons name="checkmark" size={12} color="#fff" />
+                )}
+              </View>
+              <Text style={{
+                fontSize: 15,
+                color: selectedReason === reason ? '#1877f2' : '#333',
+                fontWeight: selectedReason === reason ? '600' : '400',
+                flex: 1,
+              }}>
+                {reason}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={{ flexDirection: 'row', marginTop: 20, gap: 12 }}>
+          <TouchableOpacity
+            style={{
+              flex: 1,
+              backgroundColor: '#f8f9fa',
+              borderRadius: 12,
+              paddingVertical: 14,
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: '#e0e0e0',
+            }}
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: '#666', fontWeight: '600', fontSize: 16 }}>Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              flex: 1,
+              backgroundColor: selectedReason ? '#ff4444' : '#ccc',
+              borderRadius: 12,
+              paddingVertical: 14,
+              alignItems: 'center',
+            }}
+            onPress={handleConfirm}
+            disabled={!selectedReason}
+            activeOpacity={selectedReason ? 0.7 : 1}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Cancel Ride</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 export default function FindingDriverScreen({ navigation, route }: any) {
   const { destination, estimate, paymentMethod, driver, rideId, pickup } = route.params;
   const [searchText, setSearchText] = useState('Finding nearby drivers...');
@@ -34,6 +175,8 @@ export default function FindingDriverScreen({ navigation, route }: any) {
   const [hasNavigated, setHasNavigated] = useState(false);
   const pulseAnim = useRef(new Animated.Value(1)).current;
   const searchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState<string | null>(null);
 
   // Prevent going back during search
   useEffect(() => {
@@ -351,29 +494,18 @@ export default function FindingDriverScreen({ navigation, route }: any) {
   }, [navigation, destination, estimate, paymentMethod, rideId, isDriverFound, pickup, hasNavigated, pulseAnim]);
 
   const handleCancel = () => {
-    Alert.alert(
-      'Cancel Ride',
-      'Are you sure you want to cancel this ride?',
-      [
-        {
-          text: 'No',
-          style: 'cancel',
-        },
-        {
-          text: 'Yes',
-          style: 'destructive',
-          onPress: () => {
-            // Emit cancel ride event to server
-            const socket = getSocket();
-            if (socket && rideId) {
-              console.log('🚫 User cancelled ride, emitting cancel_ride');
-              socket.emit('cancel_ride', { rideId });
-            }
-            navigation.navigate('TabNavigator', { screen: 'Home' });
-          },
-        },
-      ]
-    );
+    setShowCancelModal(true);
+  };
+
+  const handleConfirmCancel = (reason: string) => {
+    // Emit cancel ride event to server with reason
+    const socket = getSocket();
+    if (socket && rideId) {
+      console.log('🚫 User cancelled ride, emitting cancel_ride with reason:', reason);
+      socket.emit('cancel_ride', { rideId, reason });
+    }
+    setShowCancelModal(false);
+    navigation.navigate('TabNavigator', { screen: 'Home' });
   };
 
   const formatSearchTime = (seconds: number) => {
@@ -474,9 +606,16 @@ export default function FindingDriverScreen({ navigation, route }: any) {
           <Ionicons name="close-circle" size={20} color={Colors.coral} />
           <Text style={styles.cancelButtonText}>Cancel Ride</Text>
         </TouchableOpacity>
-      </View>
-    </SafeAreaView>
-  );
+              </View>
+        
+        {/* Cancel Ride Modal */}
+        <CancelRideModal
+          visible={showCancelModal}
+          onClose={() => setShowCancelModal(false)}
+          onConfirm={handleConfirmCancel}
+        />
+      </SafeAreaView>
+    );
 }
 
 const styles = StyleSheet.create({
