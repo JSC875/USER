@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -527,10 +528,17 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
         {/* Map Container */}
         <View style={styles.mapContainer}>
-          <View style={styles.mapPlaceholder}>
-            <Ionicons name="map" size={48} color={Colors.gray400} />
-            <Text style={styles.mapText}>Searching for drivers nearby</Text>
-          </View>
+          <Video
+            style={styles.videoPlayer}
+            source={require('../../../assets/images/findingDriverGif.mp4')}
+            shouldPlay
+            isLooping
+            isMuted
+            resizeMode={ResizeMode.COVER}
+            onError={(error) => {
+              console.log('Video error:', error);
+            }}
+          />
         </View>
 
         {/* Search Status */}
@@ -649,19 +657,12 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.lg,
     overflow: 'hidden',
   },
-  mapPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapText: {
-    marginTop: Layout.spacing.sm,
-    fontSize: Layout.fontSize.md,
-    color: Colors.gray400,
+  videoPlayer: {
+    width: '110%',
+    height: '110%',
   },
   statusContainer: {
     alignItems: 'center',
-    paddingVertical: Layout.spacing.xl,
   },
   searchIcon: {
     width: 80,
