@@ -419,8 +419,8 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           shadowRadius: 8,
           elevation: 8,
         }}>
-          <View style={{ paddingHorizontal: 16, paddingTop: 16, maxHeight: height * 0.45 }}>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: height * 0.45 }}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 16, maxHeight: height * 0.35 }}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: height * 0.35 }}>
               {rideOptions.map((opt) => (
                 <TouchableOpacity
                   key={opt.id}
@@ -438,7 +438,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
                     style={{ width: 32, height: 32, marginRight: 16, resizeMode: 'contain' }}
                   />
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1 }}>
                       <Text style={styles.rideLabel}>{opt.label}</Text>
                       {/* Person icon and seat count */}
                       <Ionicons name="person" size={16} color="#222" style={{ marginLeft: 6, marginRight: 2 }} />
@@ -513,7 +513,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   mapContainer: {
     width: '100%',
-    height: '40%',
+    height: '55%',
     position: 'relative',
   },
   map: {
@@ -564,8 +564,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f8fafc',
     borderRadius: 16,
-    padding: 18,
-    marginBottom: 14,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#f3f4f6',
     shadowColor: '#000',
@@ -586,7 +586,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   rideLabel: { fontWeight: '700', fontSize: 16, color: '#222' },
-  rideMeta: { color: '#64748b', fontSize: 13, marginTop: 2 },
+  rideMeta: { color: '#64748b', fontSize: 13, marginTop: 1 },
   ridePrice: { fontWeight: '700', fontSize: 18, color: '#222', marginLeft: 12 },
   tag: {
     backgroundColor: '#fbbf24',
@@ -658,7 +658,7 @@ const styles = StyleSheet.create({
   },
   addStopBackBtn: { padding: 4 },
   addStopText: { fontWeight: '700', color: '#222', fontSize: 15, marginLeft: 8 },
-  rideSubtitle: { color: '#64748b', fontSize: 13, marginTop: 2 },
+  rideSubtitle: { color: '#64748b', fontSize: 13, marginTop: 1 },
   bottomAreaWrapper: { flex: 1, justifyContent: 'flex-end' },
   bookingErrorText: {
     color: '#ef4444',
