@@ -66,7 +66,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
     setIsFetching(true);
     try {
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU`
+        `https://maps.googleapis.com/maps/api/geocode/json?latlng=${lat},${lng}&key=${process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}`
       );
       const data = await response.json();
       if (data.status === 'OK' && data.results.length > 0) {
