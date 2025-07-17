@@ -1,13 +1,13 @@
 {
   "expo": {
-    "name": "user-app",
-    "slug": "user-app",
+    "name": "Roqet-app",
+    "slug": "roqet-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/roqetlogo.jpg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
-    "scheme": "user-app",
+    "scheme": "roqet-app",
     "splash": {
       "image": "./assets/images/roqetlogo.jpg",
       "resizeMode": "contain",
@@ -17,7 +17,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.appacella.userapp",
+      "package": "com.roqet.roqetapp",
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/roqetlogo.jpg",
         "backgroundColor": "#ffffff"
@@ -61,7 +61,11 @@
       },
       "eas": {
         "projectId": "84f24d0c-26df-4cec-afe7-d75952191729"
-      }
+      },
+      "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_dXNlZnVsLWZsYW1pbmdvLTQxLmNsZXJrLmFjY291bnRzLmRldiQ",
+      "EXPO_PUBLIC_SOCKET_URL": "https://testsocketio-roqet.up.railway.app",
+      "EXPO_PUBLIC_API_URL": "https://bike-taxi-production.up.railway.app",
+      "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU"
     }
   }
 }
