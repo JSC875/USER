@@ -104,7 +104,7 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
 
   console.log(`🔗 Connecting socket for user: ${userId}, type: ${userType}`);
   socket = io(SOCKET_URL, {
-    transports: ["websocket"], // Use only WebSocket for React Native to avoid XHR issues
+    transports: ["websocket", "polling"], // Try both for better compatibility
     query: {
       type: userType,
       id: userId,
@@ -115,8 +115,8 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     reconnectionDelayMax: 10000,
     timeout: 60000,
     forceNew: true,
-    upgrade: false, // Disable upgrade since we're only using WebSocket
-    rememberUpgrade: false,
+    upgrade: true, // Enable upgrade for better compatibility
+    rememberUpgrade: true,
     autoConnect: true,
     path: "/socket.io/",
     extraHeaders: {
