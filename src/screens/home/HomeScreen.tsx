@@ -35,6 +35,7 @@ import {
   connectSocketWithJWT
 } from "../../utils/socket";
 import { getUserIdFromJWT } from "../../utils/jwtDecoder";
+import ConnectionStatus from "../../components/common/ConnectionStatus";
 
 const { width } = Dimensions.get('window');
 
@@ -357,7 +358,7 @@ export default function HomeScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-     
+      <ConnectionStatus />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -369,10 +370,29 @@ export default function HomeScreen({ navigation, route }: any) {
             <Text style={styles.userName}>{getUserName()}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.notificationButton}>
-          <Ionicons name="notifications" size={24} color={Colors.text} />
-          <View style={styles.notificationBadge} />
-        </TouchableOpacity>
+        <View style={styles.debugButtonsContainer}>
+          <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={async () => {
+              const { quickTest } = require('../../utils/socketTest');
+              console.log('🔧 Running quick connection test...');
+              const result = await quickTest();
+              console.log('📊 Quick test result:', result);
+              
+              // Also run the detailed socket debug
+              const { debugSocketConnection } = require('../../utils/socket');
+              debugSocketConnection();
+            }}
+          >
+            <Ionicons name="bug" size={20} color={Colors.primary} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={() => navigation.navigate('ConnectionTest')}
+          >
+            <Ionicons name="analytics" size={20} color={Colors.accent} />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <View style={styles.mapFullScreen}>
@@ -527,6 +547,15 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.coral,
   },
+  debugButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'flex-end',
+  },
+  debugButton: {
+    marginLeft: Layout.spacing.sm,
+    padding: Layout.spacing.xs,
+  },
+
   mapFullScreen: {
     flex: 1,
     position: 'relative',

@@ -200,6 +200,9 @@ function MainNavigator() {
       <Stack.Screen name="About" component={AboutScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
+      
+      {/* Debug Flow */}
+      <Stack.Screen name="ConnectionTest" component={require('../screens/debug/ConnectionTestScreen').default} />
     </Stack.Navigator>
   );
 }

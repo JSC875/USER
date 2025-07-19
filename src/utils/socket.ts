@@ -104,25 +104,28 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
 
   console.log(`🔗 Connecting socket for user: ${userId}, type: ${userType}`);
   socket = io(SOCKET_URL, {
-    transports: ["websocket", "polling"], // Try both for better compatibility
+    transports: ["websocket"], // Force WebSocket only for better reliability
     query: {
       type: userType,
       id: userId,
     },
     reconnection: true,
-    reconnectionAttempts: 10,
-    reconnectionDelay: 2000,
-    reconnectionDelayMax: 10000,
-    timeout: 60000,
+    reconnectionAttempts: 15,
+    reconnectionDelay: 1000,
+    reconnectionDelayMax: 5000,
+    timeout: 20000,
     forceNew: true,
-    upgrade: true, // Enable upgrade for better compatibility
-    rememberUpgrade: true,
+    upgrade: false, // Disable upgrade to prevent transport switching issues
+    rememberUpgrade: false,
     autoConnect: true,
     path: "/socket.io/",
     extraHeaders: {
       "Access-Control-Allow-Origin": "*",
       "User-Agent": "ReactNative"
-    }
+    },
+    // Additional options for better Android compatibility
+    withCredentials: false,
+    rejectUnauthorized: false
   });
 
   // Add connection event listeners
@@ -175,14 +178,23 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     });
     isConnecting = false; // Reset connecting state
     
-    // Handle React Native specific errors
-    if (error.message.includes('xhr poll error')) {
+    // Handle specific error types
+    if (error.message.includes('websocket error')) {
+      console.log("🔄 WebSocket connection error detected, will retry automatically");
+      console.log("💡 This is common in production builds, retrying...");
+    } else if (error.message.includes('timeout')) {
+      console.log("⏰ Connection timeout, will retry automatically");
+    } else if (error.message.includes('connection failed')) {
+      console.log("🔌 Connection failed, will retry automatically");
+    } else if (error.message.includes('xhr poll error')) {
       console.log("🔄 XHR poll error detected - this is expected in React Native");
       console.log("💡 Using WebSocket transport to avoid this issue");
-    } else if (error.message.includes('websocket error') || error.message.includes('timeout') || error.message.includes('connection failed')) {
-      console.log("🔄 WebSocket connection error detected, will retry automatically");
     } else {
-      Alert.alert('Connection Error', 'Could not connect to server. Please check your internet connection.');
+      console.log("❌ Unknown connection error:", error.message);
+      // Only show alert for non-retryable errors
+      if (!error.message.includes('websocket error') && !error.message.includes('timeout')) {
+        Alert.alert('Connection Error', 'Could not connect to server. Please check your internet connection.');
+      }
     }
   });
 
@@ -318,10 +330,14 @@ export const retryConnection = (userId: string, userType: string = "customer") =
     socket = null;
   }
   
-  // Wait a bit before retrying
+  // Wait a bit before retrying with exponential backoff
+  const delay = Math.min(1000 * Math.pow(2, connectionRetryCount - 1), 10000); // Exponential backoff with max 10s
+  console.log(`⏰ Waiting ${delay}ms before retry...`);
+  
   setTimeout(() => {
+    console.log(`🔄 Attempting retry ${connectionRetryCount}...`);
     return connectSocket(userId, userType);
-  }, Math.min(1000 * Math.pow(2, connectionRetryCount), 10000)); // Exponential backoff with max 10s
+  }, delay);
   
   return socket;
 };
@@ -468,4 +484,24 @@ export const testConnection = (userId: string, userType: string = "customer") =>
   });
   
   return testSocket;
+}; 
+
+// Debug function to help troubleshoot connection issues
+export const debugSocketConnection = () => {
+  const socket = getSocket();
+  console.log('🔍 Socket Debug Info:');
+  console.log('- Socket instance:', socket ? 'Exists' : 'Null');
+  console.log('- Connected:', socket?.connected || false);
+  console.log('- Socket ID:', socket?.id || 'None');
+  console.log('- Transport:', socket?.io?.engine?.transport?.name || 'Unknown');
+  console.log('- URL:', SOCKET_URL);
+  console.log('- Environment:', __DEV__ ? 'Development' : 'Production');
+  console.log('- Retry count:', connectionRetryCount);
+  console.log('- Is connecting:', isConnecting);
+  console.log('- Last connected user:', lastConnectedUserId);
+  
+  if (socket?.io?.engine) {
+    console.log('- Engine state:', socket.io.engine.readyState);
+    console.log('- Engine transport:', socket.io.engine.transport.name);
+  }
 }; 

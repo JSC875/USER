@@ -17,6 +17,7 @@ import { Layout } from '../../constants/Layout';
 import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks } from '../../utils/socket';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Images } from '../../constants/Images';
+import ConnectionStatus from '../../components/common/ConnectionStatus';
 
 export default function LiveTrackingScreen({ navigation, route }: any) {
   const { destination, estimate, driver, rideId, origin } = route.params;
@@ -270,6 +271,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
+      <ConnectionStatus />
       {/* Call Modal */}
       <Modal
         visible={callModalVisible}
