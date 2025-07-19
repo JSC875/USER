@@ -327,9 +327,15 @@ export const quickTest = async () => {
     const healthResponse = await fetch(`${SOCKET_URL}/health`);
     console.log('🌐 Server health:', healthResponse.ok ? 'OK' : 'FAILED');
     
+    let healthData = null;
     if (healthResponse.ok) {
-      const healthData = await healthResponse.json();
-      console.log('📊 Server stats:', healthData);
+      try {
+        healthData = await healthResponse.json();
+        console.log('📊 Server stats:', healthData);
+      } catch (parseError) {
+        console.log('⚠️ Could not parse health response as JSON');
+        healthData = null;
+      }
     }
     
     // Test socket connection
@@ -340,7 +346,7 @@ export const quickTest = async () => {
       serverReachable: healthResponse.ok,
       socketConnected: socketResult.success,
       details: {
-        health: healthResponse.ok ? await healthResponse.json() : null,
+        health: healthData,
         socket: socketResult.details
       }
     };
@@ -353,4 +359,159 @@ export const quickTest = async () => {
       error: errorMessage
     };
   }
+}; 
+
+// Enhanced quick test function for APK builds
+export const quickTestAPK = async () => {
+  console.log('🔧 Quick connection test for APK...');
+  
+  try {
+    // Test server reachability with more detailed logging
+    console.log('🌐 Testing server reachability...');
+    const healthResponse = await fetch(`${SOCKET_URL}/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'ReactNative-APK'
+      }
+    });
+    
+    console.log('🌐 Server health response status:', healthResponse.status);
+    console.log('🌐 Server health response ok:', healthResponse.ok);
+    
+    let healthData = null;
+    if (healthResponse.ok) {
+      try {
+        healthData = await healthResponse.json();
+        console.log('📊 Server stats:', healthData);
+      } catch (parseError) {
+        console.log('⚠️ Could not parse health response as JSON');
+        healthData = null;
+      }
+    }
+    
+    // Test socket connection with more detailed configuration
+    console.log('🔌 Testing Socket.IO connection for APK...');
+    const socketResult = await testSocketConnectionAPK();
+    console.log('🔌 Socket connection result:', socketResult);
+    
+    return {
+      serverReachable: healthResponse.ok,
+      socketConnected: socketResult.success,
+      details: {
+        health: healthData,
+        socket: socketResult.details,
+        timestamp: new Date().toISOString()
+      }
+    };
+  } catch (error) {
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    console.log('❌ Quick test failed:', error);
+    return {
+      serverReachable: false,
+      socketConnected: false,
+      error: errorMessage,
+      timestamp: new Date().toISOString()
+    };
+  }
+};
+
+// Enhanced socket connection test for APK builds
+export const testSocketConnectionAPK = (): Promise<TestResult> => {
+  return new Promise((resolve) => {
+    console.log('🔍 Testing Socket.IO connection for APK...');
+    console.log('🌐 Socket URL:', SOCKET_URL);
+    
+    const testSocket = io(SOCKET_URL, {
+      transports: ["websocket"],
+      timeout: 15000,
+      forceNew: true,
+      query: {
+        type: "customer",
+        id: "test_user_apk_" + Date.now()
+      },
+      extraHeaders: {
+        "User-Agent": "ReactNative-APK",
+        "X-Platform": "Android"
+      },
+      // Additional options for better APK compatibility
+      withCredentials: false,
+      rejectUnauthorized: false,
+      upgrade: false,
+      rememberUpgrade: false
+    });
+
+    const timeout = setTimeout(() => {
+      testSocket.disconnect();
+      console.log('⏰ Socket connection timeout for APK test');
+      resolve({
+        test: 'Socket Connection APK',
+        success: false,
+        message: 'Connection timeout after 15 seconds',
+        details: { 
+          timeout: 15000,
+          url: SOCKET_URL,
+          platform: 'Android-APK'
+        },
+        timestamp: new Date().toISOString()
+      });
+    }, 15000);
+
+    testSocket.on("connect", () => {
+      clearTimeout(timeout);
+      console.log('✅ Socket connected successfully for APK');
+      console.log('📡 Transport:', testSocket.io.engine.transport.name);
+      console.log('🔗 Socket ID:', testSocket.id);
+      
+      const result: TestResult = {
+        test: 'Socket Connection APK',
+        success: true,
+        message: 'Socket.IO connection established successfully for APK',
+        details: {
+          socketId: testSocket.id,
+          transport: testSocket.io.engine.transport.name,
+          connected: testSocket.connected,
+          url: SOCKET_URL,
+          platform: 'Android-APK'
+        },
+        timestamp: new Date().toISOString()
+      };
+      
+      testSocket.disconnect();
+      resolve(result);
+    });
+
+    testSocket.on("connect_error", (error) => {
+      clearTimeout(timeout);
+      console.log('❌ Socket connection error for APK:', error);
+      console.log('❌ Error details:', {
+        message: error.message,
+        name: error.name,
+        type: (error as any).type,
+        context: (error as any).context
+      });
+      
+      resolve({
+        test: 'Socket Connection APK',
+        success: false,
+        message: `Connection failed for APK: ${error.message}`,
+        details: {
+          error: error.message,
+          type: (error as any).type,
+          context: (error as any).context,
+          url: SOCKET_URL,
+          platform: 'Android-APK'
+        },
+        timestamp: new Date().toISOString()
+      });
+    });
+
+    testSocket.on("error", (error) => {
+      console.log('❌ Socket error event for APK:', error);
+    });
+
+    testSocket.on("disconnect", (reason) => {
+      console.log('🔴 Socket disconnected for APK:', reason);
+    });
+  });
 }; 

@@ -159,8 +159,9 @@ export default function HomeScreen({ navigation, route }: any) {
 
   // Enhanced socket event listeners
   useEffect(() => {
-    // Connect to socket using JWT
-    connectSocketWithJWT(getToken).then((socket) => {
+    // Connect to socket using JWT with APK-specific handling
+    const { handleAPKConnection } = require('../../utils/socket');
+    handleAPKConnection(getToken).then((socket: any) => {
       console.log('🔗 HomeScreen: Socket connected successfully');
       
       // Set up event callbacks
@@ -236,7 +237,7 @@ export default function HomeScreen({ navigation, route }: any) {
         console.log('🧹 HomeScreen: Cleaning up socket callbacks');
         clearCallbacks();
       };
-    }).catch((error) => {
+    }).catch((error: any) => {
       console.error('❌ HomeScreen: Failed to connect socket:', error);
     });
   }, [getToken]);
@@ -274,12 +275,12 @@ export default function HomeScreen({ navigation, route }: any) {
       return;
     }
 
-    // Ensure socket is connected before booking
-    const { ensureSocketConnected } = require('../../utils/socket');
+    // Ensure socket is connected before booking - use APK-specific handling
+    const { handleAPKConnection } = require('../../utils/socket');
     try {
-      await ensureSocketConnected(getToken);
+      await handleAPKConnection(getToken);
       console.log('✅ Socket ready for ride booking');
-    } catch (error) {
+    } catch (error: any) {
       console.error('❌ Failed to ensure socket connection for ride booking:', error);
       Alert.alert('Connection Error', 'Unable to connect to server. Please check your internet connection and try again.');
       return;
@@ -394,40 +395,61 @@ export default function HomeScreen({ navigation, route }: any) {
           <TouchableOpacity 
             style={styles.debugButton} 
             onPress={async () => {
-              const { quickTest } = require('../../utils/socketTest');
-              console.log('🔧 Running quick connection test...');
-              const result = await quickTest();
-              console.log('📊 Quick test result:', result);
+              const { getDetailedConnectionStatus, forceReconnect, debugSocketConnection } = require('../../utils/socket');
+              const { quickTest, quickTestAPK } = require('../../utils/socketTest');
               
-              // Also run the detailed socket debug
-              const { debugSocketConnection } = require('../../utils/socket');
-              debugSocketConnection();
-            }}
-          >
-            <Ionicons name="bug" size={20} color={Colors.primary} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.debugButton} 
-            onPress={() => navigation.navigate('ConnectionTest')}
-          >
-            <Ionicons name="analytics" size={20} color={Colors.accent} />
-          </TouchableOpacity>
-          <TouchableOpacity 
-            style={styles.debugButton} 
-            onPress={() => {
-              const { getSocket, isConnected, getConnectionStatus } = require('../../utils/socket');
-              const socket = getSocket();
-              console.log('🔍 Current Socket Status:');
-              console.log('- Socket exists:', !!socket);
-              console.log('- Is connected:', isConnected());
-              console.log('- Connection status:', getConnectionStatus());
-              console.log('- Socket ID:', socket?.id || 'None');
-              console.log('- Transport:', socket?.io?.engine?.transport?.name || 'Unknown');
+              // Show loading alert
+              Alert.alert('Running Tests...', 'Please wait while we test the connection...');
               
-              Alert.alert(
-                'Socket Status',
-                `Socket: ${socket ? 'Exists' : 'Null'}\nConnected: ${isConnected()}\nStatus: ${getConnectionStatus()}\nID: ${socket?.id || 'None'}\nTransport: ${socket?.io?.engine?.transport?.name || 'Unknown'}`
-              );
+              try {
+                // Get current socket status
+                const status = getDetailedConnectionStatus();
+                console.log('🔍 Current Socket Status:', status);
+                
+                // Run connection tests
+                console.log('🔧 Running connection tests...');
+                const result = await quickTest();
+                console.log('📊 Quick test result:', result);
+                
+                const apkResult = await quickTestAPK();
+                console.log('📊 APK Quick test result:', apkResult);
+                
+                // Run detailed socket debug
+                debugSocketConnection();
+                
+                // Show comprehensive results
+                Alert.alert(
+                  'Connection Analysis',
+                  `📊 Current Status:\nSocket: ${status.socketExists ? 'Exists' : 'Null'}\nConnected: ${status.connected}\nState: ${status.connectionState}\nID: ${status.id}\nTransport: ${status.transport}\n\n🧪 Test Results:\nRegular Test:\n• Server: ${result.serverReachable ? '✅ OK' : '❌ FAIL'}\n• Socket: ${result.socketConnected ? '✅ OK' : '❌ FAIL'}\n\nAPK Test:\n• Server: ${apkResult.serverReachable ? '✅ OK' : '❌ FAIL'}\n• Socket: ${apkResult.socketConnected ? '✅ OK' : '❌ FAIL'}`,
+                  [
+                                         {
+                       text: 'Force Reconnect',
+                       onPress: async () => {
+                         try {
+                           console.log('🔄 Force reconnecting socket...');
+                           const { handleAPKConnection } = require('../../utils/socket');
+                           await handleAPKConnection(getToken);
+                           Alert.alert('Success', 'Socket reconnected successfully!');
+                         } catch (error: any) {
+                           console.error('❌ Force reconnect failed:', error);
+                           Alert.alert('Error', 'Failed to reconnect socket. Check logs for details.');
+                         }
+                       }
+                     },
+                    {
+                      text: 'Detailed Test',
+                      onPress: () => navigation.navigate('ConnectionTest')
+                    },
+                    {
+                      text: 'OK',
+                      style: 'cancel'
+                    }
+                  ]
+                );
+              } catch (error) {
+                console.error('❌ Connection analysis failed:', error);
+                Alert.alert('Error', 'Failed to analyze connection. Check logs for details.');
+              }
             }}
           >
             <Ionicons name="information-circle" size={20} color={Colors.success} />

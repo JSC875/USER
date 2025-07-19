@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
-import { getSocket, isConnected, getConnectionStatus, listenToEvent } from '../../utils/socket';
+import { getSocket, isConnected, getConnectionStatus, getDetailedConnectionStatus, listenToEvent } from '../../utils/socket';
 
 interface ConnectionStatusProps {
   isVisible?: boolean;
@@ -13,6 +13,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
   const [isConnecting, setIsConnecting] = useState(false);
   const [socketStatus, setSocketStatus] = useState('disconnected');
   const [socketId, setSocketId] = useState<string | null>(null);
+  const [isSocketConnecting, setIsSocketConnecting] = useState(false);
 
   useEffect(() => {
     const checkConnection = async () => {
@@ -31,18 +32,25 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
     };
 
     const updateSocketStatus = () => {
-      const socket = getSocket();
-      if (socket) {
-        if (socket.connected) {
-          setSocketStatus('connected');
-          setSocketId(socket.id || null);
-        } else {
-          setSocketStatus('disconnected');
-          setSocketId(null);
-        }
+      const detailedStatus = getDetailedConnectionStatus();
+      console.log('🔍 ConnectionStatus: Checking socket status', detailedStatus);
+      
+      // More detailed status checking
+      if (detailedStatus.socketExists && detailedStatus.connected) {
+        setSocketStatus('connected');
+        setSocketId(detailedStatus.id !== 'None' ? detailedStatus.id : null);
+        setIsSocketConnecting(false);
+        console.log('✅ ConnectionStatus: Socket is connected');
+      } else if (detailedStatus.connectionState === 'connecting' || detailedStatus.isConnecting) {
+        setSocketStatus('connecting');
+        setSocketId(null);
+        setIsSocketConnecting(true);
+        console.log('🔄 ConnectionStatus: Socket is connecting...');
       } else {
         setSocketStatus('disconnected');
         setSocketId(null);
+        setIsSocketConnecting(false);
+        console.log('❌ ConnectionStatus: Socket is disconnected');
       }
     };
 
@@ -52,7 +60,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       // Give socket time to connect
       setTimeout(() => {
         updateSocketStatus();
-      }, 1000);
+      }, 3000); // Increased delay to allow more time for socket connection
     };
     
     initialCheck();
@@ -133,7 +141,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
     }
     
     const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
-    const socketInterval = setInterval(updateSocketStatus, 2000); // Check socket status every 2 seconds
+    const socketInterval = setInterval(updateSocketStatus, 1000); // Check socket status every 1 second for better responsiveness
 
     return () => {
       clearInterval(interval);
@@ -152,6 +160,10 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
     statusColor = Colors.success;
     statusText = 'Connected';
     iconName = 'wifi';
+  } else if (isOnline && socketStatus === 'connecting') {
+    statusColor = Colors.warning || '#FFA500';
+    statusText = 'Connecting...';
+    iconName = 'sync';
   } else if (isOnline && socketStatus === 'disconnected') {
     statusColor = Colors.warning || '#FFA500';
     statusText = 'No Server';
@@ -165,13 +177,13 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
   return (
     <View style={[styles.container, { backgroundColor: statusColor }]}>
       <Ionicons 
-        name={isConnecting ? "sync" : iconName} 
+        name={(isConnecting || isSocketConnecting) ? "sync" : iconName} 
         size={16} 
         color="white" 
-        style={isConnecting ? styles.rotating : undefined}
+        style={(isConnecting || isSocketConnecting) ? styles.rotating : undefined}
       />
       <Text style={styles.text}>
-        {isConnecting ? 'Checking...' : statusText}
+        {isConnecting ? 'Checking...' : (isSocketConnecting ? 'Connecting...' : statusText)}
       </Text>
     </View>
   );

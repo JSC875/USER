@@ -9,6 +9,14 @@ console.log('🔧 Socket URL configured:', SOCKET_URL, 'DEV mode:', __DEV__);
 
 let socket: Socket | null = null;
 
+// Enhanced connection state tracking
+let isConnecting = false;
+let lastConnectedUserId: string | null = null;
+let connectionRetryCount = 0;
+let maxRetryAttempts = 5;
+let connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
+let lastConnectionAttempt = 0;
+
 // Event callback types
 export type RideBookedCallback = (data: {
   success: boolean;
@@ -71,12 +79,6 @@ let onDriverDisconnectedCallback: DriverDisconnectedCallback | null = null;
 let onRideTimeoutCallback: RideTimeoutCallback | null = null;
 let onRideCompletedCallback: RideCompletedCallback | null = null;
 
-// Connection state tracking
-let isConnecting = false;
-let lastConnectedUserId: string | null = null;
-let connectionRetryCount = 0;
-let maxRetryAttempts = 5;
-
 export const connectSocket = (userId: string, userType: string = "customer") => {
   // Prevent duplicate connections for the same user
   if (isConnecting) {
@@ -97,12 +99,21 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   }
 
   isConnecting = true;
+  connectionState = 'connecting';
   lastConnectedUserId = userId;
+  lastConnectionAttempt = Date.now();
   
   // Reset retry count for new connection attempt
   connectionRetryCount = 0;
 
   console.log(`🔗 Connecting socket for user: ${userId}, type: ${userType}`);
+  console.log(`🌐 Socket URL: ${SOCKET_URL}`);
+  console.log(`🏗️ Environment: ${__DEV__ ? 'Development' : 'Production'}`);
+  
+  // Adjust configuration based on environment
+  const isProduction = !__DEV__;
+  const userAgent = isProduction ? 'ReactNative-APK' : 'ReactNative';
+  
   socket = io(SOCKET_URL, {
     transports: ["websocket"], // Force WebSocket only for better reliability
     query: {
@@ -110,10 +121,10 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
       id: userId,
     },
     reconnection: true,
-    reconnectionAttempts: 15,
-    reconnectionDelay: 1000,
-    reconnectionDelayMax: 5000,
-    timeout: 20000,
+    reconnectionAttempts: isProduction ? 20 : 15, // More retries in production
+    reconnectionDelay: isProduction ? 2000 : 1000, // Longer delay in production
+    reconnectionDelayMax: isProduction ? 10000 : 5000, // Longer max delay in production
+    timeout: isProduction ? 30000 : 20000, // Longer timeout in production
     forceNew: true,
     upgrade: false, // Disable upgrade to prevent transport switching issues
     rememberUpgrade: false,
@@ -121,7 +132,9 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     path: "/socket.io/",
     extraHeaders: {
       "Access-Control-Allow-Origin": "*",
-      "User-Agent": "ReactNative"
+      "User-Agent": userAgent,
+      "X-Platform": "Android",
+      "X-Environment": isProduction ? "production" : "development"
     },
     // Additional options for better Android compatibility
     withCredentials: false,
@@ -131,14 +144,15 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   // Add connection event listeners
   socket.on("connect", () => {
     console.log("🟢 Socket.IO connected to server");
-    isConnecting = false; // Reset connecting state
+    console.log("🔗 Socket ID:", socket?.id || 'None');
+    console.log("📡 Transport:", socket?.io?.engine?.transport?.name || 'Unknown');
+    console.log("🌐 Server URL:", SOCKET_URL);
+    console.log("👤 User ID:", userId);
+    console.log("👤 User Type:", userType);
+    
+    isConnecting = false;
+    connectionState = 'connected';
     connectionRetryCount = 0; // Reset retry count on successful connection
-    if (socket?.io?.engine?.transport) {
-      console.log("📡 Transport:", socket.io.engine.transport.name);
-    }
-    if (socket?.id) {
-      console.log("🔗 Socket ID:", socket.id);
-    }
     clearTimeout(connectionTimeout);
   });
 
@@ -162,7 +176,9 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   
   socket.on("disconnect", (reason) => {
     console.log("🔴 Socket.IO disconnected:", reason);
-    isConnecting = false; // Reset connecting state
+    isConnecting = false;
+    connectionState = 'disconnected';
+    
     // Only show alert if it's not a normal disconnection
     if (reason !== 'io client disconnect' && reason !== 'io server disconnect') {
       Alert.alert('Disconnected', 'Lost connection to server. Please check your internet.');
@@ -176,7 +192,8 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
       name: error.name,
       stack: error.stack
     });
-    isConnecting = false; // Reset connecting state
+    isConnecting = false;
+    connectionState = 'error';
     
     // Handle specific error types
     if (error.message.includes('websocket error')) {
@@ -200,19 +217,23 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
 
   socket.on("reconnect", (attemptNumber) => {
     console.log("🔄 Socket.IO reconnected after", attemptNumber, "attempts");
+    connectionState = 'connected';
   });
 
   socket.on("reconnect_error", (error) => {
     console.error("❌ Socket.IO reconnection error:", error);
+    connectionState = 'error';
   });
 
   socket.on("reconnect_attempt", (attemptNumber) => {
     console.log("🔄 Socket.IO reconnection attempt:", attemptNumber);
+    connectionState = 'connecting';
   });
 
   socket.on("reconnect_failed", () => {
     console.error("❌ Socket.IO reconnection failed after all attempts");
     isConnecting = false;
+    connectionState = 'error';
     Alert.alert('Connection Failed', 'Unable to connect to server after multiple attempts. Please check your internet connection and try again.');
   });
   
@@ -221,11 +242,10 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     if (isConnecting && socket && !socket.connected) {
       console.log("⏰ Connection timeout, attempting retry");
       isConnecting = false;
+      connectionState = 'error';
       retryConnection(userId, userType);
     }
   }, 30000); // 30 second timeout
-  
-
 
   // Ride booking events
   socket.on("ride_request_created", (data) => {
@@ -250,7 +270,7 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   });
 
   socket.on("ride_status_update", (data) => {
-    console.log("🔄 Ride status update:", data);
+    console.log("📊 Ride status update:", data);
     onRideStatusCallback?.(data);
   });
 
@@ -260,43 +280,23 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   });
 
   socket.on("driver_disconnected", (data) => {
-    console.log("🔴 Driver disconnected:", data);
+    console.log("🔌 Driver disconnected:", data);
     onDriverDisconnectedCallback?.(data);
   });
 
-  socket.on("ride_expired", (data) => {
-    console.log("⏰ Ride request expired:", data);
-    onRideTimeoutCallback?.(data);
-  });
-
-  // Legacy event for backward compatibility
   socket.on("ride_timeout", (data) => {
-    console.log("⏰ Ride request timed out (legacy):", data);
+    console.log("⏰ Ride timeout:", data);
     onRideTimeoutCallback?.(data);
   });
 
-  // Ride completed event
   socket.on("ride_completed", (data) => {
     console.log("✅ Ride completed:", data);
     onRideCompletedCallback?.(data);
   });
 
-  // Ride cancelled event
-  socket.on("ride_cancelled", (data) => {
-    console.log("❌ Ride cancelled:", data);
-    // Use the same callback as ride status updates for consistency
-    onRideStatusCallback?.(data);
-  });
-
-  // Test events
-  socket.on("test_response", (data) => {
-    console.log("🧪 Test response:", data);
-  });
-
   return socket;
 };
 
-// New helper to connect socket using JWT
 export const connectSocketWithJWT = async (getToken: any) => {
   const userId = await getUserIdFromJWT(getToken);
   const userType = await getUserTypeFromJWT(getToken);
@@ -312,6 +312,8 @@ export const disconnectSocket = () => {
   }
   isConnecting = false;
   connectionRetryCount = 0;
+  connectionState = 'disconnected';
+  lastConnectedUserId = null;
 };
 
 export const retryConnection = (userId: string, userType: string = "customer") => {
@@ -345,10 +347,20 @@ export const retryConnection = (userId: string, userType: string = "customer") =
 // Helper function to emit events with error handling
 export const emitEvent = (eventName: string, data: any) => {
   const socket = getSocket();
+  console.log(`📤 Attempting to emit event: ${eventName}`);
+  console.log("🔍 Current socket status:", {
+    exists: !!socket,
+    connected: socket?.connected || false,
+    id: socket?.id || 'None',
+    transport: socket?.io?.engine?.transport?.name || 'Unknown',
+    url: SOCKET_URL,
+    connectionState: connectionState
+  });
+  
   if (socket && socket.connected) {
     try {
       socket.emit(eventName, data);
-      console.log(`📤 Emitted event: ${eventName}`, data);
+      console.log(`✅ Successfully emitted event: ${eventName}`, data);
       return true;
     } catch (error) {
       console.error(`❌ Error emitting event ${eventName}:`, error);
@@ -360,7 +372,8 @@ export const emitEvent = (eventName: string, data: any) => {
       exists: !!socket,
       connected: socket?.connected || false,
       id: socket?.id || 'None',
-      transport: socket?.io?.engine?.transport?.name || 'Unknown'
+      transport: socket?.io?.engine?.transport?.name || 'Unknown',
+      connectionState: connectionState
     });
     return false;
   }
@@ -380,9 +393,27 @@ export const getConnectionStatus = () => {
   return "Disconnected";
 };
 
+// Enhanced connection status function
+export const getDetailedConnectionStatus = () => {
+  return {
+    socketExists: !!socket,
+    connected: socket?.connected || false,
+    id: socket?.id || 'None',
+    transport: socket?.io?.engine?.transport?.name || 'Unknown',
+    connectionState: connectionState,
+    isConnecting: isConnecting,
+    lastConnectedUserId: lastConnectedUserId,
+    connectionRetryCount: connectionRetryCount,
+    lastConnectionAttempt: lastConnectionAttempt
+  };
+};
+
 // Helper function to ensure socket is connected
 export const ensureSocketConnected = async (getToken: any) => {
   const socket = getSocket();
+  console.log('🔍 Ensuring socket connection...');
+  console.log('🔍 Current socket status:', getDetailedConnectionStatus());
+  
   if (socket && socket.connected) {
     console.log('✅ Socket already connected');
     return socket;
@@ -392,10 +423,70 @@ export const ensureSocketConnected = async (getToken: any) => {
   try {
     const connectedSocket = await connectSocketWithJWT(getToken);
     console.log('✅ Socket connected successfully');
-    return connectedSocket;
+    
+    // Wait a bit to ensure connection is stable
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    
+    // Verify connection is still active
+    const currentSocket = getSocket();
+    if (currentSocket && currentSocket.connected) {
+      console.log('✅ Socket connection verified and stable');
+      return connectedSocket;
+    } else {
+      console.log('⚠️ Socket connection not stable, attempting retry...');
+      // Try one more time
+      const retrySocket = await connectSocketWithJWT(getToken);
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      return retrySocket;
+    }
   } catch (error) {
     console.error('❌ Failed to connect socket:', error);
     throw new Error('Unable to connect to server. Please check your internet connection.');
+  }
+};
+
+// Force reconnect function for debugging
+export const forceReconnect = async (getToken: any) => {
+  console.log('🔄 Force reconnecting socket...');
+  
+  // Disconnect existing socket
+  if (socket) {
+    console.log('🔄 Disconnecting existing socket...');
+    socket.disconnect();
+    socket = null;
+  }
+  
+  // Reset connection state
+  isConnecting = false;
+  connectionRetryCount = 0;
+  lastConnectedUserId = null;
+  connectionState = 'disconnected';
+  
+  // Wait a moment before reconnecting
+  await new Promise(resolve => setTimeout(resolve, 1000));
+  
+  // Reconnect
+  try {
+    const connectedSocket = await connectSocketWithJWT(getToken);
+    console.log('✅ Force reconnect successful');
+    
+    // Wait a bit more to ensure connection is fully established
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Verify connection
+    const currentSocket = getSocket();
+    if (currentSocket && currentSocket.connected) {
+      console.log('✅ Force reconnect verified - socket is connected');
+      connectionState = 'connected';
+    } else {
+      console.log('⚠️ Force reconnect completed but socket not verified as connected');
+    }
+    
+    return connectedSocket;
+  } catch (error) {
+    console.error('❌ Force reconnect failed:', error);
+    connectionState = 'error';
+    throw error;
   }
 };
 
@@ -500,38 +591,101 @@ export const testConnection = (userId: string, userType: string = "customer") =>
       id: userId,
     },
     timeout: 10000,
-    forceNew: true
+    forceNew: true,
   });
-  
-  testSocket.on("connect", () => {
-    console.log("✅ Test connection successful");
-    testSocket.disconnect();
-  });
-  
-  testSocket.on("connect_error", (error) => {
-    console.error("❌ Test connection failed:", error.message);
-    testSocket.disconnect();
-  });
-  
-  return testSocket;
-}; 
 
-// Debug function to help troubleshoot connection issues
+  return new Promise((resolve) => {
+    const timeout = setTimeout(() => {
+      testSocket.disconnect();
+      resolve(false);
+    }, 10000);
+
+    testSocket.on("connect", () => {
+      clearTimeout(timeout);
+      console.log("✅ Test connection successful");
+      testSocket.disconnect();
+      resolve(true);
+    });
+
+    testSocket.on("connect_error", (error) => {
+      clearTimeout(timeout);
+      console.log("❌ Test connection failed:", error);
+      resolve(false);
+    });
+  });
+};
+
+// Debug function to log current socket state
 export const debugSocketConnection = () => {
-  const socket = getSocket();
-  console.log('🔍 Socket Debug Info:');
-  console.log('- Socket instance:', socket ? 'Exists' : 'Null');
-  console.log('- Connected:', socket?.connected || false);
-  console.log('- Socket ID:', socket?.id || 'None');
-  console.log('- Transport:', socket?.io?.engine?.transport?.name || 'Unknown');
-  console.log('- URL:', SOCKET_URL);
-  console.log('- Environment:', __DEV__ ? 'Development' : 'Production');
-  console.log('- Retry count:', connectionRetryCount);
-  console.log('- Is connecting:', isConnecting);
-  console.log('- Last connected user:', lastConnectedUserId);
+  console.log("🔍 Socket Debug Information:");
+  console.log("🌐 Socket URL:", SOCKET_URL);
+  console.log("📊 Connection State:", connectionState);
+  console.log("🔄 Is Connecting:", isConnecting);
+  console.log("👤 Last Connected User ID:", lastConnectedUserId);
+  console.log("🔄 Connection Retry Count:", connectionRetryCount);
+  console.log("⏰ Last Connection Attempt:", new Date(lastConnectionAttempt).toISOString());
+  console.log("🏗️ Environment:", __DEV__ ? 'Development' : 'Production');
   
-  if (socket?.io?.engine) {
-    console.log('- Engine state:', socket.io.engine.readyState);
-    console.log('- Engine transport:', socket.io.engine.transport.name);
+  const socket = getSocket();
+  if (socket) {
+    console.log("🔗 Socket Details:");
+    console.log("- Exists: true");
+    console.log("- Connected:", socket.connected);
+    console.log("- ID:", socket.id || 'None');
+    console.log("- Transport:", socket.io?.engine?.transport?.name || 'Unknown');
+  } else {
+    console.log("🔗 Socket: null");
+  }
+  
+  console.log("📡 Detailed Status:", getDetailedConnectionStatus());
+};
+
+// Function to handle APK-specific connection issues
+export const handleAPKConnection = async (getToken: any) => {
+  console.log("🔧 Handling APK connection...");
+  
+  // For APK builds, we need to be more aggressive with connection
+  if (!__DEV__) {
+    console.log("🏗️ Running in production mode - using APK-specific handling");
+    
+    // Force disconnect any existing connection
+    if (socket) {
+      console.log("🔄 Force disconnecting existing socket for APK...");
+      socket.disconnect();
+      socket = null;
+    }
+    
+    // Reset all state
+    isConnecting = false;
+    connectionRetryCount = 0;
+    lastConnectedUserId = null;
+    connectionState = 'disconnected';
+    
+    // Wait before reconnecting
+    await new Promise(resolve => setTimeout(resolve, 2000));
+    
+    // Connect with APK-specific settings
+    try {
+      const connectedSocket = await connectSocketWithJWT(getToken);
+      
+      // Wait longer for APK builds
+      await new Promise(resolve => setTimeout(resolve, 3000));
+      
+      // Verify connection
+      const currentSocket = getSocket();
+      if (currentSocket && currentSocket.connected) {
+        console.log("✅ APK connection successful and verified");
+        return connectedSocket;
+      } else {
+        console.log("⚠️ APK connection not verified, attempting one more time...");
+        return await connectSocketWithJWT(getToken);
+      }
+    } catch (error) {
+      console.error("❌ APK connection failed:", error);
+      throw error;
+    }
+  } else {
+    // For development, use normal connection
+    return await ensureSocketConnected(getToken);
   }
 }; 
