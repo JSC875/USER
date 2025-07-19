@@ -30,7 +30,7 @@
         <category android:name="android.intent.category.DEFAULT"/>
         <category android:name="android.intent.category.BROWSABLE"/>
         <data android:scheme="roqet-app"/>
-        <data android:scheme="exp+roqet-app"/>
+        <data android:scheme="exp+user-app"/>
       </intent-filter>
     </activity>
     <uses-library android:name="org.apache.http.legacy" android:required="false"/>

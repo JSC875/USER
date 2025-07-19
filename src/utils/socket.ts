@@ -104,7 +104,7 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
 
   console.log(`🔗 Connecting socket for user: ${userId}, type: ${userType}`);
   socket = io(SOCKET_URL, {
-    transports: ["polling", "websocket"], // Try polling first, then upgrade to websocket
+    transports: ["websocket"], // Use only WebSocket for React Native to avoid XHR issues
     query: {
       type: userType,
       id: userId,
@@ -115,12 +115,13 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     reconnectionDelayMax: 10000,
     timeout: 60000,
     forceNew: true,
-    upgrade: true,
-    rememberUpgrade: true,
+    upgrade: false, // Disable upgrade since we're only using WebSocket
+    rememberUpgrade: false,
     autoConnect: true,
     path: "/socket.io/",
     extraHeaders: {
-      "Access-Control-Allow-Origin": "*"
+      "Access-Control-Allow-Origin": "*",
+      "User-Agent": "ReactNative"
     }
   });
 
@@ -174,9 +175,12 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     });
     isConnecting = false; // Reset connecting state
     
-    // Don't show alert for every connection error, only for persistent failures
-    if (error.message.includes('xhr poll error') || error.message.includes('timeout') || error.message.includes('websocket error')) {
-      console.log("🔄 Connection error detected, will retry automatically");
+    // Handle React Native specific errors
+    if (error.message.includes('xhr poll error')) {
+      console.log("🔄 XHR poll error detected - this is expected in React Native");
+      console.log("💡 Using WebSocket transport to avoid this issue");
+    } else if (error.message.includes('websocket error') || error.message.includes('timeout') || error.message.includes('connection failed')) {
+      console.log("🔄 WebSocket connection error detected, will retry automatically");
     } else {
       Alert.alert('Connection Error', 'Could not connect to server. Please check your internet connection.');
     }
@@ -301,6 +305,7 @@ export const disconnectSocket = () => {
 export const retryConnection = (userId: string, userType: string = "customer") => {
   if (connectionRetryCount >= maxRetryAttempts) {
     console.log("❌ Max retry attempts reached, giving up");
+    Alert.alert('Connection Failed', 'Unable to connect to server after multiple attempts. Please check your internet connection and try again.');
     return null;
   }
   
@@ -443,7 +448,7 @@ export const testConnection = (userId: string, userType: string = "customer") =>
   console.log("🧪 Testing Socket.IO connection...");
   
   const testSocket = io(SOCKET_URL, {
-    transports: ["polling"],
+    transports: ["websocket", "polling"],
     query: {
       type: userType,
       id: userId,
