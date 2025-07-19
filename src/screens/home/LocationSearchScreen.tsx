@@ -10,13 +10,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useLocationStore } from '../../store/useLocationStore';
 import LocationPickerMap from '../../components/common/LocationPickerMap';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
 
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY!;
+const GOOGLE_MAPS_API_KEY = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 interface PlaceResult {
   place_id: string;

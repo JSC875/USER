@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
-import { getSocket, isConnected, getConnectionStatus } from '../../utils/socket';
+import { getSocket, isConnected, getConnectionStatus, listenToEvent } from '../../utils/socket';
 
 interface ConnectionStatusProps {
   isVisible?: boolean;
@@ -12,6 +12,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
   const [isOnline, setIsOnline] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [socketStatus, setSocketStatus] = useState('disconnected');
+  const [socketId, setSocketId] = useState<string | null>(null);
 
   useEffect(() => {
     const checkConnection = async () => {
@@ -34,16 +35,102 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       if (socket) {
         if (socket.connected) {
           setSocketStatus('connected');
+          setSocketId(socket.id || null);
         } else {
           setSocketStatus('disconnected');
+          setSocketId(null);
         }
       } else {
         setSocketStatus('disconnected');
+        setSocketId(null);
       }
     };
 
-    checkConnection();
-    updateSocketStatus();
+    // Initial checks with a small delay to allow socket to connect
+    const initialCheck = async () => {
+      await checkConnection();
+      // Give socket time to connect
+      setTimeout(() => {
+        updateSocketStatus();
+      }, 1000);
+    };
+    
+    initialCheck();
+    
+    // Set up socket event listeners
+    const socket = getSocket();
+    if (socket) {
+      const handleConnect = () => {
+        console.log('🔗 ConnectionStatus: Socket connected');
+        setSocketStatus('connected');
+        setSocketId(socket.id || null);
+      };
+
+      const handleDisconnect = () => {
+        console.log('🔴 ConnectionStatus: Socket disconnected');
+        setSocketStatus('disconnected');
+        setSocketId(null);
+      };
+
+      const handleConnectError = () => {
+        console.log('❌ ConnectionStatus: Socket connection error');
+        setSocketStatus('disconnected');
+        setSocketId(null);
+      };
+
+      // Add event listeners
+      socket.on('connect', handleConnect);
+      socket.on('disconnect', handleDisconnect);
+      socket.on('connect_error', handleConnectError);
+
+      // Cleanup function
+      return () => {
+        socket.off('connect', handleConnect);
+        socket.off('disconnect', handleDisconnect);
+        socket.off('connect_error', handleConnectError);
+      };
+    } else {
+      // If no socket exists yet, check periodically for socket creation
+      const checkForSocket = setInterval(() => {
+        const newSocket = getSocket();
+        if (newSocket) {
+          console.log('🔍 ConnectionStatus: Socket found, setting up listeners');
+          clearInterval(checkForSocket);
+          
+          const handleConnect = () => {
+            console.log('🔗 ConnectionStatus: Socket connected');
+            setSocketStatus('connected');
+            setSocketId(newSocket.id || null);
+          };
+
+          const handleDisconnect = () => {
+            console.log('🔴 ConnectionStatus: Socket disconnected');
+            setSocketStatus('disconnected');
+            setSocketId(null);
+          };
+
+          const handleConnectError = () => {
+            console.log('❌ ConnectionStatus: Socket connection error');
+            setSocketStatus('disconnected');
+            setSocketId(null);
+          };
+
+          newSocket.on('connect', handleConnect);
+          newSocket.on('disconnect', handleDisconnect);
+          newSocket.on('connect_error', handleConnectError);
+          
+          // Update status immediately if already connected
+          if (newSocket.connected) {
+            setSocketStatus('connected');
+            setSocketId(newSocket.id || null);
+          }
+        }
+      }, 500);
+
+      return () => {
+        clearInterval(checkForSocket);
+      };
+    }
     
     const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
     const socketInterval = setInterval(updateSocketStatus, 2000); // Check socket status every 2 seconds

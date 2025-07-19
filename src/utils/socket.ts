@@ -346,11 +346,22 @@ export const retryConnection = (userId: string, userType: string = "customer") =
 export const emitEvent = (eventName: string, data: any) => {
   const socket = getSocket();
   if (socket && socket.connected) {
-    socket.emit(eventName, data);
-    console.log(`📤 Emitted event: ${eventName}`, data);
-    return true;
+    try {
+      socket.emit(eventName, data);
+      console.log(`📤 Emitted event: ${eventName}`, data);
+      return true;
+    } catch (error) {
+      console.error(`❌ Error emitting event ${eventName}:`, error);
+      return false;
+    }
   } else {
     console.warn("⚠️ Socket not connected, cannot emit event:", eventName);
+    console.log("🔍 Socket status:", {
+      exists: !!socket,
+      connected: socket?.connected || false,
+      id: socket?.id || 'None',
+      transport: socket?.io?.engine?.transport?.name || 'Unknown'
+    });
     return false;
   }
 };
@@ -367,6 +378,25 @@ export const getConnectionStatus = () => {
   if (!socket) return "Not initialized";
   if (socket.connected) return "Connected";
   return "Disconnected";
+};
+
+// Helper function to ensure socket is connected
+export const ensureSocketConnected = async (getToken: any) => {
+  const socket = getSocket();
+  if (socket && socket.connected) {
+    console.log('✅ Socket already connected');
+    return socket;
+  }
+  
+  console.log('🔌 Socket not connected, attempting to connect...');
+  try {
+    const connectedSocket = await connectSocketWithJWT(getToken);
+    console.log('✅ Socket connected successfully');
+    return connectedSocket;
+  } catch (error) {
+    console.error('❌ Failed to connect socket:', error);
+    throw new Error('Unable to connect to server. Please check your internet connection.');
+  }
 };
 
 // Helper function to listen to events

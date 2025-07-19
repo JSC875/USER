@@ -273,6 +273,18 @@ export default function HomeScreen({ navigation, route }: any) {
       Alert.alert('Select Destination', 'Please select a destination first.');
       return;
     }
+
+    // Ensure socket is connected before booking
+    const { ensureSocketConnected } = require('../../utils/socket');
+    try {
+      await ensureSocketConnected(getToken);
+      console.log('✅ Socket ready for ride booking');
+    } catch (error) {
+      console.error('❌ Failed to ensure socket connection for ride booking:', error);
+      Alert.alert('Connection Error', 'Unable to connect to server. Please check your internet connection and try again.');
+      return;
+    }
+
     // Fetch real-time GPS location
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -280,15 +292,15 @@ export default function HomeScreen({ navigation, route }: any) {
       return;
     }
     let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-    console.log('Fetched GPS position:', loc.coords);
+    console.log('📍 Fetched GPS position:', loc.coords);
     const pickup = {
       latitude: loc.coords.latitude,
       longitude: loc.coords.longitude,
       address: 'Current Location',
       name: 'Current Location',
     };
-    console.log('pickup:', pickup);
-    console.log('drop:', dropLocation);
+    console.log('📍 Pickup:', pickup);
+    console.log('🎯 Drop:', dropLocation);
     console.log('drop latitude:', dropLocation?.latitude, 'drop longitude:', dropLocation?.longitude);
     
     // Get user ID from JWT to ensure consistency with socket connection
@@ -309,11 +321,19 @@ export default function HomeScreen({ navigation, route }: any) {
       price: Math.floor(Math.random() * 50) + 20, // Random price for demo
       userId: userId,
     };
-    console.log('🚗 Booking ride:', rideRequest);
-    const success = bookRide(rideRequest);
-    if (success) {
-      setIsBookingRide(true);
-      Alert.alert('Booking Ride...', 'Request sent to server!');
+    console.log('🚗 Sending ride booking request:', rideRequest);
+    
+    try {
+      const success = bookRide(rideRequest);
+      if (success) {
+        setIsBookingRide(true);
+        Alert.alert('Booking Ride...', 'Request sent to server!');
+      } else {
+        throw new Error('Failed to send ride request');
+      }
+    } catch (error) {
+      console.error('❌ Ride booking failed:', error);
+      Alert.alert('Booking Failed', 'Unable to book ride. Please check your connection and try again.');
     }
   };
 
@@ -391,6 +411,26 @@ export default function HomeScreen({ navigation, route }: any) {
             onPress={() => navigation.navigate('ConnectionTest')}
           >
             <Ionicons name="analytics" size={20} color={Colors.accent} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={styles.debugButton} 
+            onPress={() => {
+              const { getSocket, isConnected, getConnectionStatus } = require('../../utils/socket');
+              const socket = getSocket();
+              console.log('🔍 Current Socket Status:');
+              console.log('- Socket exists:', !!socket);
+              console.log('- Is connected:', isConnected());
+              console.log('- Connection status:', getConnectionStatus());
+              console.log('- Socket ID:', socket?.id || 'None');
+              console.log('- Transport:', socket?.io?.engine?.transport?.name || 'Unknown');
+              
+              Alert.alert(
+                'Socket Status',
+                `Socket: ${socket ? 'Exists' : 'Null'}\nConnected: ${isConnected()}\nStatus: ${getConnectionStatus()}\nID: ${socket?.id || 'None'}\nTransport: ${socket?.io?.engine?.transport?.name || 'Unknown'}`
+              );
+            }}
+          >
+            <Ionicons name="information-circle" size={20} color={Colors.success} />
           </TouchableOpacity>
         </View>
       </View>

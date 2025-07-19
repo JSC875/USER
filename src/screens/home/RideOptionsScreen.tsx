@@ -5,6 +5,7 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import polyline from '@mapbox/polyline';
+import Constants from 'expo-constants';
 import { getSocket, emitEvent, onRideBooked, onRideTimeout, clearCallbacks } from '../../utils/socket';
 import * as Location from 'expo-location';
 import { useIsFocused } from '@react-navigation/native';
@@ -298,7 +299,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         setRouteCoords([]);
         return;
       }
-      const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY!; // From env
+      const apiKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY; // From env
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${location.latitude},${location.longitude}&destination=${drop.latitude},${drop.longitude}&key=${apiKey}`;
       try {
         const response = await fetch(url);

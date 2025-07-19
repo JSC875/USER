@@ -1,7 +1,8 @@
 import { Alert } from 'react-native';
+import Constants from 'expo-constants';
 
-// Test configuration
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY!;
+// Test configuration - get API key from Expo constants
+const GOOGLE_MAPS_API_KEY = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 // Test results interface
 interface AutocompleteTestResult {
