@@ -104,7 +104,7 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
 
   console.log(`🔗 Connecting socket for user: ${userId}, type: ${userType}`);
   socket = io(SOCKET_URL, {
-    transports: ["websocket", "polling"], // Try websocket first, fallback to polling
+    transports: ["polling", "websocket"], // Try polling first, then upgrade to websocket
     query: {
       type: userType,
       id: userId,
@@ -167,10 +167,15 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   
   socket.on("connect_error", (error) => {
     console.error("❌ Socket.IO connection error:", error);
+    console.error("❌ Error details:", {
+      message: error.message,
+      name: error.name,
+      stack: error.stack
+    });
     isConnecting = false; // Reset connecting state
     
     // Don't show alert for every connection error, only for persistent failures
-    if (error.message.includes('xhr poll error') || error.message.includes('timeout')) {
+    if (error.message.includes('xhr poll error') || error.message.includes('timeout') || error.message.includes('websocket error')) {
       console.log("🔄 Connection error detected, will retry automatically");
     } else {
       Alert.alert('Connection Error', 'Could not connect to server. Please check your internet connection.');
