@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
-import { getSocket, isConnected, getConnectionStatus, getDetailedConnectionStatus, listenToEvent } from '../../utils/socket';
+import { getSocket, getDetailedConnectionStatus } from '../../utils/socket';
 
 interface ConnectionStatusProps {
   isVisible?: boolean;
@@ -12,84 +12,110 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
   const [isOnline, setIsOnline] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [socketStatus, setSocketStatus] = useState('disconnected');
-  const [socketId, setSocketId] = useState<string | null>(null);
   const [isSocketConnecting, setIsSocketConnecting] = useState(false);
+  
+  // Use refs to prevent memory leaks and excessive re-renders
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const socketIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const checkSocketRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const mountedRef = useRef(true);
 
-  useEffect(() => {
-    const checkConnection = async () => {
-      try {
-        setIsConnecting(true);
-        const response = await fetch('https://www.google.com', { 
-          method: 'HEAD',
-          mode: 'no-cors'
-        });
-        setIsOnline(true);
-      } catch (error) {
-        setIsOnline(false);
-      } finally {
-        setIsConnecting(false);
-      }
-    };
-
-    const updateSocketStatus = () => {
+  // Memoized status update function to prevent unnecessary re-renders
+  const updateSocketStatus = useCallback(() => {
+    if (!mountedRef.current) return;
+    
+    try {
       const detailedStatus = getDetailedConnectionStatus();
-      console.log('🔍 ConnectionStatus: Checking socket status', detailedStatus);
       
       // More detailed status checking
       if (detailedStatus.socketExists && detailedStatus.connected) {
         setSocketStatus('connected');
-        setSocketId(detailedStatus.id !== 'None' ? detailedStatus.id : null);
         setIsSocketConnecting(false);
-        console.log('✅ ConnectionStatus: Socket is connected');
       } else if (detailedStatus.connectionState === 'connecting' || detailedStatus.isConnecting) {
         setSocketStatus('connecting');
-        setSocketId(null);
         setIsSocketConnecting(true);
-        console.log('🔄 ConnectionStatus: Socket is connecting...');
       } else {
         setSocketStatus('disconnected');
-        setSocketId(null);
         setIsSocketConnecting(false);
-        console.log('❌ ConnectionStatus: Socket is disconnected');
       }
-    };
+    } catch (error) {
+      console.error('Error updating socket status:', error);
+      setSocketStatus('disconnected');
+      setIsSocketConnecting(false);
+    }
+  }, []);
 
-    // Initial checks with a small delay to allow socket to connect
-    const initialCheck = async () => {
-      await checkConnection();
-      // Give socket time to connect
-      setTimeout(() => {
+  // Memoized connection check function
+  const checkConnection = useCallback(async () => {
+    if (!mountedRef.current) return;
+    
+    try {
+      setIsConnecting(true);
+      const response = await fetch('https://www.google.com', { 
+        method: 'HEAD',
+        mode: 'no-cors'
+      });
+      if (mountedRef.current) {
+        setIsOnline(true);
+      }
+    } catch (error) {
+      if (mountedRef.current) {
+        setIsOnline(false);
+      }
+    } finally {
+      if (mountedRef.current) {
+        setIsConnecting(false);
+      }
+    }
+  }, []);
+
+  useEffect(() => {
+    mountedRef.current = true;
+
+    // Initial checks
+    checkConnection();
+    
+    // Initial socket status check with shorter delay for APK builds
+    const initialSocketCheck = setTimeout(() => {
+      if (mountedRef.current) {
         updateSocketStatus();
-      }, 3000); // Increased delay to allow more time for socket connection
-    };
-    
-    initialCheck();
-    
+      }
+    }, __DEV__ ? 2000 : 1000); // Faster check for APK builds
+
     // Set up socket event listeners
     const socket = getSocket();
     if (socket) {
       const handleConnect = () => {
-        console.log('🔗 ConnectionStatus: Socket connected');
-        setSocketStatus('connected');
-        setSocketId(socket.id || null);
+        if (mountedRef.current) {
+          setSocketStatus('connected');
+          setIsSocketConnecting(false);
+        }
       };
 
       const handleDisconnect = () => {
-        console.log('🔴 ConnectionStatus: Socket disconnected');
-        setSocketStatus('disconnected');
-        setSocketId(null);
+        if (mountedRef.current) {
+          setSocketStatus('disconnected');
+          setIsSocketConnecting(false);
+        }
       };
 
       const handleConnectError = () => {
-        console.log('❌ ConnectionStatus: Socket connection error');
-        setSocketStatus('disconnected');
-        setSocketId(null);
+        if (mountedRef.current) {
+          setSocketStatus('disconnected');
+          setIsSocketConnecting(false);
+        }
       };
 
       // Add event listeners
       socket.on('connect', handleConnect);
       socket.on('disconnect', handleDisconnect);
       socket.on('connect_error', handleConnectError);
+
+      // Update status immediately if already connected
+      if (socket.connected) {
+        setSocketStatus('connected');
+        setIsSocketConnecting(false);
+      }
 
       // Cleanup function
       return () => {
@@ -98,29 +124,37 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
         socket.off('connect_error', handleConnectError);
       };
     } else {
-      // If no socket exists yet, check periodically for socket creation
-      const checkForSocket = setInterval(() => {
+      // If no socket exists yet, check more frequently for APK builds
+      const checkInterval = __DEV__ ? 1000 : 500; // More frequent checks for APK
+      checkSocketRef.current = setInterval(() => {
+        if (!mountedRef.current) return;
+        
         const newSocket = getSocket();
         if (newSocket) {
-          console.log('🔍 ConnectionStatus: Socket found, setting up listeners');
-          clearInterval(checkForSocket);
+          if (checkSocketRef.current) {
+            clearInterval(checkSocketRef.current);
+            checkSocketRef.current = null;
+          }
           
           const handleConnect = () => {
-            console.log('🔗 ConnectionStatus: Socket connected');
-            setSocketStatus('connected');
-            setSocketId(newSocket.id || null);
+            if (mountedRef.current) {
+              setSocketStatus('connected');
+              setIsSocketConnecting(false);
+            }
           };
 
           const handleDisconnect = () => {
-            console.log('🔴 ConnectionStatus: Socket disconnected');
-            setSocketStatus('disconnected');
-            setSocketId(null);
+            if (mountedRef.current) {
+              setSocketStatus('disconnected');
+              setIsSocketConnecting(false);
+            }
           };
 
           const handleConnectError = () => {
-            console.log('❌ ConnectionStatus: Socket connection error');
-            setSocketStatus('disconnected');
-            setSocketId(null);
+            if (mountedRef.current) {
+              setSocketStatus('disconnected');
+              setIsSocketConnecting(false);
+            }
           };
 
           newSocket.on('connect', handleConnect);
@@ -130,22 +164,66 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
           // Update status immediately if already connected
           if (newSocket.connected) {
             setSocketStatus('connected');
-            setSocketId(newSocket.id || null);
+            setIsSocketConnecting(false);
           }
         }
-      }, 500);
+      }, checkInterval);
 
       return () => {
-        clearInterval(checkForSocket);
+        if (checkSocketRef.current) {
+          clearInterval(checkSocketRef.current);
+          checkSocketRef.current = null;
+        }
       };
     }
-    
-    const interval = setInterval(checkConnection, 30000); // Check every 30 seconds
-    const socketInterval = setInterval(updateSocketStatus, 1000); // Check socket status every 1 second for better responsiveness
+  }, [checkConnection, updateSocketStatus]);
+
+  // Set up periodic checks with different intervals for APK vs dev
+  useEffect(() => {
+    // Check connection every 30 seconds for APK, 60 for dev
+    const connectionInterval = __DEV__ ? 60000 : 30000;
+    intervalRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        checkConnection();
+      }
+    }, connectionInterval);
+
+    // Check socket status every 2 seconds for APK, 5 for dev
+    const socketInterval = __DEV__ ? 5000 : 2000;
+    socketIntervalRef.current = setInterval(() => {
+      if (mountedRef.current) {
+        updateSocketStatus();
+      }
+    }, socketInterval);
 
     return () => {
-      clearInterval(interval);
-      clearInterval(socketInterval);
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (socketIntervalRef.current) {
+        clearInterval(socketIntervalRef.current);
+        socketIntervalRef.current = null;
+      }
+    };
+  }, [checkConnection, updateSocketStatus]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+        intervalRef.current = null;
+      }
+      if (socketIntervalRef.current) {
+        clearInterval(socketIntervalRef.current);
+        socketIntervalRef.current = null;
+      }
+      if (checkSocketRef.current) {
+        clearInterval(checkSocketRef.current);
+        checkSocketRef.current = null;
+      }
     };
   }, []);
 
@@ -193,7 +271,7 @@ const styles = StyleSheet.create({
   container: {
     position: 'absolute',
     top: 50,
-    right: 80, // Move it further left to avoid overlapping with header buttons
+    right: 16,
     flexDirection: 'row',
     alignItems: 'center',
     paddingHorizontal: 8,

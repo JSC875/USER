@@ -28,6 +28,7 @@ let maxRetryAttempts = 5;
 let connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'disconnected';
 let lastConnectionAttempt = 0;
 let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
+let backgroundRetryInterval: ReturnType<typeof setInterval> | null = null;
 
 // Event callback types
 export type RideBookedCallback = (data: {
@@ -373,13 +374,20 @@ export const getSocket = () => socket;
 
 export const disconnectSocket = () => {
   if (socket) {
+    console.log("🔌 Disconnecting socket");
     socket.disconnect();
     socket = null;
   }
   isConnecting = false;
-  connectionRetryCount = 0;
   connectionState = 'disconnected';
   lastConnectedUserId = null;
+  connectionRetryCount = 0;
+  
+  // Clear background retry interval
+  if (backgroundRetryInterval) {
+    clearInterval(backgroundRetryInterval);
+    backgroundRetryInterval = null;
+  }
 };
 
 export const retryConnection = (userId: string, userType: string = "customer") => {
@@ -795,6 +803,30 @@ export const handleAPKConnection = async (getToken: any) => {
   }
 };
 
+// Background retry mechanism for APK builds
+export const startBackgroundRetry = (getToken: any) => {
+  if (backgroundRetryInterval) {
+    clearInterval(backgroundRetryInterval);
+  }
+  
+  // Only start background retry for APK builds
+  if (!__DEV__) {
+    console.log('🔄 Starting background retry mechanism for APK...');
+    backgroundRetryInterval = setInterval(async () => {
+      const currentSocket = getSocket();
+      if (!currentSocket || !currentSocket.connected) {
+        console.log('🔄 Background retry: Socket not connected, attempting reconnection...');
+        try {
+          await connectSocketWithJWT(getToken);
+          console.log('✅ Background retry: Reconnection successful');
+        } catch (error) {
+          console.log('❌ Background retry: Reconnection failed:', error);
+        }
+      }
+    }, 30000); // Check every 30 seconds
+  }
+};
+
 // New function specifically for APK initialization
 export const initializeAPKConnection = async (getToken: any) => {
   console.log("🚀 Initializing APK connection...");
@@ -854,7 +886,12 @@ export const initializeAPKConnection = async (getToken: any) => {
       
       // Final attempt with force reconnect
       console.log("🔄 APK: Final connection attempt with force reconnect...");
-      return await forceReconnect(getToken);
+      const finalSocket = await forceReconnect(getToken);
+      
+      // Start background retry mechanism for APK builds
+      startBackgroundRetry(getToken);
+      
+      return finalSocket;
       
     } catch (error) {
       console.error("❌ APK initialization failed:", error);
