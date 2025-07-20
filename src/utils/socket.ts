@@ -1,11 +1,22 @@
 import { io, Socket } from "socket.io-client";
 import { getUserIdFromJWT, getUserTypeFromJWT } from "./jwtDecoder";
 import { Alert } from "react-native";
+import Constants from 'expo-constants';
 
 // Configuration for socket connection
-const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL!; // From env
+const SOCKET_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL || process.env.EXPO_PUBLIC_SOCKET_URL || 'https://testsocketio-roqet.up.railway.app'; // From Constants with fallback
 
 console.log('🔧 Socket URL configured:', SOCKET_URL, 'DEV mode:', __DEV__);
+console.log('🔧 Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL:', Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL);
+console.log('🔧 process.env.EXPO_PUBLIC_SOCKET_URL:', process.env.EXPO_PUBLIC_SOCKET_URL);
+
+// Validate socket URL
+if (!SOCKET_URL || SOCKET_URL === 'undefined') {
+  console.error('❌ CRITICAL: Socket URL is not configured properly!');
+  console.error('❌ Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL:', Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL);
+  console.error('❌ process.env.EXPO_PUBLIC_SOCKET_URL:', process.env.EXPO_PUBLIC_SOCKET_URL);
+  console.error('❌ Using fallback URL:', 'https://testsocketio-roqet.up.railway.app');
+}
 
 let socket: Socket | null = null;
 
@@ -116,6 +127,14 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   console.log(`🔗 Connecting socket for user: ${userId}, type: ${userType}`);
   console.log(`🌐 Socket URL: ${SOCKET_URL}`);
   console.log(`🏗️ Environment: ${__DEV__ ? 'Development' : 'Production'}`);
+  
+  // Validate socket URL before attempting connection
+  if (!SOCKET_URL || SOCKET_URL === 'undefined' || SOCKET_URL === 'null') {
+    console.error('❌ Cannot connect: Socket URL is invalid');
+    console.error('❌ SOCKET_URL:', SOCKET_URL);
+    console.error('❌ EXPO_PUBLIC_SOCKET_URL:', Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL || process.env.EXPO_PUBLIC_SOCKET_URL);
+    throw new Error('Socket URL is not configured. Please check environment variables.');
+  }
   
   // Adjust configuration based on environment
   const isProduction = !__DEV__;

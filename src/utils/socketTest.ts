@@ -1,7 +1,8 @@
 import { io, Socket } from "socket.io-client";
+import Constants from 'expo-constants';
 
 // Test configuration
-const SOCKET_URL = "https://testsocketio-roqet.up.railway.app";
+const SOCKET_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL || process.env.EXPO_PUBLIC_SOCKET_URL || "https://testsocketio-roqet.up.railway.app";
 
 // Test results interface
 interface TestResult {
