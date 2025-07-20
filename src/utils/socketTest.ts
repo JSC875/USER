@@ -515,3 +515,195 @@ export const testSocketConnectionAPK = (): Promise<TestResult> => {
     });
   });
 }; 
+
+// Enhanced APK connection debug function
+export const debugAPKConnection = async () => {
+  console.log('🔧 APK Connection Debug Started...');
+  
+  const results = {
+    environment: __DEV__ ? 'development' : 'production',
+    socketUrl: SOCKET_URL,
+    timestamp: new Date().toISOString(),
+    tests: {} as any
+  };
+  
+  try {
+    // Test 1: Basic server reachability
+    console.log('🌐 Testing server reachability...');
+    const healthResponse = await fetch(`${SOCKET_URL}/health`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'User-Agent': 'ReactNative-APK-Debug'
+      }
+    });
+    
+    results.tests.serverReachability = {
+      success: healthResponse.ok,
+      status: healthResponse.status,
+      statusText: healthResponse.statusText,
+      headers: Object.fromEntries(healthResponse.headers.entries())
+    };
+    
+    // Test 2: Socket connection with detailed logging
+    console.log('🔌 Testing Socket.IO connection...');
+    const socketResult = await new Promise((resolve) => {
+      const testSocket = io(SOCKET_URL, {
+        transports: ["websocket"],
+        timeout: 15000,
+        forceNew: true,
+        query: {
+          type: "customer",
+          id: "debug_user_" + Date.now(),
+          platform: "android-apk",
+          debug: "true"
+        },
+        extraHeaders: {
+          "User-Agent": "ReactNative-APK-Debug",
+          "X-Platform": "Android",
+          "X-Environment": "production"
+        },
+        withCredentials: false,
+        rejectUnauthorized: false,
+        upgrade: false,
+        rememberUpgrade: false
+      });
+
+      const timeout = setTimeout(() => {
+        testSocket.disconnect();
+        resolve({
+          success: false,
+          error: 'Connection timeout after 15 seconds',
+          details: {
+            connected: testSocket.connected,
+            id: testSocket.id,
+            transport: testSocket.io?.engine?.transport?.name
+          }
+        });
+      }, 15000);
+
+      testSocket.on("connect", () => {
+        clearTimeout(timeout);
+        const result = {
+          success: true,
+          details: {
+            connected: testSocket.connected,
+            id: testSocket.id,
+            transport: testSocket.io?.engine?.transport?.name,
+            url: SOCKET_URL
+          }
+        };
+        testSocket.disconnect();
+        resolve(result);
+      });
+
+      testSocket.on("connect_error", (error) => {
+        clearTimeout(timeout);
+        resolve({
+          success: false,
+          error: error.message,
+          details: {
+            type: (error as any).type,
+            context: (error as any).context,
+            connected: testSocket.connected,
+            transport: testSocket.io?.engine?.transport?.name
+          }
+        });
+      });
+
+      testSocket.on("error", (error) => {
+        console.log('❌ Socket error event:', error);
+      });
+
+      testSocket.on("disconnect", (reason) => {
+        console.log('🔴 Socket disconnected:', reason);
+      });
+    });
+    
+    results.tests.socketConnection = socketResult as any;
+    
+    // Test 3: Event communication test
+    if ((socketResult as any).success) {
+      console.log('📡 Testing event communication...');
+      const eventResult = await new Promise((resolve) => {
+        const eventSocket = io(SOCKET_URL, {
+          transports: ["websocket"],
+          timeout: 10000,
+          forceNew: true,
+          query: {
+            type: "customer",
+            id: "event_test_" + Date.now()
+          }
+        });
+
+        const eventTimeout = setTimeout(() => {
+          eventSocket.disconnect();
+          resolve({
+            success: false,
+            error: 'Event test timeout'
+          });
+        }, 10000);
+
+        eventSocket.on("connect", () => {
+          // Send test event
+          eventSocket.emit("test_event", {
+            message: "Hello from APK debug",
+            timestamp: Date.now(),
+            platform: "android-apk"
+          });
+
+          // Listen for response
+          eventSocket.on("test_response", (data) => {
+            clearTimeout(eventTimeout);
+            eventSocket.disconnect();
+            resolve({
+              success: true,
+              received: data
+            });
+          });
+
+          // Fallback timeout
+          setTimeout(() => {
+            clearTimeout(eventTimeout);
+            eventSocket.disconnect();
+            resolve({
+              success: false,
+              error: 'No response received'
+            });
+          }, 5000);
+        });
+
+        eventSocket.on("connect_error", (error) => {
+          clearTimeout(eventTimeout);
+          eventSocket.disconnect();
+          resolve({
+            success: false,
+            error: error.message
+          });
+        });
+      });
+      
+      results.tests.eventCommunication = eventResult;
+    } else {
+      results.tests.eventCommunication = {
+        success: false,
+        error: 'Skipped - socket connection failed'
+      };
+    }
+    
+    console.log('📊 APK Debug Results:', results);
+    return results;
+    
+  } catch (error) {
+    console.error('❌ APK Debug failed:', error);
+    return {
+      ...results,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      tests: {
+        serverReachability: { success: false, error: 'Fetch failed' },
+        socketConnection: { success: false, error: 'Test failed' },
+        eventCommunication: { success: false, error: 'Test failed' }
+      }
+    };
+  }
+}; 

@@ -392,6 +392,24 @@ export default function HomeScreen({ navigation, route }: any) {
           </View>
         </View>
         <View style={styles.debugButtonsContainer}>
+          {!__DEV__ && (
+            <TouchableOpacity 
+              style={[styles.debugButton, { backgroundColor: Colors.warning }]} 
+              onPress={async () => {
+                try {
+                  console.log('🚀 Initializing APK connection...');
+                  const { initializeAPKConnection } = require('../../utils/socket');
+                  await initializeAPKConnection(getToken);
+                  Alert.alert('Success', 'APK connection initialized successfully!');
+                } catch (error: any) {
+                  console.error('❌ APK initialization failed:', error);
+                  Alert.alert('Error', 'Failed to initialize APK connection. Check logs for details.');
+                }
+              }}
+            >
+              <Ionicons name="rocket" size={20} color={Colors.white} />
+            </TouchableOpacity>
+          )}
           <TouchableOpacity 
             style={styles.debugButton} 
             onPress={async () => {
@@ -414,21 +432,31 @@ export default function HomeScreen({ navigation, route }: any) {
                 const apkResult = await quickTestAPK();
                 console.log('📊 APK Quick test result:', apkResult);
                 
+                // Run APK-specific debug if in production
+                let apkDebugResult = null;
+                if (!__DEV__) {
+                  const { debugAPKConnection } = require('../../utils/socketTest');
+                  apkDebugResult = await debugAPKConnection();
+                  console.log('📊 APK Debug result:', apkDebugResult);
+                }
+                
                 // Run detailed socket debug
                 debugSocketConnection();
                 
                 // Show comprehensive results
+                const apkDebugInfo = apkDebugResult ? `\n\n🔧 APK Debug:\n• Server: ${apkDebugResult.tests?.serverReachability?.success ? '✅ OK' : '❌ FAIL'}\n• Socket: ${apkDebugResult.tests?.socketConnection?.success ? '✅ OK' : '❌ FAIL'}\n• Events: ${apkDebugResult.tests?.eventCommunication?.success ? '✅ OK' : '❌ FAIL'}` : '';
+                
                 Alert.alert(
                   'Connection Analysis',
-                  `📊 Current Status:\nSocket: ${status.socketExists ? 'Exists' : 'Null'}\nConnected: ${status.connected}\nState: ${status.connectionState}\nID: ${status.id}\nTransport: ${status.transport}\n\n🧪 Test Results:\nRegular Test:\n• Server: ${result.serverReachable ? '✅ OK' : '❌ FAIL'}\n• Socket: ${result.socketConnected ? '✅ OK' : '❌ FAIL'}\n\nAPK Test:\n• Server: ${apkResult.serverReachable ? '✅ OK' : '❌ FAIL'}\n• Socket: ${apkResult.socketConnected ? '✅ OK' : '❌ FAIL'}`,
+                  `📊 Current Status:\nSocket: ${status.socketExists ? 'Exists' : 'Null'}\nConnected: ${status.connected}\nState: ${status.connectionState}\nID: ${status.id}\nTransport: ${status.transport}\n\n🧪 Test Results:\nRegular Test:\n• Server: ${result.serverReachable ? '✅ OK' : '❌ FAIL'}\n• Socket: ${result.socketConnected ? '✅ OK' : '❌ FAIL'}\n\nAPK Test:\n• Server: ${apkResult.serverReachable ? '✅ OK' : '❌ FAIL'}\n• Socket: ${apkResult.socketConnected ? '✅ OK' : '❌ FAIL'}${apkDebugInfo}`,
                   [
                                          {
                        text: 'Force Reconnect',
                        onPress: async () => {
                          try {
                            console.log('🔄 Force reconnecting socket...');
-                           const { handleAPKConnection } = require('../../utils/socket');
-                           await handleAPKConnection(getToken);
+                           const { initializeAPKConnection } = require('../../utils/socket');
+                           await initializeAPKConnection(getToken);
                            Alert.alert('Success', 'Socket reconnected successfully!');
                          } catch (error: any) {
                            console.error('❌ Force reconnect failed:', error);
