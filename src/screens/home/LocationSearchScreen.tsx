@@ -15,7 +15,7 @@ import { Layout } from '../../constants/Layout';
 import { useLocationStore } from '../../store/useLocationStore';
 import LocationPickerMap from '../../components/common/LocationPickerMap';
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY!;
 
 interface PlaceResult {
   place_id: string;

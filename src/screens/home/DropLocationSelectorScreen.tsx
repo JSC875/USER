@@ -38,7 +38,7 @@ const RECENT_LOCATIONS = [
   
 ];
 
-const GOOGLE_MAPS_API_KEY = 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU';
+const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY!;
 
 // Add a helper to get icon and color for each location type
 const getLocationIcon = (name: string) => {

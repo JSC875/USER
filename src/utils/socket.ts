@@ -3,7 +3,7 @@ import { getUserIdFromJWT, getUserTypeFromJWT } from "./jwtDecoder";
 import { Alert } from "react-native";
 
 // Configuration for socket connection
-const SOCKET_URL =  "https://testsocketio-roqet.up.railway.app"; // Production
+const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL!; // From env
 
 console.log('🔧 Socket URL configured:', SOCKET_URL, 'DEV mode:', __DEV__);
 

@@ -65,6 +65,7 @@
     "eslint-config-expo": "~9.2.0",
     "expo-auth-session": "~6.2.0",
     "expo-secure-store": "~14.2.3",
+    "react-native-dotenv": "^3.4.11",
     "typescript": "^5.8.3"
   },
   "private": true

@@ -134,7 +134,7 @@ export default function HomeScreen({ navigation, route }: any) {
       try {
         const token = await getToken({ template: 'my_app_token' });
         if (!token) return;
-        const response = await fetch('https://bike-taxi-production.up.railway.app/api/users/me', {
+        const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/users/me`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -332,7 +332,7 @@ export default function HomeScreen({ navigation, route }: any) {
     try {
       const token = await getToken({ template: 'my_app_token' });
       console.log('Custom Clerk JWT:', token);
-      const response = await fetch('https://bike-taxi-production.up.railway.app/api/users/me', {
+      const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/users/me`, {
         method: 'GET',
         headers: {
           'Authorization': `Bearer ${token}`,

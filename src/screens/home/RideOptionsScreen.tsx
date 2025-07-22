@@ -298,7 +298,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         setRouteCoords([]);
         return;
       }
-      const apiKey = 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU'; // <-- Replace with your actual API key
+      const apiKey = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY!; // From env
       const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${location.latitude},${location.longitude}&destination=${drop.latitude},${drop.longitude}&key=${apiKey}`;
       try {
         const response = await fetch(url);
