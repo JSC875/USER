@@ -49,7 +49,7 @@ export default function ConfirmRideScreen({ navigation, route }: any) {
         {/* Driver Info */}
         <View style={styles.driverCard}>
           <View style={styles.driverHeader}>
-            <Text style={styles.driverTitle}>Your Driver</Text>
+            <Text style={styles.driverTitle}>Your Pilot</Text>
             <View style={styles.etaContainer}>
               <Ionicons name="time" size={16} color={Colors.primary} />
               <Text style={styles.etaText}>{/* Placeholder for ETA */}</Text>

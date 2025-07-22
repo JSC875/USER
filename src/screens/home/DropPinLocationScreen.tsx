@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator
 import MapView, { Region, PROVIDER_GOOGLE } from 'react-native-maps';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
+import { Layout } from '../../constants/Layout';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -37,7 +38,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
   const [newAddress, setNewAddress] = useState('');
   const [savedLocations, setSavedLocations] = useState<{ home?: any; work?: any; custom?: any[] }>({});
   const [showSavedModal, setShowSavedModal] = useState(false);
-  const [isSaving, setIsSaving] = useState(false); // Add at top with other useState
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     (async () => {
@@ -192,8 +193,6 @@ export default function DropPinLocationScreen({ navigation }: any) {
 
   const { house, rest } = parseAddress(address);
 
- 
-
   return (
     <View style={styles.screen}>
       <View style={styles.mapContainer}>
@@ -206,31 +205,31 @@ export default function DropPinLocationScreen({ navigation }: any) {
           showsUserLocation
           showsMyLocationButton={false}
         />
-        {/* Floating Center Pin (emoji for Rapido style) */}
+        {/* Floating Center Pin */}
         <View pointerEvents="none" style={styles.pinContainer}>
           <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-            {/* Outer red circle with white border */}
+            {/* Outer white circle with border */}
             <View style={{
               width: 26,
               height: 26,
               borderRadius: 18,
-              backgroundColor: '#fff',
+              backgroundColor: Colors.white,
               alignItems: 'center',
               justifyContent: 'center',
               borderWidth: 2,
-              borderColor: '#fff',
-              shadowColor: '#000',
+              borderColor: Colors.white,
+              shadowColor: Colors.shadow,
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: 0.15,
               shadowRadius: 2,
               elevation: 2,
             }}>
-              {/* Inner red circle */}
+              {/* Inner primary color circle */}
               <View style={{
                 width: 24,
                 height: 24,
                 borderRadius: 14,
-                backgroundColor: '#E53935',
+                backgroundColor: Colors.primary,
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
@@ -239,7 +238,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
                   width: 12,
                   height: 12,
                   borderRadius: 6,
-                  backgroundColor: '#fff',
+                  backgroundColor: Colors.white,
                 }} />
               </View>
             </View>
@@ -247,7 +246,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
             <View style={{
               width: 3,
               height: 16,
-              backgroundColor: '#222',
+              backgroundColor: Colors.black,
               marginTop: -2,
               borderRadius: 2,
             }} />
@@ -255,7 +254,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
         </View>
         {/* My Location Button */}
         <TouchableOpacity style={styles.myLocationBtn} onPress={handleMyLocation}>
-          <Ionicons name="locate" size={24} color={Colors.primary} />
+          <Ionicons name="locate" size={Layout.iconSize.lg} color={Colors.primary} />
         </TouchableOpacity>
       </View>
       {/* Bottom Sheet */}
@@ -269,7 +268,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
           </View>
           <View style={styles.selectedAddressBox}>
             <View style={styles.iconCircle}>
-              <Ionicons name="location-sharp" size={20} color="#fff" />
+              <Ionicons name="location-sharp" size={Layout.iconSize.md} color={Colors.white} />
             </View>
             <View>
               <Text style={styles.selectedAddressTitle}>
@@ -283,22 +282,36 @@ export default function DropPinLocationScreen({ navigation }: any) {
           <View style={styles.divider} />
           <Text style={styles.saveLabel}>Save location as</Text>
           <View style={styles.saveRow}>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('home')}><Text style={styles.saveBtnIcon}>🏠</Text><Text style={styles.saveBtnText}> Home</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('work')}><Text style={styles.saveBtnIcon}>💼</Text><Text style={styles.saveBtnText}> Work</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleAddNew}><Text style={styles.saveBtnIcon}>➕</Text><Text style={styles.saveBtnText}> Add New</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('home')} disabled={isSaving}>
+              <Text style={styles.saveBtnIcon}>🏠</Text>
+              <Text style={styles.saveBtnText}> Home</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('work')} disabled={isSaving}>
+              <Text style={styles.saveBtnIcon}>💼</Text>
+              <Text style={styles.saveBtnText}> Work</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleAddNew} disabled={isSaving}>
+              <Text style={styles.saveBtnIcon}>➕</Text>
+              <Text style={styles.saveBtnText}> Add New</Text>
+            </TouchableOpacity>
           </View>
         </View>
-        <TouchableOpacity style={styles.selectDropButton} onPress={handleSelectDrop} activeOpacity={0.8}>
+        <TouchableOpacity 
+          style={[styles.selectDropButton, isSaving && styles.selectDropButtonDisabled]} 
+          onPress={handleSelectDrop} 
+          activeOpacity={0.8}
+          disabled={isSaving}
+        >
           <Text style={styles.selectDropButtonText}>Select Drop</Text>
         </TouchableOpacity>
       </View>
       {showAddAddressInput && (
-        <View style={{ marginVertical: 10 }}>
+        <View style={{ marginVertical: Layout.spacing.md }}>
           <TextInput
             value={newAddress}
             onChangeText={setNewAddress}
             placeholder="Enter new address"
-            style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 10 }}
+            style={styles.addressInput}
             editable={!isSaving}
           />
           <Button
@@ -340,9 +353,9 @@ const styles = StyleSheet.create({
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
     overflow: 'hidden',
-    backgroundColor: '#eee',
+    backgroundColor: Colors.gray100,
     elevation: 4,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -358,15 +371,15 @@ const styles = StyleSheet.create({
   },
   myLocationBtn: {
     position: 'absolute',
-    right: 18,
-    bottom: 40,
-    backgroundColor: '#fff',
+    right: Layout.spacing.md,
+    bottom: Layout.spacing.xl,
+    backgroundColor: Colors.white,
     borderRadius: 22,
     width: 44,
     height: 44,
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.12,
     shadowRadius: 6,
@@ -384,15 +397,15 @@ const styles = StyleSheet.create({
   },
   addressCard: {
     width: '100%',
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 28,
-    borderTopRightRadius: 28,
+    backgroundColor: Colors.white,
+    borderTopLeftRadius: Layout.borderRadius.lg,
+    borderTopRightRadius: Layout.borderRadius.lg,
     borderBottomLeftRadius: 0,
     borderBottomRightRadius: 0,
-    paddingVertical: 16,
-    paddingHorizontal: 18,
+    paddingVertical: Layout.spacing.md,
+    paddingHorizontal: Layout.spacing.md,
     elevation: 10,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: -2 },
     shadowOpacity: 0.10,
     shadowRadius: 12,
@@ -405,26 +418,26 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 6,
+    marginBottom: Layout.spacing.sm,
   },
   addressLabel: {
-    fontSize: 16,
+    fontSize: Layout.fontSize.md,
     color: Colors.text,
     fontWeight: '700',
   },
   changeText: {
     color: Colors.primary,
     fontWeight: '600',
-    fontSize: 14,
+    fontSize: Layout.fontSize.sm,
   },
   selectedAddressBox: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.gray50,
-    borderRadius: 14,
-    padding: 30,
-    marginBottom: 8,
-    shadowColor: '#000',
+    borderRadius: Layout.borderRadius.md,
+    padding: Layout.spacing.xl,
+    marginBottom: Layout.spacing.sm,
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.06,
     shadowRadius: 2,
@@ -433,19 +446,19 @@ const styles = StyleSheet.create({
     width: 28,
     height: 28,
     borderRadius: 14,
-    backgroundColor: Colors.coral,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginRight: 12,
+    marginRight: Layout.spacing.md,
   },
   selectedAddressTitle: {
-    fontSize: 13,
+    fontSize: Layout.fontSize.sm,
     color: Colors.text,
     fontWeight: '700',
     marginBottom: 0,
   },
   selectedAddressSubtitle: {
-    fontSize: 11,
+    fontSize: Layout.fontSize.xs,
     color: Colors.gray400,
     fontWeight: '400',
     width: width - 120,
@@ -453,59 +466,72 @@ const styles = StyleSheet.create({
   divider: {
     height: 1,
     backgroundColor: Colors.gray200,
-    marginVertical: 8,
+    marginVertical: Layout.spacing.sm,
     borderRadius: 1,
   },
   saveLabel: {
-    fontSize: 11,
+    fontSize: Layout.fontSize.xs,
     color: Colors.gray400,
-    marginBottom: 4,
+    marginBottom: Layout.spacing.xs,
     fontWeight: '500',
   },
   saveRow: {
     flexDirection: 'row',
     justifyContent: 'flex-start',
     marginTop: 0,
-    marginBottom: 4,
+    marginBottom: Layout.spacing.xs,
   },
   saveBtn: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.gray50,
-    borderRadius: 14,
-    paddingVertical: 4,
-    paddingHorizontal: 10,
-    marginRight: 6,
+    borderRadius: Layout.borderRadius.md,
+    paddingVertical: Layout.spacing.xs,
+    paddingHorizontal: Layout.spacing.md,
+    marginRight: Layout.spacing.sm,
     elevation: 0,
-    shadowColor: '#000',
+    shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.04,
     shadowRadius: 2,
   },
   saveBtnIcon: {
-    fontSize: 14,
+    fontSize: Layout.fontSize.sm,
   },
   saveBtnText: {
-    fontSize: 11,
+    fontSize: Layout.fontSize.xs,
     color: Colors.text,
     fontWeight: '500',
   },
   selectDropButton: {
     width: '90%',
-    backgroundColor: '#FFD600',
-    borderRadius: 16,
-    paddingVertical: 16,
+    backgroundColor: Colors.primary,
+    borderRadius: Layout.borderRadius.md,
+    paddingVertical: Layout.spacing.md,
     alignItems: 'center',
     justifyContent: 'center',
-    marginTop: 12,
+    marginTop: Layout.spacing.md,
     alignSelf: 'center',
     elevation: 0,
-    marginBottom: 18,
+    marginBottom: Layout.spacing.md,
+  },
+  selectDropButtonDisabled: {
+    backgroundColor: Colors.gray300,
   },
   selectDropButtonText: {
-    color: '#222',
+    color: Colors.white,
     fontWeight: '700',
-    fontSize: 16,
+    fontSize: Layout.fontSize.md,
     letterSpacing: 0.1,
+  },
+  addressInput: {
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    borderRadius: Layout.borderRadius.md,
+    padding: Layout.spacing.md,
+    marginBottom: Layout.spacing.md,
+    backgroundColor: Colors.white,
+    fontSize: Layout.fontSize.md,
+    color: Colors.text,
   },
 });

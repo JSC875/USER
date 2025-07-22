@@ -4,12 +4,12 @@
     "slug": "user-app",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./assets/images/roqetlogo.jpg",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "user-app",
     "splash": {
-      "image": "./assets/images/splash-icon.png",
+      "image": "./assets/images/roqetlogo.jpg",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
@@ -19,7 +19,7 @@
     "android": {
       "package": "com.appacella.userapp",
       "adaptiveIcon": {
-        "foregroundImage": "./assets/images/adaptive-icon.png",
+        "foregroundImage": "./assets/images/roqetlogo.jpg",
         "backgroundColor": "#ffffff"
       },
       "permissions": [
@@ -30,7 +30,7 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/roqetlogo.jpg"
     },
     "plugins": [
       [
@@ -42,7 +42,7 @@
       [
         "expo-splash-screen",
         {
-          "image": "./assets/images/splash-icon.png",
+          "image": "./assets/images/roqetlogo.jpg",
           "imageWidth": 200,
           "resizeMode": "contain",
           "backgroundColor": "#ffffff"

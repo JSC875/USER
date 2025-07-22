@@ -15,7 +15,7 @@ import { useUser, useAuth } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { mockLocations } from '../../data/mockData';
-import { getGreeting, useAssignUserType } from '../../utils/helpers';
+import { getGreeting, useAssignUserType, useSafeAreaWithTabBar } from '../../utils/helpers';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useLocationStore } from '../../store/useLocationStore';
@@ -34,11 +34,13 @@ import {
   clearCallbacks,
   connectSocketWithJWT
 } from "../../utils/socket";
+import { getUserIdFromJWT } from "../../utils/jwtDecoder";
 
 const { width } = Dimensions.get('window');
 
 export default function HomeScreen({ navigation, route }: any) {
   const { user } = useUser();
+  const { insets, getFloatingBottom } = useSafeAreaWithTabBar();
   const {
     pickupLocation,
     setPickupLocation,
@@ -146,10 +148,6 @@ export default function HomeScreen({ navigation, route }: any) {
           result = null; // Not JSON, or empty
         }
         console.log('Backend response:', result, 'Status:', response.status);
-        if (response.status >= 200 && response.status < 300) {
-          // Show a visual confirmation
-          Alert.alert('Success', 'Custom JWT sent to backend!');
-        }
         setHasSentToBackend(true);
       } catch (err) {
         console.error('Failed to send custom JWT to backend:', err);
@@ -162,35 +160,48 @@ export default function HomeScreen({ navigation, route }: any) {
   useEffect(() => {
     // Connect to socket using JWT
     connectSocketWithJWT(getToken).then((socket) => {
+      console.log('🔗 HomeScreen: Socket connected successfully');
+      
       // Set up event callbacks
       onRideBooked((data) => {
-        console.log('✅ Ride booked:', data);
+        console.log('✅ HomeScreen: Ride booked:', data);
         setCurrentRide({
           rideId: data.rideId,
           price: data.price,
           status: 'searching'
         });
         setIsBookingRide(true);
-        Alert.alert('Ride Booked!', `Searching for drivers...\nRide ID: ${data.rideId}`);
+        Alert.alert('Ride Booked!', `Searching for pilots...\nRide ID: ${data.rideId}`);
       });
 
       onRideAccepted((data) => {
-        console.log('✅ Ride accepted by driver:', data);
+        console.log('✅ HomeScreen: Ride accepted by driver:', data);
+        
+        // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
+        const transformDriverName = (name: string) => {
+          if (name && name.includes('Driver')) {
+            return name.replace(/Driver/g, 'Pilot');
+          }
+          return name;
+        };
+        
+        const transformedDriverName = transformDriverName(data.driverName);
+        
         setCurrentRide((prev: any) => ({
           ...prev,
           driverId: data.driverId,
-          driverName: data.driverName,
+          driverName: transformedDriverName,
           driverPhone: data.driverPhone,
           estimatedArrival: data.estimatedArrival,
           status: 'accepted'
         }));
-        setRideStatus('Driver accepted your ride!');
+        setRideStatus('Pilot accepted your ride!');
         setShowRideModal(true);
-        Alert.alert('Driver Found!', `${data.driverName} will arrive in ${data.estimatedArrival}`);
+        Alert.alert('Pilot Found!', `${transformedDriverName} will arrive in ${data.estimatedArrival}`);
       });
 
       onDriverLocation((data) => {
-        console.log('📍 Driver location update:', data);
+        console.log('📍 HomeScreen: Driver location update:', data);
         setDriverLocation({
           latitude: data.latitude,
           longitude: data.longitude
@@ -198,7 +209,7 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onRideStatus((data) => {
-        console.log('🔄 Ride status update:', data);
+        console.log('🔄 HomeScreen: Ride status update:', data);
         setRideStatus(data.message);
         setCurrentRide((prev: any) => ({
           ...prev,
@@ -215,14 +226,17 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onDriverOffline((data) => {
-        console.log('🔴 Driver went offline:', data);
-        Alert.alert('Driver Offline', 'Your driver went offline. Finding a new driver...');
+        console.log('🔴 HomeScreen: Driver went offline:', data);
+        Alert.alert('Pilot Offline', 'Your pilot went offline. Finding a new pilot...');
       });
 
       // Cleanup callbacks on unmount
       return () => {
+        console.log('🧹 HomeScreen: Cleaning up socket callbacks');
         clearCallbacks();
       };
+    }).catch((error) => {
+      console.error('❌ HomeScreen: Failed to connect socket:', error);
     });
   }, [getToken]);
 
@@ -253,28 +267,52 @@ export default function HomeScreen({ navigation, route }: any) {
   };
 
   // Enhanced ride booking function
-  const handleBookRide = () => {
+  const handleBookRide = async () => {
     if (!dropLocation) {
       Alert.alert('Select Destination', 'Please select a destination first.');
       return;
     }
-
+    // Fetch real-time GPS location
+    let { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Location permission is required to book a ride.');
+      return;
+    }
+    let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+    console.log('Fetched GPS position:', loc.coords);
+    const pickup = {
+      latitude: loc.coords.latitude,
+      longitude: loc.coords.longitude,
+      address: 'Current Location',
+      name: 'Current Location',
+    };
+    console.log('pickup:', pickup);
+    console.log('drop:', dropLocation);
+    console.log('drop latitude:', dropLocation?.latitude, 'drop longitude:', dropLocation?.longitude);
+    
+    // Get user ID from JWT to ensure consistency with socket connection
+    const userId = await getUserIdFromJWT(getToken);
+    console.log('🔑 Using user ID for ride booking:', userId);
+    
     const rideRequest = {
-      pickup: pickupLocation?.address || 'Current Location',
-      drop: dropLocation.name,
+      pickup,
+      drop: {
+        id: dropLocation?.id || '1',
+        name: dropLocation?.name || dropLocation?.address || 'Drop Location',
+        address: dropLocation?.address || dropLocation?.name || 'Drop Location',
+        latitude: dropLocation?.latitude,
+        longitude: dropLocation?.longitude,
+        type: dropLocation?.type || 'recent',
+      },
       rideType: 'Bike',
       price: Math.floor(Math.random() * 50) + 20, // Random price for demo
-      userId: user?.id || 'user123',
+      userId: userId,
     };
-
     console.log('🚗 Booking ride:', rideRequest);
     const success = bookRide(rideRequest);
-    
     if (success) {
       setIsBookingRide(true);
       Alert.alert('Booking Ride...', 'Request sent to server!');
-    } else {
-      Alert.alert('Error', 'Socket not connected! Please check your connection.');
     }
   };
 
@@ -315,6 +353,7 @@ export default function HomeScreen({ navigation, route }: any) {
       console.error('Failed to send custom JWT to backend:', err);
     }
   };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -373,7 +412,7 @@ export default function HomeScreen({ navigation, route }: any) {
         </MapView>
         {/* Current Location Button */}
         <TouchableOpacity
-          style={styles.currentLocationButton}
+          style={[styles.currentLocationButton, { bottom: getFloatingBottom(Layout.spacing.md) }]}
           onPress={async () => {
             let loc = await Location.getCurrentPositionAsync({});
             const coords = {
@@ -394,7 +433,7 @@ export default function HomeScreen({ navigation, route }: any) {
           <Ionicons name="locate" size={20} color={Colors.primary} />
         </TouchableOpacity>
         {/* Where to? Card Overlay */}
-        <View style={styles.whereToCard}>
+        <View style={[styles.whereToCard, { bottom: getFloatingBottom() }]}>
           <Text style={styles.whereToTitle}>Where to?</Text>
           <TouchableOpacity style={styles.whereToRow} activeOpacity={0.7}>
             <View style={[styles.dot, { backgroundColor: 'green' }]} />
@@ -427,7 +466,7 @@ export default function HomeScreen({ navigation, route }: any) {
           <View style={styles.modalContent}>
             <Text style={styles.modalTitle}>Ride Accepted!</Text>
             {currentRide?.driverName && (
-              <Text style={styles.modalText}>Driver: {currentRide.driverName}</Text>
+              <Text style={styles.modalText}>Pilot: {currentRide.driverName}</Text>
             )}
             {currentRide?.estimatedArrival && (
               <Text style={styles.modalText}>ETA: {currentRide.estimatedArrival}</Text>

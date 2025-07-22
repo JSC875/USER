@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -6,9 +6,13 @@ import {
   Animated,
   TouchableOpacity,
   Alert,
+  BackHandler,
+  ScrollView,
+  Dimensions,
 } from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
+import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { Video, ResizeMode } from 'expo-av';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
@@ -18,89 +22,309 @@ import {
   onRideStatus, 
   clearCallbacks,
   listenToEvent,
-  isConnected 
+  isConnected,
+  onDriverOffline,
+  onRideTimeout
 } from '../../utils/socket';
 
+const { width } = Dimensions.get('window');
+
+function CancelRideModal({ visible, onClose, onConfirm }: { visible: boolean; onClose: () => void; onConfirm: (reason: string) => void }) {
+  const [selectedReason, setSelectedReason] = useState<string>('');
+  const anim = useRef(new Animated.Value(0)).current;
+  const insets = useSafeAreaInsets();
+
+  const cancelReasons = [
+    'Found another ride',
+    'Changed my mind',
+    'Emergency situation',
+    'Wrong pickup location',
+    'Price too high',
+    'Waiting too long',
+    'Other'
+  ];
+
+  React.useEffect(() => {
+    Animated.timing(anim, {
+      toValue: visible ? 1 : 0,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
+  }, [visible]);
+
+  const handleConfirm = () => {
+    if (selectedReason) {
+      onConfirm(selectedReason);
+      setSelectedReason('');
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <Animated.View style={{
+      position: 'absolute',
+      top: 0, left: 0, right: 0, bottom: 0,
+      backgroundColor: anim.interpolate({ inputRange: [0, 1], outputRange: ['rgba(0,0,0,0)', 'rgba(0,0,0,0.5)'] }),
+      justifyContent: 'center',
+      alignItems: 'center',
+      opacity: anim,
+      zIndex: 10000,
+    }}>
+      <Animated.View style={{
+        width: width - 40,
+        backgroundColor: '#fff',
+        borderRadius: 20,
+        padding: 24,
+        transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
+      }}>
+        <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#222', marginBottom: 16, textAlign: 'center' }}>
+          Cancel Ride
+        </Text>
+        <Text style={{ fontSize: 16, color: '#666', marginBottom: 20, textAlign: 'center' }}>
+          Please select a reason for cancelling this ride
+        </Text>
+        
+        <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
+          {cancelReasons.map((reason, index) => (
+            <TouchableOpacity
+              key={index}
+              style={{
+                flexDirection: 'row',
+                alignItems: 'center',
+                paddingVertical: 12,
+                paddingHorizontal: 16,
+                borderRadius: 12,
+                backgroundColor: selectedReason === reason ? '#e3f2fd' : '#f8f9fa',
+                marginBottom: 8,
+                borderWidth: 2,
+                borderColor: selectedReason === reason ? '#1877f2' : 'transparent',
+              }}
+              onPress={() => setSelectedReason(reason)}
+              activeOpacity={0.7}
+            >
+              <View style={{
+                width: 20,
+                height: 20,
+                borderRadius: 10,
+                borderWidth: 2,
+                borderColor: selectedReason === reason ? '#1877f2' : '#ccc',
+                backgroundColor: selectedReason === reason ? '#1877f2' : 'transparent',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginRight: 12,
+              }}>
+                {selectedReason === reason && (
+                  <Ionicons name="checkmark" size={12} color="#fff" />
+                )}
+              </View>
+              <Text style={{
+                fontSize: 15,
+                color: selectedReason === reason ? '#1877f2' : '#333',
+                fontWeight: selectedReason === reason ? '600' : '400',
+                flex: 1,
+              }}>
+                {reason}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </ScrollView>
+
+        <View style={{ flexDirection: 'row', marginTop: 20, gap: 12 }}>
+          <TouchableOpacity
+            style={{
+              flex: 1,
+              backgroundColor: '#f8f9fa',
+              borderRadius: 12,
+              paddingVertical: 14,
+              alignItems: 'center',
+              borderWidth: 1,
+              borderColor: '#e0e0e0',
+            }}
+            onPress={onClose}
+            activeOpacity={0.7}
+          >
+            <Text style={{ color: '#666', fontWeight: '600', fontSize: 16 }}>Back</Text>
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={{
+              flex: 1,
+              backgroundColor: selectedReason ? '#ff4444' : '#ccc',
+              borderRadius: 12,
+              paddingVertical: 14,
+              alignItems: 'center',
+            }}
+            onPress={handleConfirm}
+            disabled={!selectedReason}
+            activeOpacity={selectedReason ? 0.7 : 1}
+          >
+            <Text style={{ color: '#fff', fontWeight: '600', fontSize: 16 }}>Cancel Ride</Text>
+          </TouchableOpacity>
+        </View>
+      </Animated.View>
+    </Animated.View>
+  );
+}
+
 export default function FindingDriverScreen({ navigation, route }: any) {
-  const { destination, estimate, paymentMethod, driver, rideId } = route.params;
-  const [searchText, setSearchText] = useState('Finding nearby drivers...');
+  const { destination, estimate, paymentMethod, driver, rideId, pickup } = route.params;
+  const [searchText, setSearchText] = useState('Finding nearby pilots...');
   const [isDriverFound, setIsDriverFound] = useState(false);
   const [driverInfo, setDriverInfo] = useState<any>(null);
+  
+  // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
+  const transformDriverName = (name: string) => {
+    if (name && name.includes('Driver')) {
+      return name.replace(/Driver/g, 'Pilot');
+    }
+    return name;
+  };
   const [socketConnected, setSocketConnected] = useState(false);
-  const pulseAnim = new Animated.Value(1);
+  const [searchTime, setSearchTime] = useState(0);
+  const [hasNavigated, setHasNavigated] = useState(false);
+  const searchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
+  const [showCancelModal, setShowCancelModal] = useState(false);
+  const [cancelReason, setCancelReason] = useState<string | null>(null);
+
+  // Prevent going back during search
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (!isDriverFound) {
+        Alert.alert(
+          'Cancel Search',
+          'Are you sure you want to cancel searching for pilots?',
+          [
+            { text: 'Continue Searching', style: 'cancel' },
+            { 
+              text: 'Cancel Search', 
+              style: 'destructive',
+              onPress: () => {
+                // Emit cancel ride event to server
+                const socket = getSocket();
+                if (socket && rideId) {
+                  console.log('🚫 User cancelled ride search, emitting cancel_ride');
+                  socket.emit('cancel_ride', { rideId });
+                }
+                navigation.navigate('TabNavigator', { screen: 'Home' });
+              }
+            }
+          ]
+        );
+        return true; // Prevent default back behavior
+      }
+      return false; // Allow default back behavior
+    });
+
+    return () => backHandler.remove();
+  }, [isDriverFound, rideId, navigation]);
 
   useEffect(() => {
+    console.log('🔍 FindingDriverScreen mounted with params:', {
+      destination: destination?.name,
+      rideId,
+      pickup: pickup?.address
+    });
+
+    // Start search timer
+    const startTime = Date.now();
+    searchTimer.current = setInterval(() => {
+      const elapsed = Math.floor((Date.now() - startTime) / 1000);
+      setSearchTime(elapsed);
+      
+      // Update search text based on time
+      if (elapsed < 30) {
+        setSearchText('Finding nearby pilots...');
+      } else if (elapsed < 60) {
+                  setSearchText('Still searching for pilots...');
+      } else {
+        setSearchText('Searching in wider area...');
+      }
+    }, 1000);
+
     // Check socket connection status
     const checkConnection = () => {
       const connected = isConnected();
       setSocketConnected(connected);
       console.log('🔍 Socket connection status:', connected);
-      console.log('🔍 Socket object:', getSocket());
+      
       if (getSocket()) {
         console.log('🔍 Socket ID:', getSocket()?.id);
         console.log('🔍 Socket connected state:', getSocket()?.connected);
       }
+      
       if (!connected) {
         console.log('⚠️ Socket not connected, attempting to reconnect...');
-        // You could trigger a reconnection here if needed
+        Alert.alert(
+          'Connection Issue',
+          'Lost connection to server. Please check your internet and try again.',
+          [
+            { text: 'OK', onPress: () => navigation.navigate('TabNavigator', { screen: 'Home' }) }
+          ]
+        );
       }
     };
 
     checkConnection();
 
-    // Pulse animation
-    const pulse = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.2,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    pulse.start();
 
-            // Set up socket event listeners
-        const setupSocketListeners = () => {
-          console.log('🔧 Setting up socket listeners for FindingDriverScreen');
-          console.log('🔧 Current socket object:', getSocket());
-          console.log('🔧 Socket connected state:', getSocket()?.connected);
+
+    // Set up socket event listeners
+    const setupSocketListeners = () => {
+      console.log('🔧 Setting up socket listeners for FindingDriverScreen');
       
       // Listen for ride acceptance
-              onRideAccepted((data) => {
-          console.log('✅ Driver accepted ride (callback):', data);
-          console.log('🔍 Current isDriverFound state (callback):', isDriverFound);
-          
-          setIsDriverFound(true);
-          setDriverInfo(data);
-          setSearchText('Driver found! Confirming ride...');
-          
-          console.log('🚗 Navigating to LiveTracking from callback with driver data:', {
-            id: data.driverId,
-            name: data.driverName,
-            phone: data.driverPhone,
-            eta: data.estimatedArrival,
-          });
-          
-          // Navigate immediately without alert
+      onRideAccepted((data) => {
+        console.log('✅ Driver accepted ride (callback):', data);
+        console.log('🔍 Current isDriverFound state (callback):', isDriverFound);
+        console.log('🔍 Current hasNavigated state (callback):', hasNavigated);
+        
+        // Prevent multiple navigations
+        if (isDriverFound || hasNavigated) {
+          console.log('🚫 Driver already found or navigation already triggered, ignoring duplicate event');
+          return;
+        }
+        
+        // Validate that this is the correct ride
+        if (data.rideId && rideId && data.rideId !== rideId) {
+          console.log('🚫 Ride ID mismatch, ignoring event for different ride');
+          return;
+        }
+        
+        console.log('✅ Processing ride acceptance for correct ride');
+        setIsDriverFound(true);
+        setDriverInfo(data);
+        setSearchText('Driver found! Confirming ride...');
+        
+        console.log('🚗 Navigating to LiveTracking from callback with driver data:', {
+          id: data.driverId,
+          name: data.driverName,
+          phone: data.driverPhone,
+          eta: data.estimatedArrival,
+        });
+        
+        setHasNavigated(true);
+        
+        // Stop the search timer
+        if (searchTimer.current) {
+          clearInterval(searchTimer.current);
+          searchTimer.current = null;
+        }
+        
+                  // Navigate immediately without alert
           navigation.replace('LiveTracking', {
             destination,
             estimate,
             paymentMethod,
             driver: {
               id: data.driverId,
-              name: data.driverName,
+              name: transformDriverName(data.driverName),
               phone: data.driverPhone,
               eta: data.estimatedArrival,
             },
             rideId: data.rideId,
+            origin: pickup,
           });
-        });
+      });
 
       // Listen for ride status updates
       onRideStatus((data) => {
@@ -111,160 +335,184 @@ export default function FindingDriverScreen({ navigation, route }: any) {
         }
       });
 
-              // Additional listener for ride_accepted event (backup)
-        const socket = getSocket();
-        if (socket) {
-          console.log('🔧 Setting up direct socket listeners');
+      // Listen for ride timeout
+      onRideTimeout((data) => {
+        console.log('⏰ Ride request timed out:', data);
+        Alert.alert(
+                    'No Pilots Found',
+          data.message || 'No pilots were found. Please try again.',
+          [
+            { text: 'Try Again', onPress: () => navigation.navigate('TabNavigator', { screen: 'Home' }) }
+          ]
+        );
+      });
+
+      // Listen for driver offline
+      onDriverOffline((data) => {
+        console.log('🔴 Driver went offline:', data);
+        Alert.alert(
+          'Pilot Unavailable',
+          'The assigned pilot is no longer available. We\'ll find you another pilot.',
+          [
+            { text: 'OK' }
+          ]
+        );
+      });
+
+      // Additional listener for ride_accepted event (backup)
+      const socket = getSocket();
+      if (socket) {
+        console.log('🔧 Setting up direct socket listeners');
+        
+        // Test socket connection by emitting a test event
+        console.log('🧪 Testing socket connection...');
+        socket.emit('test_event', { message: 'FindingDriverScreen test' });
+
+        // Add a simple test listener to see if any events are received
+        socket.on('connect', () => {
+          console.log('🎯 Socket connected in FindingDriverScreen!');
+        });
+
+        socket.on('disconnect', () => {
+          console.log('🎯 Socket disconnected in FindingDriverScreen!');
+        });
+
+        // Add direct ride_accepted listener for debugging
+        socket.on('ride_accepted', (data) => {
+          console.log('🎯 Direct ride_accepted event received in FindingDriverScreen:', data);
+          console.log('🔍 Current isDriverFound state (direct):', isDriverFound);
+          console.log('🔍 Current hasNavigated state (direct):', hasNavigated);
           
-          const handleRideAccepted = (data: any) => {
-            console.log('✅ Direct socket event - Driver accepted ride:', data);
-            if (!isDriverFound) {
-              setIsDriverFound(true);
-              setDriverInfo(data);
-              setSearchText('Driver found! Confirming ride...');
-              
-              setTimeout(() => {
-                navigation.replace('LiveTracking', {
-                  destination,
-                  estimate,
-                  paymentMethod,
-                  driver: {
-                    id: data.driverId,
-                    name: data.driverName,
-                    phone: data.driverPhone,
-                    eta: data.estimatedArrival,
-                  },
-                  rideId: data.rideId,
-                });
-              }, 2000);
-            }
-          };
-
-          const handleRideResponse = (data: any) => {
-            console.log('✅ Direct socket event - Ride response received:', data);
-            console.log('🔍 Checking if response is accept:', data.response);
-            console.log('🔍 Current isDriverFound state:', isDriverFound);
-            
-            if (data.response === 'accept') {
-              console.log('✅ Processing ride acceptance...');
-              setIsDriverFound(true);
-              setDriverInfo(data);
-              setSearchText('Driver found! Confirming ride...');
-              
-              console.log('🚗 Navigating to LiveTracking with driver data:', {
-                id: data.driverId,
-                name: data.driverName,
-                phone: data.driverPhone,
-                eta: data.estimatedArrival,
-              });
-              
-              // Navigate immediately without setTimeout
-              navigation.replace('LiveTracking', {
-                destination,
-                estimate,
-                paymentMethod,
-                driver: {
-                  id: data.driverId,
-                  name: data.driverName,
-                  phone: data.driverPhone,
-                  eta: data.estimatedArrival,
-                },
-                rideId: data.rideId,
-              });
-            } else {
-              console.log('❌ Ride response not processed:', {
-                response: data.response,
-                isDriverFound,
-                reason: data.response !== 'accept' ? 'Not accept response' : 'Driver already found'
-              });
-            }
-          };
-
-          // Listen for all events for debugging
-          socket.onAny((eventName: string, ...args: any[]) => {
-            console.log(`📡 Socket event received: ${eventName}`, args);
-            if (eventName === 'ride_response') {
-              console.log('🎯 Ride response event detected in onAny!');
-            }
+          // Prevent multiple navigations
+          if (isDriverFound || hasNavigated) {
+            console.log('🚫 Driver already found or navigation already triggered, ignoring duplicate event');
+            return;
+          }
+          
+          // Validate that this is the correct ride
+          if (data.rideId && rideId && data.rideId !== rideId) {
+            console.log('🚫 Ride ID mismatch, ignoring event for different ride');
+            return;
+          }
+          
+          console.log('✅ Processing ride acceptance for correct ride (direct)');
+          setIsDriverFound(true);
+          setDriverInfo(data);
+          setSearchText('Pilot found! Confirming ride...');
+          
+          console.log('🚗 Navigating to LiveTracking from direct event with driver data:', {
+            id: data.driverId,
+            name: data.driverName,
+            phone: data.driverPhone,
+            eta: data.estimatedArrival,
           });
-
-          // Test socket connection by emitting a test event
-          console.log('🧪 Testing socket connection...');
-          socket.emit('test_event', { message: 'FindingDriverScreen test' });
-
-          // Add a simple test listener to see if any events are received
-          socket.on('connect', () => {
-            console.log('🎯 Socket connected in FindingDriverScreen!');
+          
+          setHasNavigated(true);
+          
+          // Stop the search timer
+          if (searchTimer.current) {
+            clearInterval(searchTimer.current);
+            searchTimer.current = null;
+          }
+          
+          // Navigate immediately without alert
+          navigation.replace('LiveTracking', {
+            destination,
+            estimate,
+            paymentMethod,
+            driver: {
+              id: data.driverId,
+              name: transformDriverName(data.driverName),
+              phone: data.driverPhone,
+              eta: data.estimatedArrival,
+            },
+            rideId: data.rideId,
+            origin: pickup,
           });
+        });
 
-          socket.on('disconnect', () => {
-            console.log('🎯 Socket disconnected in FindingDriverScreen!');
-          });
-
-          socket.on('ride_accepted', handleRideAccepted);
-          socket.on('ride_response', handleRideResponse);
-
-        // Cleanup function
-        return () => {
-          socket.off('ride_accepted', handleRideAccepted);
-          socket.off('ride_response', handleRideResponse);
-          clearCallbacks();
-        };
+        // Remove the redundant ride_response listener to prevent duplicate processing
+        // The onRideAccepted callback already handles this event
+        // socket.on('ride_response', (data) => {
+        //   console.log('🔄 Ride response received (direct):', data);
+        //   if (data.response === 'accept' && !isDriverFound && !hasNavigated) {
+        //     console.log('✅ Processing ride_response accept (direct)');
+        //     setIsDriverFound(true);
+        //     setDriverInfo(data);
+        //     setSearchText('Driver found! Confirming ride...');
+        //     setHasNavigated(true);
+        //     
+        //     navigation.replace('LiveTracking', {
+        //       destination,
+        //       estimate,
+        //       paymentMethod,
+        //       driver: {
+        //         id: data.driverId,
+        //         name: data.driverName,
+        //         phone: data.driverPhone,
+        //         eta: data.estimatedArrival,
+        //       },
+        //       rideId: data.rideId,
+        //       origin: pickup,
+        //     });
+        //   }
+        // });
       }
+
+      // Cleanup function
+      return () => {
+        clearCallbacks();
+      };
     };
 
     setupSocketListeners();
 
     return () => {
-      pulse.stop();
+      console.log('🧹 Cleaning up FindingDriverScreen');
       clearCallbacks();
+      if (searchTimer.current) {
+        clearInterval(searchTimer.current);
+      }
+      
+      // Remove any direct socket listeners
+      const socket = getSocket();
+      if (socket) {
+        socket.off('ride_accepted');
+        socket.off('ride_response');
+        socket.off('connect');
+        socket.off('disconnect');
+      }
     };
-  }, [navigation, destination, estimate, paymentMethod, rideId, isDriverFound]);
+  }, [navigation, destination, estimate, paymentMethod, rideId, isDriverFound, pickup, hasNavigated]);
 
   const handleCancel = () => {
-    Alert.alert(
-      'Cancel Ride',
-      'Are you sure you want to cancel this ride?',
-      [
-        {
-          text: 'No',
-          style: 'cancel',
-        },
-        {
-          text: 'Yes',
-          style: 'destructive',
-          onPress: () => {
-            // Emit cancel ride event to server
-            const socket = getSocket();
-            if (socket && rideId) {
-              socket.emit('cancel_ride', { rideId });
-            }
-            navigation.navigate('TabNavigator', { screen: 'Home' });
-          },
-        },
-      ]
-    );
+    setShowCancelModal(true);
   };
 
-  const handleTestNavigation = () => {
-    console.log('🧪 Testing navigation to LiveTracking...');
-    navigation.replace('LiveTracking', {
-      destination,
-      estimate,
-      paymentMethod,
-      driver: {
-        id: 'test_driver_id',
-        name: 'Test Driver',
-        phone: '+1234567890',
-        eta: '5 minutes',
-      },
-      rideId: 'test_ride_id',
-    });
+  const handleConfirmCancel = (reason: string) => {
+    // Emit cancel ride event to server with reason
+    const socket = getSocket();
+    if (socket && rideId) {
+      console.log('🚫 User cancelled ride, emitting cancel_ride with reason:', reason);
+      socket.emit('cancel_ride', { rideId, reason });
+    }
+    setShowCancelModal(false);
+    navigation.navigate('TabNavigator', { screen: 'Home' });
+  };
+
+  const formatSearchTime = (seconds: number) => {
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
 
   return (
     <SafeAreaView style={styles.container}>
-      <View style={styles.content}>
+      <ScrollView 
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+      >
         {/* Connection Status */}
         {!socketConnected && (
           <View style={styles.connectionWarning}>
@@ -275,33 +523,34 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
         {/* Map Container */}
         <View style={styles.mapContainer}>
-          <View style={styles.mapPlaceholder}>
-            <Ionicons name="map" size={48} color={Colors.gray400} />
-            <Text style={styles.mapText}>Searching for drivers nearby</Text>
-          </View>
+          <Video
+            style={styles.videoPlayer}
+            source={require('../../../assets/images/findingDriverGif.mp4')}
+            shouldPlay
+            isLooping
+            isMuted
+            resizeMode={ResizeMode.COVER}
+            onError={(error) => {
+              console.log('Video error:', error);
+            }}
+          />
         </View>
 
         {/* Search Status */}
         <View style={styles.statusContainer}>
-          <Animated.View
-            style={[
-              styles.searchIcon,
-              { transform: [{ scale: pulseAnim }] },
-            ]}
-          >
-            <Ionicons 
-              name={isDriverFound ? "checkmark-circle" : "bicycle"} 
-              size={40} 
-              color={Colors.white} 
-            />
-          </Animated.View>
-          
           <Text style={styles.statusText}>{searchText}</Text>
           <Text style={styles.statusSubtext}>
             {isDriverFound ? 'Preparing your ride...' : 'This usually takes 1-2 minutes'}
           </Text>
 
-          {!isDriverFound && <LoadingSpinner size="large" color={Colors.primary} />}
+          {!isDriverFound && (
+            <View style={styles.searchInfo}>
+              <LoadingSpinner size="large" color={Colors.primary} />
+              <Text style={styles.searchTimeText}>
+                Searching for {formatSearchTime(searchTime)}
+              </Text>
+            </View>
+          )}
         </View>
 
         {/* Trip Details */}
@@ -318,7 +567,9 @@ export default function FindingDriverScreen({ navigation, route }: any) {
               <View style={styles.pickupDot} />
               <View style={styles.routeDetails}>
                 <Text style={styles.routeLabel}>Pickup</Text>
-                <Text style={styles.routeAddress}>Your current location</Text>
+                <Text style={styles.routeAddress}>
+                  {pickup?.address || 'Current Location'}
+                </Text>
               </View>
             </View>
 
@@ -328,33 +579,31 @@ export default function FindingDriverScreen({ navigation, route }: any) {
               <View style={styles.destinationDot} />
               <View style={styles.routeDetails}>
                 <Text style={styles.routeLabel}>Destination</Text>
-                <Text style={styles.routeAddress}>{destination.name}</Text>
+                <Text style={styles.routeAddress}>
+                  {destination?.name || 'Destination'}
+                </Text>
               </View>
             </View>
           </View>
-
-          <View style={styles.tripStats}>
-            <View style={styles.statItem}>
-              <Ionicons name="location" size={16} color={Colors.primary} />
-              <Text style={styles.statText}>{estimate.distance}</Text>
-            </View>
-            <View style={styles.statItem}>
-              <Ionicons name="time" size={16} color={Colors.accent} />
-              <Text style={styles.statText}>{estimate.duration}</Text>
-            </View>
-          </View>
         </View>
-      </View>
 
-      {/* Cancel Button */}
-      <View style={styles.bottomAction}>
-        <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-          <Text style={styles.cancelText}>Cancel Ride</Text>
+        {/* Cancel Button */}
+        <TouchableOpacity 
+          style={styles.cancelButton} 
+          onPress={handleCancel}
+          disabled={isDriverFound}
+        >
+          <Ionicons name="close-circle" size={20} color={Colors.coral} />
+          <Text style={styles.cancelButtonText}>Cancel Ride</Text>
         </TouchableOpacity>
-        <TouchableOpacity style={[styles.cancelButton, { marginTop: 10, backgroundColor: Colors.primary }]} onPress={handleTestNavigation}>
-          <Text style={[styles.cancelText, { color: Colors.white }]}>Test Navigation</Text>
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
+        
+      {/* Cancel Ride Modal */}
+      <CancelRideModal
+        visible={showCancelModal}
+        onClose={() => setShowCancelModal(false)}
+        onConfirm={handleConfirmCancel}
+      />
     </SafeAreaView>
   );
 }
@@ -366,6 +615,9 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: Layout.spacing.xl,
   },
   connectionWarning: {
     flexDirection: 'row',
@@ -390,19 +642,12 @@ const styles = StyleSheet.create({
     borderRadius: Layout.borderRadius.lg,
     overflow: 'hidden',
   },
-  mapPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapText: {
-    marginTop: Layout.spacing.sm,
-    fontSize: Layout.fontSize.md,
-    color: Colors.gray400,
+  videoPlayer: {
+    width: '110%',
+    height: '110%',
   },
   statusContainer: {
     alignItems: 'center',
-    paddingVertical: Layout.spacing.xl,
   },
   searchIcon: {
     width: 80,
@@ -526,14 +771,28 @@ const styles = StyleSheet.create({
     borderTopColor: Colors.borderLight,
   },
   cancelButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
     backgroundColor: Colors.gray100,
     borderRadius: Layout.borderRadius.md,
     paddingVertical: Layout.spacing.md,
-    alignItems: 'center',
+    marginHorizontal: Layout.spacing.lg,
+    marginTop: Layout.spacing.lg,
   },
-  cancelText: {
+  cancelButtonText: {
+    marginLeft: Layout.spacing.sm,
     fontSize: Layout.fontSize.md,
     fontWeight: '600',
     color: Colors.text,
+  },
+  searchInfo: {
+    alignItems: 'center',
+    marginTop: Layout.spacing.lg,
+  },
+  searchTimeText: {
+    marginTop: Layout.spacing.sm,
+    fontSize: Layout.fontSize.md,
+    color: Colors.textSecondary,
   },
 });

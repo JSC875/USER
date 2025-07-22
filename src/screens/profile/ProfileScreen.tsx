@@ -281,6 +281,7 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+    paddingBottom: Layout.buttonHeight + Layout.spacing.xl + Layout.spacing.lg, // Increased padding for tab bar
   },
   profileCard: {
     backgroundColor: Colors.gray100, // light grey card
@@ -440,7 +441,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     backgroundColor: Colors.white,
     marginHorizontal: Layout.spacing.lg,
-    marginBottom: Layout.spacing.lg,
+    marginBottom: Layout.spacing.xl + Layout.spacing.xl, // Much more bottom margin for better spacing
     borderRadius: Layout.borderRadius.lg,
     paddingVertical: Layout.spacing.md,
     shadowColor: Colors.shadow,

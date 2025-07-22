@@ -7,6 +7,7 @@ import MapView, { Marker } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { Modal as RNModal } from 'react-native';
+import { getDistanceFromLatLonInKm, formatDistance } from '../../utils/helpers';
 
 const { width } = Dimensions.get('window');
 
@@ -55,9 +56,6 @@ const getLocationIcon = (name: string) => {
   }
   return { icon: <MaterialIcons name="bookmark" size={24} color="#fff" />, bg: '#BDBDBD' };
 };
-
-// Add a helper for distance formatting (mock for now)
-const formatDistance = (distance: number) => `${distance} mi`;
 
 function isValidLocation(loc: any) {
   return (
@@ -129,7 +127,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   }, [route.params?.destination, currentLocation, forWhom, friendName, friendPhone]);
 
   useEffect(() => {
-    if (editing && searchQuery.length > 2) {
+    if ((editing === 'drop' || editing === 'current') && searchQuery.length > 2) {
       if (debounceRef.current) clearTimeout(debounceRef.current);
       debounceRef.current = setTimeout(() => {
         searchPlaces(searchQuery);
@@ -186,6 +184,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   }, []);
 
   const searchPlaces = async (query: string) => {
+    if (query.length < 3) return;
     setIsSearching(true);
     setNoResults(false);
     try {
@@ -196,7 +195,27 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       );
       const data = await response.json();
       if (data.status === 'OK' && data.predictions.length > 0) {
-        setSearchResults(data.predictions || []);
+        // Fetch coordinates for each result
+        const resultsWithCoords = await Promise.all(
+          data.predictions.slice(0, 5).map(async (prediction: any) => {
+            try {
+              const details = await getPlaceDetails(prediction.place_id);
+              if (details && details.geometry) {
+                return {
+                  ...prediction,
+                  latitude: details.geometry.location.lat,
+                  longitude: details.geometry.location.lng,
+                  address: details.formatted_address
+                };
+              }
+              return prediction;
+            } catch (error) {
+              console.log('Failed to get details for:', prediction.place_id);
+              return prediction;
+            }
+          })
+        );
+        setSearchResults(resultsWithCoords);
         setNoResults(false);
       } else {
         setSearchResults([]);
@@ -263,8 +282,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       return;
     } else if (editing === 'current') {
       setCurrentLocation(location);
+      setSearchQuery(location.address || location.name || ''); // update input with selected value
     }
-    setSearchQuery(location.address || location.name || '');
     setEditing(null);
     setSearchResults([]);
     setNoResults(false);
@@ -293,9 +312,30 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   // Update renderSearchResult to match the desired UI
   const renderSearchResult = ({ item, index }: { item: any, index: number }) => {
-    // Mock distance for UI (replace with real calculation if you have lat/lng)
-    const mockDistance = 11 + (index % 3); // 11, 12, 13 km cycling
-
+    // Debug: log what data we have
+    console.log('Search result item:', item);
+    console.log('Current location:', currentLocation);
+    
+    // Calculate real distance if possible
+    let realDistance = null;
+    if (
+      currentLocation &&
+      typeof currentLocation.latitude === 'number' &&
+      typeof currentLocation.longitude === 'number' &&
+      typeof item.latitude === 'number' &&
+      typeof item.longitude === 'number'
+    ) {
+      realDistance = getDistanceFromLatLonInKm(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        item.latitude,
+        item.longitude
+      );
+      console.log('Calculated distance:', realDistance);
+    } else {
+      console.log('Cannot calculate distance - missing coordinates');
+    }
+    
     return (
       <TouchableOpacity
         style={{
@@ -318,7 +358,9 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         {/* Location pin and distance */}
         <View style={{ alignItems: 'center', width: 40 }}>
           <Ionicons name="location-outline" size={20} color="#888" />
-          <Text style={{ fontSize: 13, color: '#888', marginTop: 2 }}>{mockDistance} km</Text>
+          <Text style={{ fontSize: 13, color: '#888', marginTop: 2 }}>
+            {realDistance !== null ? formatDistance(realDistance) : '...'}
+          </Text>
         </View>
         {/* Main content */}
         <View style={{ flex: 1, marginLeft: 10 }}>
@@ -473,7 +515,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           </View>
         </View>
         {/* Show suggestions OR recent/saved locations depending on typing state */}
-        {editing === 'drop' && searchQuery.length > 2 ? (
+        {(editing === 'drop' || editing === 'current') && searchQuery.length > 2 ? (
           isSearching ? (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
               <ActivityIndicator color={Colors.primary} />

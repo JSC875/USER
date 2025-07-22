@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -11,20 +11,60 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
+import { calculateRideFare, getDistanceFromLatLonInKm } from '../../utils/helpers';
 
 export default function RideEstimateScreen({ navigation, route }: any) {
   const { destination } = route.params;
   const [selectedPayment, setSelectedPayment] = useState('cash');
   const [currentETA, setCurrentETA] = useState(route.params.driver?.eta || route.params.estimate?.eta || 'N/A');
+  const [rideEstimate, setRideEstimate] = useState<any>(null);
 
-  const rideEstimate = {
-    distance: '8.5 km',
-    duration: '18 mins',
-    fare: 85,
-    baseFare: 25,
-    distanceFare: 45,
-    timeFare: 15,
-  };
+  // Calculate real fare based on distance and duration
+  useEffect(() => {
+    if (destination && destination.latitude && destination.longitude) {
+      // For demo, using a fixed pickup location (in real app, get from current location)
+      const pickupLocation = {
+        latitude: 17.4448, // Example: Hyderabad
+        longitude: 78.3498,
+      };
+      
+      const distanceKm = getDistanceFromLatLonInKm(
+        pickupLocation.latitude,
+        pickupLocation.longitude,
+        destination.latitude,
+        destination.longitude
+      );
+      
+      // Estimate duration based on average speed (25 km/h)
+      const durationMinutes = Math.round((distanceKm / 25) * 60);
+      
+      // Calculate fare for bike (default ride type)
+      const fareBreakdown = calculateRideFare(distanceKm, durationMinutes, 'bike');
+      
+      setRideEstimate(fareBreakdown);
+      console.log('Calculated fare breakdown:', fareBreakdown);
+    }
+  }, [destination]);
+
+  // Show loading if fare is not calculated yet
+  if (!rideEstimate) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Ride Estimate</Text>
+        </View>
+        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
+          <Text>Calculating fare...</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
 
   const paymentMethods = [
     { id: 'cash', name: 'Cash', icon: 'cash' },
@@ -122,7 +162,7 @@ export default function RideEstimateScreen({ navigation, route }: any) {
           
           <View style={styles.fareTotal}>
             <Text style={styles.fareTotalLabel}>Total Fare</Text>
-            <Text style={styles.fareTotalValue}>₹{rideEstimate.fare}</Text>
+            <Text style={styles.fareTotalValue}>₹{rideEstimate.totalFare}</Text>
           </View>
         </View>
 
@@ -182,7 +222,7 @@ export default function RideEstimateScreen({ navigation, route }: any) {
       <View style={styles.bottomAction}>
         <View style={styles.fareDisplay}>
           <Text style={styles.fareDisplayLabel}>Total Fare</Text>
-          <Text style={styles.fareDisplayValue}>₹{rideEstimate.fare}</Text>
+          <Text style={styles.fareDisplayValue}>₹{rideEstimate.totalFare}</Text>
         </View>
         <Button
           title="Confirm Ride"

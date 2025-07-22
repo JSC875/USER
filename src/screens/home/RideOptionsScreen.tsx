@@ -5,10 +5,15 @@ import { Ionicons, MaterialCommunityIcons } from '@expo/vector-icons';
 import BottomSheet from '@gorhom/bottom-sheet';
 import Animated, { useSharedValue, withTiming, useAnimatedStyle } from 'react-native-reanimated';
 import polyline from '@mapbox/polyline';
-import { getSocket, emitEvent, listenToEvent } from '../../utils/socket';
+import { getSocket, emitEvent, onRideBooked, onRideTimeout, clearCallbacks } from '../../utils/socket';
 import * as Location from 'expo-location';
 import { useIsFocused } from '@react-navigation/native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
+import { useUser, useAuth } from '@clerk/clerk-expo';
+import { calculateRideFare, getDistanceFromLatLonInKm } from '../../utils/helpers';
+import { getUserIdFromJWT } from '../../utils/jwtDecoder';
+import { Images } from '../../constants/Images';
 
 const { width, height } = Dimensions.get('window');
 
@@ -22,23 +27,72 @@ export async function saveCompletedRide(ride: any) {
 }
 
 export default function RideOptionsScreen({ navigation, route }: any) {
+  const { pickup, drop, forWhom, friendName, friendPhone } = route.params;
   const [selected, setSelected] = useState('bike');
+  const [isBooking, setIsBooking] = useState(false);
+  const [bookingError, setBookingError] = useState<string | null>(null);
+  const { user } = useUser();
+  const { getToken } = useAuth();
+  const [rideOptions, setRideOptions] = useState<any[]>([]);
+
+  // Calculate real ride options based on distance and duration
+  useEffect(() => {
+    if (pickup && drop && pickup.latitude && pickup.longitude && drop.latitude && drop.longitude) {
+      const distanceKm = getDistanceFromLatLonInKm(
+        pickup.latitude,
+        pickup.longitude,
+        drop.latitude,
+        drop.longitude
+      );
+      
+      // Estimate duration based on average speed (25 km/h for bikes)
+      const durationMinutes = Math.round((distanceKm / 25) * 60);
+      
+      // Generate ride options with real calculations
+      const options = [
+        {
+          id: 'bike',
+          icon: 'motorbike' as any,
+          label: 'Bike',
+          eta: '2 mins',
+          dropTime: `Drop ${new Date(Date.now() + (durationMinutes + 2) * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          tag: 'FASTEST',
+          tagColor: '#22c55e',
+          ...calculateRideFare(distanceKm, durationMinutes, 'bike')
+        },
+        {
+          id: 'scooty',
+          icon: 'scooter' as any,
+          label: 'Electric Scooty',
+          eta: '3 mins',
+          dropTime: `Drop ${new Date(Date.now() + (durationMinutes + 3) * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          tag: 'NEW',
+          tagColor: '#3b82f6',
+          ...calculateRideFare(distanceKm, durationMinutes, 'scooty')
+        },
+      ];
+      
+      setRideOptions(options);
+      console.log('Calculated ride options:', options);
+    }
+  }, [pickup, drop]);
+
   const bottomSheetRef = useRef<BottomSheet>(null);
   const mapRef = useRef<MapView>(null);
   const snapPoints = useMemo(() => ['50%', '90%'], []);
   const [routeCoords, setRouteCoords] = useState([]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  const [pickup, setPickup] = useState(route?.params?.pickup || null);
-  const [drop, setDrop] = useState(route?.params?.drop || null);
+  // Using pickup and drop from route.params instead of useState
 
   // Use params from navigation
   // const pickup = route?.params?.pickup || { latitude: 17.444, longitude: 78.382, address: 'Pickup Location' };
   // const drop = route?.params?.drop || { latitude: 17.4418, longitude: 78.38, address: 'Drop Location' };
 
-  console.log('pickup:', pickup);
-  console.log('pickup latitude:', pickup.latitude, 'pickup longitude:', pickup.longitude);
-  console.log('drop:', drop);
-  console.log('drop latitude:', drop.latitude, 'drop longitude:', drop.longitude);
+  // Remove these confusing logs that show the state variable, not the real-time GPS
+  // console.log('pickup:', pickup);
+  // console.log('pickup latitude:', pickup.latitude, 'pickup longitude:', pickup.longitude);
+  // console.log('drop:', drop);
+  // console.log('drop latitude:', drop.latitude, 'drop longitude:', drop.longitude);
 
   const mockVehicles = [
     { id: 1, latitude: 17.443, longitude: 78.381, heading: 45 },
@@ -47,30 +101,6 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     { id: 4, latitude: 17.440, longitude: 78.379, heading: 200 },
     { id: 5, latitude: 17.4435, longitude: 78.378, heading: 300 },
     // Add more for more icons
-  ];
-
-  const rideOptions = [
-    {
-      id: 'bike',
-      icon: 'motorbike' as any,
-      label: 'Bike',
-      eta: '2 mins',
-      dropTime: 'Drop 9:14 am',
-      price: 33,
-      tag: 'FASTEST',
-      tagColor: '#22c55e',
-    },
-    {
-      id: 'scooty',
-      icon: 'scooter' as any,
-      label: 'Electric Scooty',
-      eta: '3 mins',
-      dropTime: 'Drop 9:16 am',
-      price: 35,
-      tag: 'NEW',
-      tagColor: '#3b82f6',
-    },
-    
   ];
 
   // Animated vehicle marker (rotation)
@@ -92,44 +122,113 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const handleEditDrop = () => {
     navigation.navigate('DropLocationSelector', { type: 'drop', currentLocation: pickup, dropLocation: drop });
   };
-  const handleBook = () => {
-    // Get the selected ride option details
-    const selectedRide = rideOptions.find(o => o.id === selected);
+  
+  const handleBook = async () => {
+    // Prevent multiple bookings
+    if (isBooking) {
+      console.log('🚫 Booking already in progress, ignoring duplicate request');
+      return;
+    }
+
+    // Validate required data
+    if (!drop) {
+      Alert.alert('Select Destination', 'Please select a destination first.');
+      return;
+    }
+
+    setIsBooking(true);
+    setBookingError(null);
     
-    console.log('🚗 Booking ride with data:', {
-      pickup,
-      drop,
-      rideType: selectedRide?.label,
-      price: selectedRide?.price,
-      userId: 'user123'
-    });
-    
-    const success = emitEvent('book_ride', {
-      pickup: pickup.address || 'Current Location',
-      drop: drop.address,
-      rideType: selectedRide?.label,
-      price: selectedRide?.price,
-      userId: 'user123', // Replace with real user ID if available
-    });
-    
-    if (!success) {
-      Alert.alert('Connection Error', 'Unable to connect to server. Please try again.');
-    } else {
+    try {
+      console.log('🚗 Starting ride booking process...');
+      
+      // Get the selected ride option details
+      const selectedRide = rideOptions.find(o => o.id === selected);
+      if (!selectedRide) {
+        throw new Error('No ride option selected');
+      }
+
+      // Fetch real-time GPS location
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        throw new Error('Location permission is required to book a ride.');
+      }
+      
+      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      console.log('📍 Fetched GPS position:', loc.coords);
+      
+      const pickup = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        address: 'Current Location',
+        name: 'Current Location',
+      };
+      
+      console.log('📤 Preparing ride request data...');
+      console.log('📍 Pickup:', pickup);
+      console.log('🎯 Drop:', drop);
+      
+      // Send full pickup and drop objects
+      const rideRequest = {
+        pickup,
+        drop: {
+          id: drop.id || '1',
+          name: drop.name || drop.address || 'Drop Location',
+          address: drop.address || drop.name || 'Drop Location',
+          latitude: drop.latitude,
+          longitude: drop.longitude,
+          type: drop.type || 'recent',
+        },
+        rideType: selectedRide?.label,
+        price: selectedRide?.totalFare,
+        userId: await getUserIdFromJWT(getToken), // Use JWT user ID for consistency
+      };
+      
+      console.log('🚗 Sending ride booking request:', rideRequest);
+      const success = emitEvent('request_ride', rideRequest);
+      
+      if (!success) {
+        throw new Error('Unable to connect to server. Please check your internet connection.');
+      }
+      
       console.log('✅ Ride booking request sent successfully');
+      
+      // Don't navigate immediately - wait for server response
+      // The navigation will happen in the useEffect below when we receive 'ride_booked' event
+      
+    } catch (error) {
+      console.error('❌ Ride booking failed:', error);
+      setBookingError(error instanceof Error ? error.message : 'Booking failed. Please try again.');
+      Alert.alert('Booking Failed', error instanceof Error ? error.message : 'Booking failed. Please try again.');
+    } finally {
+      // Don't reset isBooking here - let it stay true until we get server response
+      // This prevents multiple button presses
     }
   };
 
   useEffect(() => {
-    const onRideBooked = (data: any) => {
+    const handleRideBooked = (data: any) => {
       console.log('✅ Ride booked response received:', data);
+      
+      // Reset booking state
+      setIsBooking(false);
+      setBookingError(null);
+      
       if (data.success) {
         console.log('🎉 Ride booked successfully, navigating to FindingDriver');
-        // Navigate to FindingDriver or show confirmation
+        console.log('📋 Ride details:', {
+          rideId: data.rideId,
+          price: data.price,
+          destination: drop?.address,
+          pickup: pickup?.address
+        });
+        
+        // Navigate to FindingDriver with all necessary data
         navigation.navigate('FindingDriver', { 
           destination: {
-            name: drop.address,
-            latitude: drop.latitude,
-            longitude: drop.longitude
+            name: drop?.name || drop?.address || 'Destination',
+            latitude: drop?.latitude,
+            longitude: drop?.longitude
           },
           estimate: {
             fare: data.price,
@@ -140,15 +239,45 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           paymentMethod: 'Cash',
           driver: null,
           rideId: data.rideId,
+          pickup, // Pass pickup location for polyline
         });
       } else {
+        console.error('❌ Ride booking failed on server:', data.message);
+        setBookingError(data.message || 'Unable to book ride.');
         Alert.alert('Booking Failed', data.message || 'Unable to book ride.');
       }
     };
     
-    const unsubscribe = listenToEvent('ride_booked', onRideBooked);
-    return unsubscribe;
-  }, [drop, navigation]);
+    const handleRideTimeout = (data: any) => {
+      console.log('⏰ Ride request timed out:', data);
+      setIsBooking(false);
+              setBookingError('No pilots found. Please try again.');
+              Alert.alert('No Pilots Found', data.message || 'No pilots were found. Please try again.');
+    };
+    
+    const handleRideError = (data: any) => {
+      console.error('❌ Ride booking error:', data);
+      setIsBooking(false);
+      setBookingError(data.message || 'Booking failed. Please try again.');
+      Alert.alert('Booking Error', data.message || 'Booking failed. Please try again.');
+    };
+    
+    // Set up callbacks using the proper system
+    onRideBooked(handleRideBooked);
+    onRideTimeout(handleRideTimeout);
+    
+    return () => {
+      clearCallbacks();
+    };
+  }, [drop, navigation, pickup]);
+
+  // Cleanup booking state when component unmounts
+  useEffect(() => {
+    return () => {
+      setIsBooking(false);
+      setBookingError(null);
+    };
+  }, []);
 
   // Fit map to route on mount
   useEffect(() => {
@@ -205,31 +334,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     };
   }, []);
 
-  // Dynamically update drop marker when user selects a destination
-  useEffect(() => {
-    if (route?.params?.drop) setDrop(route.params.drop);
-  }, [route?.params?.drop]);
-
-  useEffect(() => {
-    if (!pickup) {
-      (async () => {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          let loc = await Location.getCurrentPositionAsync({});
-          setPickup({
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            address: 'Current Location'
-          });
-        }
-      })();
-    }
-  }, []);
-
-  useEffect(() => {
-    if (route?.params?.pickup) setPickup(route.params.pickup);
-    if (route?.params?.drop) setDrop(route.params.drop);
-  }, [route?.params]);
+  // Using pickup and drop from route.params - no need for useState
 
   console.log('rideOptions:', rideOptions);
 
@@ -271,7 +376,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
             <Marker key={v.id} coordinate={v} anchor={{ x: 0.5, y: 0.5 }}>
               <Animated.View style={v.style}>
                 <Image
-                  source={require('../../../assets/images/iconAnimation1.png')}
+                  source={Images.ICON_ANIMATION_1}
                   style={{ width: 32, height: 32, resizeMode: 'contain' }}
                 />
               </Animated.View>
@@ -314,8 +419,8 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           shadowRadius: 8,
           elevation: 8,
         }}>
-          <View style={{ paddingHorizontal: 16, paddingTop: 16, maxHeight: height * 0.45 }}>
-            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: height * 0.45 }}>
+          <View style={{ paddingHorizontal: 16, paddingTop: 16, maxHeight: height * 0.35 }}>
+            <ScrollView showsVerticalScrollIndicator={false} style={{ maxHeight: height * 0.35 }}>
               {rideOptions.map((opt) => (
                 <TouchableOpacity
                   key={opt.id}
@@ -329,11 +434,11 @@ export default function RideOptionsScreen({ navigation, route }: any) {
                 >
                   {/* Replace icon with logo */}
                   <Image
-                    source={require('../../../assets/images/iconAnimation.jpg')}
+                    source={Images.ICON_ANIMATION}
                     style={{ width: 32, height: 32, marginRight: 16, resizeMode: 'contain' }}
                   />
                   <View style={{ flex: 1 }}>
-                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 2 }}>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 1 }}>
                       <Text style={styles.rideLabel}>{opt.label}</Text>
                       {/* Person icon and seat count */}
                       <Ionicons name="person" size={16} color="#222" style={{ marginLeft: 6, marginRight: 2 }} />
@@ -350,7 +455,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
                       <Text style={styles.tagText}>{opt.tag}</Text>
                     </View>
                   )}
-                  <Text style={styles.ridePrice}>₹{opt.price}</Text>
+                  <Text style={styles.ridePrice}>₹{opt.totalFare}</Text>
                   {/* Checkmark for selected */}
                   {selected === opt.id && <Ionicons name="checkmark" size={22} color="#22c55e" style={{ marginLeft: 8 }} />}
                 </TouchableOpacity>
@@ -375,11 +480,29 @@ export default function RideOptionsScreen({ navigation, route }: any) {
             </TouchableOpacity>
           </View>
           {/* Book Button - make sure this is OUTSIDE the ScrollView and stickyBar */}
-          <TouchableOpacity style={styles.bookBtnFullGreen} onPress={handleBook} activeOpacity={0.85}>
-            <Text style={styles.bookBtnTextFullGreen}>
-              Book  {rideOptions.find(o => o.id === selected)?.label || 'ride'}
-            </Text>
+          <TouchableOpacity 
+            style={[
+              styles.bookBtnFullGreen, 
+              isBooking && styles.bookBtnDisabled
+            ]} 
+            onPress={handleBook} 
+            activeOpacity={0.85}
+            disabled={isBooking}
+          >
+            {isBooking ? (
+              <View style={styles.loadingContainer}>
+                <LoadingSpinner size="small" color="#fff" />
+                <Text style={styles.bookBtnTextFullGreen}>Booking...</Text>
+              </View>
+            ) : (
+              <Text style={styles.bookBtnTextFullGreen}>
+                Book {rideOptions.find(o => o.id === selected)?.label || 'ride'}
+              </Text>
+            )}
           </TouchableOpacity>
+          {bookingError && (
+            <Text style={styles.bookingErrorText}>{bookingError}</Text>
+          )}
         </View>
       </View>
     </View>
@@ -390,7 +513,7 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   mapContainer: {
     width: '100%',
-    height: '40%',
+    height: '55%',
     position: 'relative',
   },
   map: {
@@ -441,8 +564,8 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     backgroundColor: '#f8fafc',
     borderRadius: 16,
-    padding: 18,
-    marginBottom: 14,
+    padding: 12,
+    marginBottom: 10,
     borderWidth: 1,
     borderColor: '#f3f4f6',
     shadowColor: '#000',
@@ -463,7 +586,7 @@ const styles = StyleSheet.create({
     borderWidth: 2,
   },
   rideLabel: { fontWeight: '700', fontSize: 16, color: '#222' },
-  rideMeta: { color: '#64748b', fontSize: 13, marginTop: 2 },
+  rideMeta: { color: '#64748b', fontSize: 13, marginTop: 1 },
   ridePrice: { fontWeight: '700', fontSize: 18, color: '#222', marginLeft: 12 },
   tag: {
     backgroundColor: '#fbbf24',
@@ -535,6 +658,21 @@ const styles = StyleSheet.create({
   },
   addStopBackBtn: { padding: 4 },
   addStopText: { fontWeight: '700', color: '#222', fontSize: 15, marginLeft: 8 },
-  rideSubtitle: { color: '#64748b', fontSize: 13, marginTop: 2 },
+  rideSubtitle: { color: '#64748b', fontSize: 13, marginTop: 1 },
   bottomAreaWrapper: { flex: 1, justifyContent: 'flex-end' },
+  bookingErrorText: {
+    color: '#ef4444',
+    textAlign: 'center',
+    marginTop: 10,
+    fontSize: 14,
+  },
+  bookBtnDisabled: {
+    backgroundColor: '#9ca3af',
+    opacity: 0.7,
+  },
+  loadingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
 }); 
