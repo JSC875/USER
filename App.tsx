@@ -1,11 +1,10 @@
 import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
-import { ClerkProvider } from '@clerk/clerk-expo';
+import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import * as SecureStore from 'expo-secure-store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { connectSocket, disconnectSocket } from './src/utils/socket';
 
 const tokenCache = {
   async getToken(key: string) {
@@ -32,14 +31,45 @@ if (!publishableKey) {
   );
 }
 
+// Component to handle socket initialization
+function SocketInitializer() {
+  const { getToken } = useAuth();
+
+  useEffect(() => {
+    const initializeSocket = async () => {
+      try {
+        console.log('🚀 App: Initializing socket connection on startup...');
+        
+        // Wait a bit for the app to fully load
+        await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Initialize socket connection
+        const { initializeAPKConnection, startBackgroundRetry } = require('./src/utils/socket');
+        await initializeAPKConnection(getToken);
+        
+        // Start background retry mechanism for APK builds
+        startBackgroundRetry(getToken);
+        
+        console.log('✅ App: Socket connection initialized successfully');
+      } catch (error) {
+        console.error('❌ App: Failed to initialize socket connection:', error);
+        // Don't show error to user, let individual screens handle connection
+      }
+    };
+
+    initializeSocket();
+  }, [getToken]);
+
+  return null;
+}
+
 export default function App() {
-  // Socket connection will be handled in individual screens when needed
-  // This prevents connecting without a valid user ID
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
         <SafeAreaProvider>
           <StatusBar style="dark" backgroundColor="#ffffff" />
+          <SocketInitializer />
           <AppNavigator />
         </SafeAreaProvider>
       </ClerkProvider>

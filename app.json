@@ -1,7 +1,7 @@
 {
   "expo": {
     "name": "Roqet-app",
-    "slug": "roqet-app",
+    "slug": "user-app",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/roqetlogo.jpg",
@@ -25,7 +25,12 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION"
-      ]
+      ],
+      "config": {
+        "googleMaps": {
+          "apiKey": "AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU"
+        }
+      }
     },
     "web": {
       "bundler": "metro",

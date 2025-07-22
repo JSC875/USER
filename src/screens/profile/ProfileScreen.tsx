@@ -223,6 +223,8 @@ export default function ProfileScreen({ navigation, route }: any) {
               <Text style={styles.actionText}>{`Get\nSupport`}</Text>
             </TouchableOpacity>
           </View>
+          
+          {/* Developer tools moved to About screen */}
         </View>
 
         {/* Menu Options */}

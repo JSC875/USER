@@ -35,6 +35,7 @@ import {
   connectSocketWithJWT
 } from "../../utils/socket";
 import { getUserIdFromJWT } from "../../utils/jwtDecoder";
+import ConnectionStatus from "../../components/common/ConnectionStatus";
 
 const { width } = Dimensions.get('window');
 
@@ -158,8 +159,9 @@ export default function HomeScreen({ navigation, route }: any) {
 
   // Enhanced socket event listeners
   useEffect(() => {
-    // Connect to socket using JWT
-    connectSocketWithJWT(getToken).then((socket) => {
+    // Connect to socket using JWT with APK-specific handling
+    const { handleAPKConnection } = require('../../utils/socket');
+    handleAPKConnection(getToken).then((socket: any) => {
       console.log('🔗 HomeScreen: Socket connected successfully');
       
       // Set up event callbacks
@@ -235,7 +237,7 @@ export default function HomeScreen({ navigation, route }: any) {
         console.log('🧹 HomeScreen: Cleaning up socket callbacks');
         clearCallbacks();
       };
-    }).catch((error) => {
+    }).catch((error: any) => {
       console.error('❌ HomeScreen: Failed to connect socket:', error);
     });
   }, [getToken]);
@@ -272,6 +274,18 @@ export default function HomeScreen({ navigation, route }: any) {
       Alert.alert('Select Destination', 'Please select a destination first.');
       return;
     }
+
+    // Ensure socket is connected before booking - use APK-specific handling
+    const { handleAPKConnection } = require('../../utils/socket');
+    try {
+      await handleAPKConnection(getToken);
+      console.log('✅ Socket ready for ride booking');
+    } catch (error: any) {
+      console.error('❌ Failed to ensure socket connection for ride booking:', error);
+      Alert.alert('Connection Error', 'Unable to connect to server. Please check your internet connection and try again.');
+      return;
+    }
+
     // Fetch real-time GPS location
     let { status } = await Location.requestForegroundPermissionsAsync();
     if (status !== 'granted') {
@@ -279,15 +293,15 @@ export default function HomeScreen({ navigation, route }: any) {
       return;
     }
     let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-    console.log('Fetched GPS position:', loc.coords);
+    console.log('📍 Fetched GPS position:', loc.coords);
     const pickup = {
       latitude: loc.coords.latitude,
       longitude: loc.coords.longitude,
       address: 'Current Location',
       name: 'Current Location',
     };
-    console.log('pickup:', pickup);
-    console.log('drop:', dropLocation);
+    console.log('📍 Pickup:', pickup);
+    console.log('🎯 Drop:', dropLocation);
     console.log('drop latitude:', dropLocation?.latitude, 'drop longitude:', dropLocation?.longitude);
     
     // Get user ID from JWT to ensure consistency with socket connection
@@ -308,11 +322,19 @@ export default function HomeScreen({ navigation, route }: any) {
       price: Math.floor(Math.random() * 50) + 20, // Random price for demo
       userId: userId,
     };
-    console.log('🚗 Booking ride:', rideRequest);
-    const success = bookRide(rideRequest);
-    if (success) {
-      setIsBookingRide(true);
-      Alert.alert('Booking Ride...', 'Request sent to server!');
+    console.log('🚗 Sending ride booking request:', rideRequest);
+    
+    try {
+      const success = bookRide(rideRequest);
+      if (success) {
+        setIsBookingRide(true);
+        Alert.alert('Booking Ride...', 'Request sent to server!');
+      } else {
+        throw new Error('Failed to send ride request');
+      }
+    } catch (error) {
+      console.error('❌ Ride booking failed:', error);
+      Alert.alert('Booking Failed', 'Unable to book ride. Please check your connection and try again.');
     }
   };
 
@@ -357,7 +379,7 @@ export default function HomeScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-     
+      <ConnectionStatus />
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -369,10 +391,7 @@ export default function HomeScreen({ navigation, route }: any) {
             <Text style={styles.userName}>{getUserName()}</Text>
           </View>
         </View>
-        <TouchableOpacity style={styles.notificationButton}>
-          <Ionicons name="notifications" size={24} color={Colors.text} />
-          <View style={styles.notificationBadge} />
-        </TouchableOpacity>
+        {/* Debug buttons moved to Profile screen */}
       </View>
 
       <View style={styles.mapFullScreen}>
@@ -527,6 +546,8 @@ const styles = StyleSheet.create({
     borderRadius: 4,
     backgroundColor: Colors.coral,
   },
+  // Debug button styles removed - moved to Profile screen
+
   mapFullScreen: {
     flex: 1,
     position: 'relative',

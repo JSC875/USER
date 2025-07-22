@@ -26,6 +26,7 @@ import {
   onDriverOffline,
   onRideTimeout
 } from '../../utils/socket';
+import ConnectionStatus from '../../components/common/ConnectionStatus';
 
 const { width } = Dimensions.get('window');
 
@@ -508,6 +509,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
+      <ConnectionStatus />
       <ScrollView 
         style={styles.content}
         showsVerticalScrollIndicator={false}

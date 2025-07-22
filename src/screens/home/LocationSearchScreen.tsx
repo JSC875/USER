@@ -10,12 +10,14 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useLocationStore } from '../../store/useLocationStore';
 import LocationPickerMap from '../../components/common/LocationPickerMap';
+import ConnectionStatus from '../../components/common/ConnectionStatus';
 
-const GOOGLE_MAPS_API_KEY = process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY!;
+const GOOGLE_MAPS_API_KEY = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
 interface PlaceResult {
   place_id: string;
@@ -50,7 +52,7 @@ export default function LocationSearchScreen({ navigation, route }: any) {
     if (searchQuery.length > 2) {
       debounceRef.current = setTimeout(() => {
         searchPlaces(searchQuery);
-      }, 300);
+      }, 500); // Increased debounce time for better performance
     } else {
       setSearchResults([]);
       setNoResults(false);
@@ -68,44 +70,175 @@ export default function LocationSearchScreen({ navigation, route }: any) {
       // Default to New Delhi if no location
       const location = '28.6139,77.2090';
       const radius = 50000; // 50km
+      
+      console.log('🔍 Searching places for:', query);
+      console.log('🔑 Using API key:', GOOGLE_MAPS_API_KEY ? 'Present' : 'Missing');
+      
+      // Add timeout to prevent hanging requests
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 10000); // 10 second timeout
+      
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=${location}&radius=${radius}&components=country:in&key=${GOOGLE_MAPS_API_KEY}`
+        `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=${location}&radius=${radius}&components=country:in&key=${GOOGLE_MAPS_API_KEY}`,
+        {
+          signal: controller.signal,
+          headers: {
+            'Accept': 'application/json',
+            'Content-Type': 'application/json',
+          }
+        }
       );
+      
+      clearTimeout(timeoutId);
+      
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
+      }
+      
       const data = await response.json();
-      if (data.status === 'OK' && data.predictions.length > 0) {
-        setSearchResults(data.predictions || []);
+      console.log('📡 Places API response:', data.status, data.error_message || 'No error');
+      
+      if (data.status === 'OK' && data.predictions && data.predictions.length > 0) {
+        console.log('✅ Found', data.predictions.length, 'places');
+        setSearchResults(data.predictions);
         setNoResults(false);
+      } else if (data.status === 'REQUEST_DENIED') {
+        console.error('❌ Places API access denied:', data.error_message);
+        // Fallback to basic search
+        await searchPlacesFallback(query);
+      } else if (data.status === 'ZERO_RESULTS') {
+        console.log('📭 No results found');
+        setSearchResults([]);
+        setNoResults(true);
+      } else {
+        console.error('❌ Places API error:', data.status, data.error_message);
+        setSearchResults([]);
+        setNoResults(true);
+      }
+    } catch (error: any) {
+      console.error('❌ Network error:', error);
+      if (error.name === 'AbortError') {
+        console.log('⏰ Request timeout, trying offline fallback');
+        await searchPlacesOffline(query);
       } else {
         setSearchResults([]);
         setNoResults(true);
       }
-    } catch (error) {
-      setSearchResults([]);
-      setNoResults(true);
     } finally {
       setIsSearching(false);
     }
   };
 
+  // Fallback search using Geocoding API
+  const searchPlacesFallback = async (query: string) => {
+    try {
+      console.log('🔄 Using fallback geocoding search');
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&components=country:in&key=${GOOGLE_MAPS_API_KEY}`
+      );
+      const data = await response.json();
+      
+      if (data.status === 'OK' && data.results && data.results.length > 0) {
+        const fallbackResults = data.results.slice(0, 5).map((result: any) => ({
+          place_id: result.place_id,
+          description: result.formatted_address,
+          structured_formatting: {
+            main_text: result.formatted_address.split(',')[0],
+            secondary_text: result.formatted_address.split(',').slice(1).join(',').trim()
+          }
+        }));
+        setSearchResults(fallbackResults);
+        setNoResults(false);
+      } else {
+        // Try offline fallback
+        await searchPlacesOffline(query);
+      }
+    } catch (error) {
+      console.error('❌ Fallback search failed:', error);
+      // Try offline fallback
+      await searchPlacesOffline(query);
+    }
+  };
+
+  // Offline fallback with common locations
+  const searchPlacesOffline = async (query: string) => {
+    console.log('📱 Using offline fallback search');
+    
+    const commonLocations = [
+      { name: 'Delhi', address: 'Delhi, India', lat: 28.6139, lng: 77.2090 },
+      { name: 'Mumbai', address: 'Mumbai, Maharashtra, India', lat: 19.0760, lng: 72.8777 },
+      { name: 'Bangalore', address: 'Bangalore, Karnataka, India', lat: 12.9716, lng: 77.5946 },
+      { name: 'Hyderabad', address: 'Hyderabad, Telangana, India', lat: 17.3850, lng: 78.4867 },
+      { name: 'Chennai', address: 'Chennai, Tamil Nadu, India', lat: 13.0827, lng: 80.2707 },
+      { name: 'Kolkata', address: 'Kolkata, West Bengal, India', lat: 22.5726, lng: 88.3639 },
+      { name: 'Pune', address: 'Pune, Maharashtra, India', lat: 18.5204, lng: 73.8567 },
+      { name: 'Ahmedabad', address: 'Ahmedabad, Gujarat, India', lat: 23.0225, lng: 72.5714 },
+      { name: 'Jaipur', address: 'Jaipur, Rajasthan, India', lat: 26.9124, lng: 75.7873 },
+      { name: 'Surat', address: 'Surat, Gujarat, India', lat: 21.1702, lng: 72.8311 }
+    ];
+    
+    const filteredLocations = commonLocations.filter(location =>
+      location.name.toLowerCase().includes(query.toLowerCase()) ||
+      location.address.toLowerCase().includes(query.toLowerCase())
+    );
+    
+    if (filteredLocations.length > 0) {
+      const offlineResults = filteredLocations.slice(0, 5).map((location, index) => ({
+        place_id: `offline_${index}`,
+        description: location.address,
+        structured_formatting: {
+          main_text: location.name,
+          secondary_text: location.address.replace(location.name + ', ', '')
+        },
+        // Add coordinates for direct use
+        latitude: location.lat,
+        longitude: location.lng,
+        address: location.address
+      }));
+      setSearchResults(offlineResults);
+      setNoResults(false);
+    } else {
+      setSearchResults([]);
+      setNoResults(true);
+    }
+  };
+
   const getPlaceDetails = async (placeId: string): Promise<PlaceDetails | null> => {
     try {
+      console.log('🔍 Getting place details for:', placeId);
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,formatted_address&key=${GOOGLE_MAPS_API_KEY}`
       );
       const data = await response.json();
-      if (data.status === 'OK') {
+      console.log('📡 Place details response:', data.status, data.error_message || 'No error');
+      
+      if (data.status === 'OK' && data.result) {
+        console.log('✅ Place details retrieved successfully');
         return data.result;
+      } else if (data.status === 'REQUEST_DENIED') {
+        console.error('❌ Place details API access denied:', data.error_message);
+        return null;
       } else {
+        console.error('❌ Place details API error:', data.status, data.error_message);
         return null;
       }
     } catch (error) {
+      console.error('❌ Place details network error:', error);
       return null;
     }
   };
 
   const handleLocationSelect = async (item: PlaceResult | any) => {
     let location;
-    if (item.place_id) {
+    
+    // Handle offline results (they already have coordinates)
+    if (item.place_id && item.place_id.startsWith('offline_')) {
+      location = {
+        latitude: item.latitude,
+        longitude: item.longitude,
+        address: item.address,
+      };
+    } else if (item.place_id) {
       const placeDetails = await getPlaceDetails(item.place_id);
       if (!placeDetails) return;
       location = {
@@ -117,6 +250,7 @@ export default function LocationSearchScreen({ navigation, route }: any) {
       // Recent location
       location = item;
     }
+    
     if (type === 'pickup') {
       useLocationStore.getState().setPickupLocation(location);
       navigation.goBack();
@@ -157,6 +291,7 @@ export default function LocationSearchScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
+      <ConnectionStatus />
       {/* Header */}
       <View style={styles.header}>
         <TouchableOpacity
