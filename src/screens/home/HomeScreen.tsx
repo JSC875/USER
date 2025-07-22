@@ -18,7 +18,7 @@ import { getGreeting, useAssignUserType } from '../../utils/helpers';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useLocationStore } from '../../store/useLocationStore';
-import { getSocket } from "../../utils/socket";
+import { getSocket, listenToEvent, emitEvent, getConnectionStatus } from "../../utils/socket";
 
 const { width } = Dimensions.get('window');
 
@@ -138,26 +138,41 @@ export default function HomeScreen({ navigation, route }: any) {
 
   useEffect(() => {
     const socket = getSocket();
+    
+    if (socket) {
+      // Example: Listen for a custom event
+      const unsubscribeSomeEvent = listenToEvent("some-event", (data: any) => {
+        console.log("Received some-event:", data);
+      });
 
-    socket.on("connect", () => {
-      console.log("Connected to socket server!");
-    });
+      // Listen for test response
+      const unsubscribeTestResponse = listenToEvent("test_response", (data: any) => {
+        console.log("✅ Test response received:", data);
+      });
 
-    socket.on("disconnect", () => {
-      console.log("Disconnected from socket server.");
-    });
+      return () => {
+        unsubscribeSomeEvent();
+        unsubscribeTestResponse();
+      };
+    }
+  }, []);
 
-    // Example: Listen for a custom event
-    socket.on("some-event", (data: any) => {
-      console.log("Received some-event:", data);
-    });
-
-    return () => {
-      socket.off("connect");
-      socket.off("disconnect");
-      socket.off("some-event");
-      socket.disconnect();
-    };
+  useEffect(() => {
+    const socket = getSocket();
+    if (socket) {
+      // Listen for ride_booked event
+      const unsubscribeRideBooked = listenToEvent('ride_booked', (data: any) => {
+        Alert.alert('Ride Booked', `Ride ID: ${data.rideId}\nPrice: ${data.price}`);
+      });
+      // Listen for ride_status_update event
+      const unsubscribeRideStatus = listenToEvent('ride_status_update', (data: any) => {
+        Alert.alert('Ride Status Update', `Status: ${data.status}\nMessage: ${data.message}`);
+      });
+      return () => {
+        unsubscribeRideBooked();
+        unsubscribeRideStatus();
+      };
+    }
   }, []);
 
   const handleLocationSearch = (type: 'pickup' | 'destination') => {
@@ -328,7 +343,57 @@ export default function HomeScreen({ navigation, route }: any) {
           </TouchableOpacity>
         </View>
       </View>
-      <Text>Socket.IO connection initialized. Check console for status.</Text>
+      <View style={{ padding: 16, backgroundColor: '#f0f0f0', margin: 16, borderRadius: 8 }}>
+        <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>Socket.IO Connection Test</Text>
+        <Text style={{ marginBottom: 4 }}>Status: {getConnectionStatus()}</Text>
+        <Text style={{ marginBottom: 8, fontSize: 12, color: '#666' }}>Check console for detailed logs</Text>
+        <TouchableOpacity 
+          style={{ 
+            backgroundColor: '#007AFF', 
+            padding: 10, 
+            marginTop: 8, 
+            borderRadius: 5,
+            alignItems: 'center'
+          }}
+          onPress={() => {
+            const success = emitEvent('test_event', { message: 'Hello from React Native!' });
+            if (success) {
+              console.log('✅ Test event sent successfully');
+            } else {
+              console.log('❌ Failed to send test event');
+            }
+          }}
+        >
+          <Text style={{ color: 'white' }}>Send Test Event</Text>
+        </TouchableOpacity>
+        {/* Book Ride Button */}
+        <TouchableOpacity
+          style={{
+            backgroundColor: '#34C759',
+            padding: 10,
+            marginTop: 8,
+            borderRadius: 5,
+            alignItems: 'center',
+          }}
+          onPress={() => {
+            const rideRequest = {
+              pickup: 'Hitech City, Hyderabad, Telangana',
+              drop: 'Madhapur, Hyderabad, Telangana',
+              rideType: 'Bike',
+              price: 33,
+              userId: 'user123',
+            };
+            const success = emitEvent('book_ride', rideRequest);
+            if (success) {
+              Alert.alert('Booking Ride...', 'Request sent to server!');
+            } else {
+              Alert.alert('Error', 'Socket not connected!');
+            }
+          }}
+        >
+          <Text style={{ color: 'white' }}>Book Ride (Test)</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }

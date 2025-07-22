@@ -5,18 +5,27 @@ import {
   StyleSheet,
   TouchableOpacity,
   FlatList,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import { mockRideHistory } from '../../data/mockData';
+import * as Location from 'expo-location';
 
 export default function RideHistoryScreen({ navigation }: any) {
-  const [selectedTab, setSelectedTab] = useState('completed');
+  const [filterVisible, setFilterVisible] = useState(false);
+  const [filter, setFilter] = useState<'all' | 'completed' | 'cancelled'>('all');
+
+  // TODO: Replace with real ride history data from API or props
+  const [rideHistory, setRideHistory] = useState<any[]>([]);
+  const filteredHistory =
+    filter === 'all'
+      ? rideHistory
+      : rideHistory.filter((item) => item.status === filter);
 
   const renderRideItem = ({ item }: any) => (
-    <TouchableOpacity style={styles.rideCard}>
+    <TouchableOpacity style={styles.rideCard} onPress={() => navigation.navigate('HistoryDetail', { ride: item })}>
       <View style={styles.rideHeader}>
         <View style={styles.rideDate}>
           <Text style={styles.dateText}>{item.date}</Text>
@@ -56,13 +65,34 @@ export default function RideHistoryScreen({ navigation }: any) {
             <Ionicons name="star" size={14} color={Colors.accent} />
             <Text style={styles.ratingText}>{item.rating}</Text>
           </View>
-          <TouchableOpacity style={styles.rebookButton} onPress={() => navigation.navigate('DropLocationSelector', { destination: { address: item.to, name: item.to } })}>
+          <TouchableOpacity
+            style={styles.rebookButton}
+            onPress={() => handleRebook(item)}
+          >
             <Text style={styles.rebookText}>Rebook</Text>
           </TouchableOpacity>
         </View>
       </View>
     </TouchableOpacity>
   );
+
+  const handleRebook = (item: any) => {
+    navigation.navigate('DropLocationSelector', {
+      destination: {
+        address: item.to,
+        name: item.to,
+        latitude: item.toLatitude,
+        longitude: item.toLongitude,
+      },
+      pickup: {
+        address: item.from,
+        name: item.from,
+        latitude: item.fromLatitude,
+        longitude: item.fromLongitude,
+      },
+      autoProceed: true
+    });
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -75,50 +105,36 @@ export default function RideHistoryScreen({ navigation }: any) {
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Ride History</Text>
-        <TouchableOpacity style={styles.filterButton}>
+        <TouchableOpacity style={styles.filterButton} onPress={() => setFilterVisible(true)}>
           <Ionicons name="filter" size={24} color={Colors.text} />
         </TouchableOpacity>
       </View>
 
-      {/* Tabs */}
-      <View style={styles.tabsContainer}>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            selectedTab === 'completed' && styles.activeTab,
-          ]}
-          onPress={() => setSelectedTab('completed')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              selectedTab === 'completed' && styles.activeTabText,
-            ]}
-          >
-            Completed
-          </Text>
+      {/* Filter Modal */}
+      <Modal
+        visible={filterVisible}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setFilterVisible(false)}
+      >
+        <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} onPress={() => setFilterVisible(false)} activeOpacity={1}>
+          <View style={{ position: 'absolute', top: 70, right: 20, backgroundColor: '#fff', borderRadius: 8, padding: 16, elevation: 8 }}>
+            <TouchableOpacity onPress={() => { setFilter('all'); setFilterVisible(false); }} style={{ paddingVertical: 8 }}>
+              <Text style={{ color: filter === 'all' ? Colors.primary : Colors.text }}>All</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setFilter('completed'); setFilterVisible(false); }} style={{ paddingVertical: 8 }}>
+              <Text style={{ color: filter === 'completed' ? Colors.primary : Colors.text }}>Completed</Text>
+            </TouchableOpacity>
+            <TouchableOpacity onPress={() => { setFilter('cancelled'); setFilterVisible(false); }} style={{ paddingVertical: 8 }}>
+              <Text style={{ color: filter === 'cancelled' ? Colors.primary : Colors.text }}>Cancelled</Text>
+            </TouchableOpacity>
+          </View>
         </TouchableOpacity>
-        <TouchableOpacity
-          style={[
-            styles.tab,
-            selectedTab === 'cancelled' && styles.activeTab,
-          ]}
-          onPress={() => setSelectedTab('cancelled')}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              selectedTab === 'cancelled' && styles.activeTabText,
-            ]}
-          >
-            Cancelled
-          </Text>
-        </TouchableOpacity>
-      </View>
+      </Modal>
 
       {/* Ride List */}
       <FlatList
-        data={mockRideHistory}
+        data={filteredHistory}
         renderItem={renderRideItem}
         keyExtractor={(item) => item.id}
         contentContainerStyle={styles.listContent}
@@ -153,32 +169,6 @@ const styles = StyleSheet.create({
   },
   filterButton: {
     padding: Layout.spacing.sm,
-  },
-  tabsContainer: {
-    flexDirection: 'row',
-    backgroundColor: Colors.white,
-    paddingHorizontal: Layout.spacing.lg,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.borderLight,
-  },
-  tab: {
-    flex: 1,
-    paddingVertical: Layout.spacing.md,
-    alignItems: 'center',
-    borderBottomWidth: 2,
-    borderBottomColor: 'transparent',
-  },
-  activeTab: {
-    borderBottomColor: Colors.primary,
-  },
-  tabText: {
-    fontSize: Layout.fontSize.md,
-    color: Colors.textSecondary,
-    fontWeight: '500',
-  },
-  activeTabText: {
-    color: Colors.primary,
-    fontWeight: '600',
   },
   listContent: {
     padding: Layout.spacing.lg,
