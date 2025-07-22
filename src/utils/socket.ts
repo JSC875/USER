@@ -1,16 +1,60 @@
 import { io, Socket } from "socket.io-client";
+import { getUserIdFromJWT, getUserTypeFromJWT } from "./jwtDecoder";
+import { Alert } from "react-native";
 
 const SOCKET_URL = "https://testsocketio-roqet.up.railway.app";
 
 let socket: Socket | null = null;
 
-export const connectSocket = () => {
+// Event callback types
+export type RideBookedCallback = (data: {
+  success: boolean;
+  rideId: string;
+  price: number;
+  message: string;
+}) => void;
+
+export type RideAcceptedCallback = (data: {
+  rideId: string;
+  driverId: string;
+  driverName: string;
+  driverPhone: string;
+  estimatedArrival: string;
+}) => void;
+
+export type DriverLocationCallback = (data: {
+  driverId: string;
+  latitude: number;
+  longitude: number;
+  timestamp: number;
+}) => void;
+
+export type RideStatusCallback = (data: {
+  rideId: string;
+  status: string;
+  message: string;
+  timestamp: number;
+}) => void;
+
+export type DriverOfflineCallback = (data: {
+  rideId: string;
+  driverId: string;
+}) => void;
+
+// Event callbacks
+let onRideBookedCallback: RideBookedCallback | null = null;
+let onRideAcceptedCallback: RideAcceptedCallback | null = null;
+let onDriverLocationCallback: DriverLocationCallback | null = null;
+let onRideStatusCallback: RideStatusCallback | null = null;
+let onDriverOfflineCallback: DriverOfflineCallback | null = null;
+
+export const connectSocket = (userId: string = "user123", userType: string = "customer") => {
   if (!socket) {
     socket = io(SOCKET_URL, {
       transports: ["polling"], // Use polling only for Railway compatibility
       query: {
-        type: "user",
-        id: "user123", // Replace with real user ID if available
+        type: userType,
+        id: userId,
       },
       reconnection: true,
       reconnectionAttempts: 5,
@@ -30,17 +74,17 @@ export const connectSocket = () => {
       }
     });
 
+    socket.on("ride_response_error", (data) => {
+      console.log("❌ Ride response error:", data);
+      Alert.alert('Ride Error', data.message || 'Ride could not be accepted.');
+    });
     socket.on("disconnect", (reason) => {
       console.log("🔴 Socket.IO disconnected:", reason);
+      Alert.alert('Disconnected', 'Lost connection to server. Please check your internet.');
     });
-
     socket.on("connect_error", (error) => {
       console.error("❌ Socket.IO connection error:", error);
-      console.error("🔍 Error details:", {
-        message: error.message,
-        name: error.name,
-        stack: error.stack
-      });
+      Alert.alert('Connection Error', 'Could not connect to server.');
     });
 
     socket.on("reconnect", (attemptNumber) => {
@@ -58,8 +102,57 @@ export const connectSocket = () => {
     socket.on("reconnect_failed", () => {
       console.error("❌ Socket.IO reconnection failed after all attempts");
     });
+
+    // Ride booking events
+    socket.on("ride_booked", (data) => {
+      console.log("✅ Ride booked:", data);
+      onRideBookedCallback?.(data);
+    });
+
+    socket.on("ride_accepted", (data) => {
+      console.log("✅ Ride accepted by driver:", data);
+      onRideAcceptedCallback?.(data);
+    });
+
+    socket.on("ride_response", (data) => {
+      console.log("✅ Ride response received:", data);
+      console.log("🔍 Ride response data structure:", JSON.stringify(data, null, 2));
+      if (data.response === 'accept') {
+        console.log("✅ Calling onRideAcceptedCallback with data:", data);
+        onRideAcceptedCallback?.(data);
+      } else {
+        console.log("❌ Ride response is not 'accept', it's:", data.response);
+      }
+    });
+
+    socket.on("driver_location_update", (data) => {
+      console.log("📍 Driver location update:", data);
+      onDriverLocationCallback?.(data);
+    });
+
+    socket.on("ride_status_update", (data) => {
+      console.log("🔄 Ride status update:", data);
+      onRideStatusCallback?.(data);
+    });
+
+    socket.on("driver_offline", (data) => {
+      console.log("🔴 Driver went offline:", data);
+      onDriverOfflineCallback?.(data);
+    });
+
+    // Test events
+    socket.on("test_response", (data) => {
+      console.log("🧪 Test response:", data);
+    });
   }
   return socket;
+};
+
+// New helper to connect socket using JWT
+export const connectSocketWithJWT = async (getToken: any) => {
+  const userId = await getUserIdFromJWT(getToken);
+  const userType = await getUserTypeFromJWT(getToken);
+  return connectSocket(userId, userType);
 };
 
 export const getSocket = () => socket;
@@ -106,4 +199,45 @@ export const listenToEvent = (eventName: string, callback: (data: any) => void) 
     return () => socket.off(eventName, callback);
   }
   return () => {};
+};
+
+// Ride booking specific functions
+export const bookRide = (rideData: {
+  pickup: string;
+  drop: string;
+  rideType: string;
+  price: number;
+  userId: string;
+}) => {
+  return emitEvent("book_ride", rideData);
+};
+
+// Event callback setters
+export const onRideBooked = (callback: RideBookedCallback) => {
+  onRideBookedCallback = callback;
+};
+
+export const onRideAccepted = (callback: RideAcceptedCallback) => {
+  onRideAcceptedCallback = callback;
+};
+
+export const onDriverLocation = (callback: DriverLocationCallback) => {
+  onDriverLocationCallback = callback;
+};
+
+export const onRideStatus = (callback: RideStatusCallback) => {
+  onRideStatusCallback = callback;
+};
+
+export const onDriverOffline = (callback: DriverOfflineCallback) => {
+  onDriverOfflineCallback = callback;
+};
+
+// Clear all callbacks
+export const clearCallbacks = () => {
+  onRideBookedCallback = null;
+  onRideAcceptedCallback = null;
+  onDriverLocationCallback = null;
+  onRideStatusCallback = null;
+  onDriverOfflineCallback = null;
 }; 

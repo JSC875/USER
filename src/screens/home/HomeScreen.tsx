@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,6 +7,7 @@ import {
   ScrollView,
   Dimensions,
   Alert,
+  Modal,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -18,7 +19,21 @@ import { getGreeting, useAssignUserType } from '../../utils/helpers';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useLocationStore } from '../../store/useLocationStore';
-import { getSocket, listenToEvent, emitEvent, getConnectionStatus } from "../../utils/socket";
+import { 
+  connectSocket, 
+  getSocket, 
+  listenToEvent, 
+  emitEvent, 
+  getConnectionStatus,
+  bookRide,
+  onRideBooked,
+  onRideAccepted,
+  onDriverLocation,
+  onRideStatus,
+  onDriverOffline,
+  clearCallbacks,
+  connectSocketWithJWT
+} from "../../utils/socket";
 
 const { width } = Dimensions.get('window');
 
@@ -43,6 +58,13 @@ export default function HomeScreen({ navigation, route }: any) {
 
   const [dropLocation, setDropLocation] = React.useState<any>(null);
   const [hasSentToBackend, setHasSentToBackend] = React.useState(false);
+  
+  // New state for ride booking
+  const [isBookingRide, setIsBookingRide] = useState(false);
+  const [currentRide, setCurrentRide] = useState<any>(null);
+  const [driverLocation, setDriverLocation] = useState<any>(null);
+  const [rideStatus, setRideStatus] = useState<string>('');
+  const [showRideModal, setShowRideModal] = useState(false);
 
   useAssignUserType('customer');
 
@@ -136,44 +158,73 @@ export default function HomeScreen({ navigation, route }: any) {
     sendCustomJWTToBackend();
   }, [user, getToken, hasSentToBackend]);
 
+  // Enhanced socket event listeners
   useEffect(() => {
-    const socket = getSocket();
-    
-    if (socket) {
-      // Example: Listen for a custom event
-      const unsubscribeSomeEvent = listenToEvent("some-event", (data: any) => {
-        console.log("Received some-event:", data);
+    // Connect to socket using JWT
+    connectSocketWithJWT(getToken).then((socket) => {
+      // Set up event callbacks
+      onRideBooked((data) => {
+        console.log('✅ Ride booked:', data);
+        setCurrentRide({
+          rideId: data.rideId,
+          price: data.price,
+          status: 'searching'
+        });
+        setIsBookingRide(true);
+        Alert.alert('Ride Booked!', `Searching for drivers...\nRide ID: ${data.rideId}`);
       });
 
-      // Listen for test response
-      const unsubscribeTestResponse = listenToEvent("test_response", (data: any) => {
-        console.log("✅ Test response received:", data);
+      onRideAccepted((data) => {
+        console.log('✅ Ride accepted by driver:', data);
+        setCurrentRide((prev: any) => ({
+          ...prev,
+          driverId: data.driverId,
+          driverName: data.driverName,
+          driverPhone: data.driverPhone,
+          estimatedArrival: data.estimatedArrival,
+          status: 'accepted'
+        }));
+        setRideStatus('Driver accepted your ride!');
+        setShowRideModal(true);
+        Alert.alert('Driver Found!', `${data.driverName} will arrive in ${data.estimatedArrival}`);
       });
 
+      onDriverLocation((data) => {
+        console.log('📍 Driver location update:', data);
+        setDriverLocation({
+          latitude: data.latitude,
+          longitude: data.longitude
+        });
+      });
+
+      onRideStatus((data) => {
+        console.log('🔄 Ride status update:', data);
+        setRideStatus(data.message);
+        setCurrentRide((prev: any) => ({
+          ...prev,
+          status: data.status
+        }));
+        
+        if (data.status === 'completed' || data.status === 'cancelled') {
+          setCurrentRide(null);
+          setDriverLocation(null);
+          setRideStatus('');
+          setShowRideModal(false);
+          setIsBookingRide(false);
+        }
+      });
+
+      onDriverOffline((data) => {
+        console.log('🔴 Driver went offline:', data);
+        Alert.alert('Driver Offline', 'Your driver went offline. Finding a new driver...');
+      });
+
+      // Cleanup callbacks on unmount
       return () => {
-        unsubscribeSomeEvent();
-        unsubscribeTestResponse();
+        clearCallbacks();
       };
-    }
-  }, []);
-
-  useEffect(() => {
-    const socket = getSocket();
-    if (socket) {
-      // Listen for ride_booked event
-      const unsubscribeRideBooked = listenToEvent('ride_booked', (data: any) => {
-        Alert.alert('Ride Booked', `Ride ID: ${data.rideId}\nPrice: ${data.price}`);
-      });
-      // Listen for ride_status_update event
-      const unsubscribeRideStatus = listenToEvent('ride_status_update', (data: any) => {
-        Alert.alert('Ride Status Update', `Status: ${data.status}\nMessage: ${data.message}`);
-      });
-      return () => {
-        unsubscribeRideBooked();
-        unsubscribeRideStatus();
-      };
-    }
-  }, []);
+    });
+  }, [getToken]);
 
   const handleLocationSearch = (type: 'pickup' | 'destination') => {
     navigation.navigate('LocationSearch', { type });
@@ -199,6 +250,32 @@ export default function HomeScreen({ navigation, route }: any) {
       return user.fullName.split(' ')[0];
     }
     return 'User';
+  };
+
+  // Enhanced ride booking function
+  const handleBookRide = () => {
+    if (!dropLocation) {
+      Alert.alert('Select Destination', 'Please select a destination first.');
+      return;
+    }
+
+    const rideRequest = {
+      pickup: pickupLocation?.address || 'Current Location',
+      drop: dropLocation.name,
+      rideType: 'Bike',
+      price: Math.floor(Math.random() * 50) + 20, // Random price for demo
+      userId: user?.id || 'user123',
+    };
+
+    console.log('🚗 Booking ride:', rideRequest);
+    const success = bookRide(rideRequest);
+    
+    if (success) {
+      setIsBookingRide(true);
+      Alert.alert('Booking Ride...', 'Request sent to server!');
+    } else {
+      Alert.alert('Error', 'Socket not connected! Please check your connection.');
+    }
   };
 
   // Add this function to fetch and log the custom JWT
@@ -241,20 +318,7 @@ export default function HomeScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Custom JWT Test Button */}
-      <TouchableOpacity
-        style={{ backgroundColor: '#007AFF', padding: 10, margin: 10, borderRadius: 5 }}
-        onPress={fetchCustomJWT}
-      >
-        <Text style={{ color: 'white', textAlign: 'center' }}>Get Custom Clerk JWT</Text>
-      </TouchableOpacity>
-      {/* Send Custom JWT to Backend Button */}
-      <TouchableOpacity
-        style={{ backgroundColor: '#34C759', padding: 10, margin: 10, borderRadius: 5 }}
-        onPress={handleSendCustomJWT}
-      >
-        <Text style={{ color: 'white', textAlign: 'center' }}>Send Custom JWT to Backend</Text>
-      </TouchableOpacity>
+     
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.headerLeft}>
@@ -297,6 +361,13 @@ export default function HomeScreen({ navigation, route }: any) {
               }}
               title={dropoffLocation.address || 'Destination'}
               pinColor={'red'}
+            />
+          )}
+          {driverLocation && (
+            <Marker
+              coordinate={driverLocation}
+              title="Driver Location"
+              pinColor={'blue'}
             />
           )}
         </MapView>
@@ -343,57 +414,33 @@ export default function HomeScreen({ navigation, route }: any) {
           </TouchableOpacity>
         </View>
       </View>
-      <View style={{ padding: 16, backgroundColor: '#f0f0f0', margin: 16, borderRadius: 8 }}>
-        <Text style={{ fontWeight: 'bold', marginBottom: 8 }}>Socket.IO Connection Test</Text>
-        <Text style={{ marginBottom: 4 }}>Status: {getConnectionStatus()}</Text>
-        <Text style={{ marginBottom: 8, fontSize: 12, color: '#666' }}>Check console for detailed logs</Text>
-        <TouchableOpacity 
-          style={{ 
-            backgroundColor: '#007AFF', 
-            padding: 10, 
-            marginTop: 8, 
-            borderRadius: 5,
-            alignItems: 'center'
-          }}
-          onPress={() => {
-            const success = emitEvent('test_event', { message: 'Hello from React Native!' });
-            if (success) {
-              console.log('✅ Test event sent successfully');
-            } else {
-              console.log('❌ Failed to send test event');
-            }
-          }}
-        >
-          <Text style={{ color: 'white' }}>Send Test Event</Text>
-        </TouchableOpacity>
-        {/* Book Ride Button */}
-        <TouchableOpacity
-          style={{
-            backgroundColor: '#34C759',
-            padding: 10,
-            marginTop: 8,
-            borderRadius: 5,
-            alignItems: 'center',
-          }}
-          onPress={() => {
-            const rideRequest = {
-              pickup: 'Hitech City, Hyderabad, Telangana',
-              drop: 'Madhapur, Hyderabad, Telangana',
-              rideType: 'Bike',
-              price: 33,
-              userId: 'user123',
-            };
-            const success = emitEvent('book_ride', rideRequest);
-            if (success) {
-              Alert.alert('Booking Ride...', 'Request sent to server!');
-            } else {
-              Alert.alert('Error', 'Socket not connected!');
-            }
-          }}
-        >
-          <Text style={{ color: 'white' }}>Book Ride (Test)</Text>
-        </TouchableOpacity>
-      </View>
+      
+     
+
+      {/* Ride Status Modal */}
+      <Modal
+        visible={showRideModal}
+        transparent={true}
+        animationType="slide"
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.modalContent}>
+            <Text style={styles.modalTitle}>Ride Accepted!</Text>
+            {currentRide?.driverName && (
+              <Text style={styles.modalText}>Driver: {currentRide.driverName}</Text>
+            )}
+            {currentRide?.estimatedArrival && (
+              <Text style={styles.modalText}>ETA: {currentRide.estimatedArrival}</Text>
+            )}
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setShowRideModal(false)}
+            >
+              <Text style={styles.modalButtonText}>OK</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -686,5 +733,40 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.gray200,
     marginVertical: 4,
     borderRadius: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: 'rgba(0,0,0,0.5)',
+  },
+  modalContent: {
+    backgroundColor: Colors.white,
+    borderRadius: 10,
+    padding: 20,
+    alignItems: 'center',
+    width: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: 10,
+  },
+  modalText: {
+    fontSize: 16,
+    color: Colors.textSecondary,
+    marginBottom: 10,
+  },
+  modalButton: {
+    backgroundColor: Colors.primary,
+    paddingVertical: 10,
+    paddingHorizontal: 20,
+    borderRadius: 8,
+  },
+  modalButtonText: {
+    color: Colors.white,
+    fontSize: 16,
+    fontWeight: 'bold',
   },
 });

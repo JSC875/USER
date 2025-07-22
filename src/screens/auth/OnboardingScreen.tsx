@@ -126,7 +126,7 @@ const styles = StyleSheet.create({
   imageContainer: {
     width: 280,
     height: 280,
-    borderRadius: Layout.borderRadius.xl,
+    borderRadius: Layout.borderRadius.lg,
     overflow: 'hidden',
     marginBottom: Layout.spacing.xl,
     backgroundColor: Colors.gray100,

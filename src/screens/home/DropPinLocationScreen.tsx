@@ -181,29 +181,13 @@ export default function DropPinLocationScreen({ navigation }: any) {
   };
 
   // Handler for Add New
-  const handleAddNew = () => {
-    if (Platform.OS === 'android') {
-      Alert.prompt(
-        'Save Location',
-        'Enter a label for this location:',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          {
-            text: 'Save',
-            onPress: async (label) => {
-              if (!label || !label.trim()) {
-                Alert.alert('Label required', 'Please enter a label for the location.');
-                return;
-              }
-              await saveLocation('custom', label.trim());
-            },
-          },
-        ],
-        'plain-text'
-      );
-    } else {
-      setShowAddAddressInput(true);
-    }
+  const handleAddNew = async () => {
+    // Get existing saved locations
+    const existing = await AsyncStorage.getItem('@saved_locations');
+    let saved = existing ? JSON.parse(existing) : {};
+    let customCount = saved.custom ? saved.custom.length + 1 : 1;
+    const defaultLabel = `Saved Location ${customCount}`;
+    await saveLocation('custom', defaultLabel);
   };
 
   const { house, rest } = parseAddress(address);

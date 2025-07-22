@@ -52,7 +52,7 @@ const profileOptions = [
 export default function ProfileScreen({ navigation, route }: any) {
   const { signOut } = useAuth();
   const { user } = useUser();
-
+  
   const getUserPhoto = () => {
     return user?.imageUrl || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face';
   };
@@ -152,10 +152,12 @@ export default function ProfileScreen({ navigation, route }: any) {
         {/* Profile Info */}
         <View style={styles.profileCard}>
           <View style={styles.profileInfo}>
-            <Image
-              source={{ uri: profilePhoto }}
-              style={styles.profilePhoto}
-            />
+            <View style={styles.profilePhotoWrapper}>
+              <Image
+                source={{ uri: profilePhoto }}
+                style={styles.profilePhoto}
+              />
+            </View>
             <View style={styles.profileDetails}>
               <Text style={styles.profileName}>{getUserName()}</Text>
               {getUserEmail() && (
@@ -281,7 +283,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   profileCard: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.gray100, // light grey card
     margin: Layout.spacing.lg,
     borderRadius: Layout.borderRadius.lg,
     padding: Layout.spacing.lg,
@@ -296,11 +298,19 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: Layout.spacing.lg,
   },
+  profilePhotoWrapper: {
+    width: 88,
+    height: 88,
+    borderRadius: 44,
+    backgroundColor: Colors.gray300, // slightly darker grey
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Layout.spacing.md,
+  },
   profilePhoto: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    marginRight: Layout.spacing.md,
   },
   profileDetails: {
     flex: 1,
@@ -354,7 +364,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.borderLight,
   },
   quickActions: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.gray100, // match card
     marginHorizontal: Layout.spacing.lg,
     marginBottom: Layout.spacing.lg,
     borderRadius: Layout.borderRadius.lg,
@@ -396,7 +406,7 @@ const styles = StyleSheet.create({
     color: Colors.text,
   },
   menuContainer: {
-    backgroundColor: Colors.white,
+    backgroundColor: Colors.gray100, // match card
     marginHorizontal: Layout.spacing.lg,
     marginBottom: Layout.spacing.lg,
     borderRadius: Layout.borderRadius.lg,
