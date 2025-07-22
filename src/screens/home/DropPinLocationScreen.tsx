@@ -28,7 +28,8 @@ function parseAddress(address: string): { house: string; rest: string } {
   return { house: address, rest: '' };
 }
 
-export default function DropPinLocationScreen({ navigation }: any) {
+export default function DropPinLocationScreen({ navigation, route }: any) {
+  const mode = route?.params?.mode || 'drop';
   const [region, setRegion] = useState(DEFAULT_REGION);
   const [address, setAddress] = useState('Fetching address...');
   const [locationName, setLocationName] = useState('Address');
@@ -128,14 +129,25 @@ export default function DropPinLocationScreen({ navigation }: any) {
       Alert.alert('Error', 'Please select a valid location.');
       return;
     }
-    navigation.replace('DropLocationSelector', {
-      destination: {
-        latitude: region.latitude,
-        longitude: region.longitude,
-        name: locationName,
-        address,
-      },
-    });
+    if (mode === 'pickup') {
+      navigation.replace('DropLocationSelector', {
+        pickup: {
+          latitude: region.latitude,
+          longitude: region.longitude,
+          name: locationName,
+          address,
+        },
+      });
+    } else {
+      navigation.replace('DropLocationSelector', {
+        destination: {
+          latitude: region.latitude,
+          longitude: region.longitude,
+          name: locationName,
+          address,
+        },
+      });
+    }
   };
 
   // Save location handler
@@ -206,31 +218,31 @@ export default function DropPinLocationScreen({ navigation }: any) {
           showsUserLocation
           showsMyLocationButton={false}
         />
-        {/* Floating Center Pin */}
+        {/* Floating Center Pin (emoji for Rapido style) */}
         <View pointerEvents="none" style={styles.pinContainer}>
           <View style={{ alignItems: 'center', justifyContent: 'center' }}>
-            {/* Outer white circle with border */}
+            {/* Outer red circle with white border */}
             <View style={{
               width: 26,
               height: 26,
               borderRadius: 18,
-              backgroundColor: Colors.white,
+              backgroundColor: '#fff',
               alignItems: 'center',
               justifyContent: 'center',
               borderWidth: 2,
-              borderColor: Colors.white,
-              shadowColor: Colors.shadow,
+              borderColor: '#fff',
+              shadowColor: '#000',
               shadowOffset: { width: 0, height: 1 },
               shadowOpacity: 0.15,
               shadowRadius: 2,
               elevation: 2,
             }}>
-              {/* Inner primary color circle */}
+              {/* Inner red circle */}
               <View style={{
                 width: 24,
                 height: 24,
                 borderRadius: 14,
-                backgroundColor: Colors.primary,
+                backgroundColor: '#E53935',
                 alignItems: 'center',
                 justifyContent: 'center',
               }}>
@@ -239,7 +251,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
                   width: 12,
                   height: 12,
                   borderRadius: 6,
-                  backgroundColor: Colors.white,
+                  backgroundColor: '#fff',
                 }} />
               </View>
             </View>
@@ -247,7 +259,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
             <View style={{
               width: 3,
               height: 16,
-              backgroundColor: Colors.black,
+              backgroundColor: '#222',
               marginTop: -2,
               borderRadius: 2,
             }} />
@@ -255,7 +267,7 @@ export default function DropPinLocationScreen({ navigation }: any) {
         </View>
         {/* My Location Button */}
         <TouchableOpacity style={styles.myLocationBtn} onPress={handleMyLocation}>
-          <Ionicons name="locate" size={Layout.iconSize.lg} color={Colors.primary} />
+          <Ionicons name="locate" size={24} color={Colors.primary} />
         </TouchableOpacity>
       </View>
       {/* Bottom Sheet */}
@@ -263,13 +275,10 @@ export default function DropPinLocationScreen({ navigation }: any) {
         <View style={styles.addressCard}>
           <View style={styles.addressRow}>
             <Text style={styles.addressLabel}>Select your location</Text>
-            <TouchableOpacity>
-              <Text style={styles.changeText}>Change</Text>
-            </TouchableOpacity>
           </View>
           <View style={styles.selectedAddressBox}>
             <View style={styles.iconCircle}>
-              <Ionicons name="location-sharp" size={Layout.iconSize.md} color={Colors.white} />
+              <Ionicons name="location-sharp" size={20} color="#fff" />
             </View>
             <View>
               <Text style={styles.selectedAddressTitle}>
@@ -283,36 +292,22 @@ export default function DropPinLocationScreen({ navigation }: any) {
           <View style={styles.divider} />
           <Text style={styles.saveLabel}>Save location as</Text>
           <View style={styles.saveRow}>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('home')} disabled={isSaving}>
-              <Text style={styles.saveBtnIcon}>🏠</Text>
-              <Text style={styles.saveBtnText}> Home</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('work')} disabled={isSaving}>
-              <Text style={styles.saveBtnIcon}>💼</Text>
-              <Text style={styles.saveBtnText}> Work</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleAddNew} disabled={isSaving}>
-              <Text style={styles.saveBtnIcon}>➕</Text>
-              <Text style={styles.saveBtnText}> Add New</Text>
-            </TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('home')}><Text style={styles.saveBtnIcon}>🏠</Text><Text style={styles.saveBtnText}> Home</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('work')}><Text style={styles.saveBtnIcon}>💼</Text><Text style={styles.saveBtnText}> Work</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={handleAddNew}><Text style={styles.saveBtnIcon}>➕</Text><Text style={styles.saveBtnText}> Add New</Text></TouchableOpacity>
           </View>
         </View>
-        <TouchableOpacity 
-          style={[styles.selectDropButton, isSaving && styles.selectDropButtonDisabled]} 
-          onPress={handleSelectDrop} 
-          activeOpacity={0.8}
-          disabled={isSaving}
-        >
-          <Text style={styles.selectDropButtonText}>Select Drop</Text>
+        <TouchableOpacity style={styles.selectDropButton} onPress={handleSelectDrop} activeOpacity={0.8}>
+          <Text style={styles.selectDropButtonText}>{mode === 'pickup' ? 'Select Pickup' : 'Select Drop'}</Text>
         </TouchableOpacity>
       </View>
       {showAddAddressInput && (
-        <View style={{ marginVertical: Layout.spacing.md }}>
+        <View style={{ marginVertical: 10 }}>
           <TextInput
             value={newAddress}
             onChangeText={setNewAddress}
             placeholder="Enter new address"
-            style={styles.addressInput}
+            style={{ borderWidth: 1, borderColor: '#ccc', borderRadius: 8, padding: 10, marginBottom: 10 }}
             editable={!isSaving}
           />
           <Button
@@ -377,7 +372,7 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderRadius: 22,
     width: 44,
-    height: 44,
+    height: 70,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: Colors.shadow,
