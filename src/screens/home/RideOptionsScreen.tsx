@@ -28,7 +28,9 @@ export async function saveCompletedRide(ride: any) {
 }
 
 export default function RideOptionsScreen({ navigation, route }: any) {
-  const { pickup, drop, forWhom, friendName, friendPhone } = route.params;
+  // Use pickup as a state so it can be updated when using device location
+  const [pickup, setPickup] = useState(route.params?.pickup || null);
+  const { drop, forWhom, friendName, friendPhone } = route.params;
   const [selected, setSelected] = useState('bike');
   const [isBooking, setIsBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
@@ -83,17 +85,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const snapPoints = useMemo(() => ['50%', '90%'], []);
   const [routeCoords, setRouteCoords] = useState([]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
-  // Using pickup and drop from route.params instead of useState
-
-  // Use params from navigation
-  // const pickup = route?.params?.pickup || { latitude: 17.444, longitude: 78.382, address: 'Pickup Location' };
-  // const drop = route?.params?.drop || { latitude: 17.4418, longitude: 78.38, address: 'Drop Location' };
-
-  // Remove these confusing logs that show the state variable, not the real-time GPS
-  // console.log('pickup:', pickup);
-  // console.log('pickup latitude:', pickup.latitude, 'pickup longitude:', pickup.longitude);
-  // console.log('drop:', drop);
-  // console.log('drop latitude:', drop.latitude, 'drop longitude:', drop.longitude);
+  
 
   const mockVehicles = [
     { id: 1, latitude: 17.443, longitude: 78.381, heading: 45 },
@@ -149,21 +141,27 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         throw new Error('No ride option selected');
       }
 
-      // Fetch real-time GPS location
-      let { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== 'granted') {
-        throw new Error('Location permission is required to book a ride.');
+      // Do NOT fetch or overwrite pickup with current location here
+      // Use the existing pickup value from state (which may be pinned or current location)
+      
+      // Safely update map region if mapRef is ready and coordinates are valid
+      if (
+        mapRef.current &&
+        pickup &&
+        typeof pickup.latitude === 'number' &&
+        typeof pickup.longitude === 'number'
+      ) {
+        setTimeout(() => {
+          if (mapRef.current) {
+            mapRef.current.animateToRegion({
+              latitude: pickup.latitude,
+              longitude: pickup.longitude,
+              latitudeDelta: 0.05,
+              longitudeDelta: 0.05,
+            }, 500);
+          }
+        }, 500);
       }
-      
-      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-      console.log('📍 Fetched GPS position:', loc.coords);
-      
-      const pickup = {
-        latitude: loc.coords.latitude,
-        longitude: loc.coords.longitude,
-        address: 'Current Location',
-        name: 'Current Location',
-      };
       
       console.log('📤 Preparing ride request data...');
       console.log('📍 Pickup:', pickup);
@@ -295,12 +293,12 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   // Fetch route directions from current location to drop
   useEffect(() => {
     const fetchRouteDirections = async () => {
-      if (!location || !drop) {
+      if (!pickup || !drop) {
         setRouteCoords([]);
         return;
       }
-      const apiKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY; // From env
-      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${location.latitude},${location.longitude}&destination=${drop.latitude},${drop.longitude}&key=${apiKey}`;
+      const apiKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+      const url = `https://maps.googleapis.com/maps/api/directions/json?origin=${pickup.latitude},${pickup.longitude}&destination=${drop.latitude},${drop.longitude}&key=${apiKey}`;
       try {
         const response = await fetch(url);
         const json = await response.json();
@@ -316,7 +314,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
       }
     };
     fetchRouteDirections();
-  }, [location, drop]);
+  }, [pickup, drop]);
 
   // Dynamically update current location marker as user moves
   useEffect(() => {
@@ -347,29 +345,37 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           ref={mapRef}
           provider={PROVIDER_GOOGLE}
           style={styles.map}
-          initialRegion={{
+          initialRegion={pickup && drop ? {
             latitude: (pickup.latitude + drop.latitude) / 2,
             longitude: (pickup.longitude + drop.longitude) / 2,
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
+          } : {
+            latitude: 20.5937, // fallback to India center
+            longitude: 78.9629,
+            latitudeDelta: 10,
+            longitudeDelta: 10,
           }}
           showsUserLocation
         >
           {/* Render the route from current location (blue dot) to destination (red pin) */}
-          {location && drop && routeCoords.length > 0 && (
+          {pickup && drop && routeCoords.length > 0 && (
             <Polyline
               coordinates={routeCoords}
               strokeColor="#222"
               strokeWidth={4}
             />
           )}
-          {/* Pickup Marker */}
-          {/* Removed pickup marker as requested */}
-          {/* Drop Marker */}
-          {/* Drop Marker (red pin) - only if set */}
+          {/* Pickup Marker (green pin) */}
+          {pickup && (
+            <Marker coordinate={pickup} pinColor="#22c55e">
+              <Ionicons name="location-sharp" size={32} color="#22c55e" />
+            </Marker>
+          )}
+          {/* Drop Marker (red pin) */}
           {drop && (
-            <Marker coordinate={drop} pinColor="red">
-              <Ionicons name="location" size={32} color="#ef4444" />
+            <Marker coordinate={drop} pinColor="#ef4444">
+              <Ionicons name="location-sharp" size={32} color="#ef4444" />
             </Marker>
           )}
           {/* Animated Vehicle Markers */}
@@ -384,11 +390,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
             </Marker>
           ))}
           {/* Current Location Marker (green pin) - updates dynamically */}
-          {location && (
-            <Marker coordinate={location} pinColor="green">
-              <Ionicons name="location" size={32} color="#22c55e" />
-            </Marker>
-          )}
+          {/* Remove the green pin for the user's current GPS location. Only show the green pin for the selected pickup location. */}
         </MapView>
         {/* Chips overlay */}
         <View style={styles.chipContainer} pointerEvents="box-none">

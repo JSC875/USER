@@ -1,61 +1,61 @@
-export const PRIMARY_GREEN = '#219C7E';
-export const TITLE_COLOR = '#111827';
-export const SUBTITLE_COLOR = '#6B7280';
+export const PRIMARY_GREEN = '#2ecc71'; // Emerald Green
+export const TITLE_COLOR = '#2c3e50'; // Charcoal Grey
+export const SUBTITLE_COLOR = '#7f8c8d'; // Cool Grey
 
 export const Colors = {
   // Primary Colors
-  primary: PRIMARY_GREEN,
-  primaryDark: '#0e7490',
-  primaryLight: '#22d3ee',
-  
+  primary: PRIMARY_GREEN, // Emerald Green
+  primaryDark: '#228B22', // Forest Green
+  primaryLight: '#a8e6cf', // Mint Green
+
   // Secondary Colors
-  secondary: '#1e293b', // Navy Blue
-  secondaryLight: '#334155',
-  
+  secondary: '#2c3e50', // Charcoal Grey
+  secondaryLight: '#7f8c8d', // Cool Grey
+
   // Accent Colors
-  accent: '#f97316', // Orange
-  accentLight: '#fb923c',
-  coral: '#FF6B6B',
-  
+  accent: '#2ecc71', // Emerald Green (using as accent for consistency)
+  accentLight: '#a8e6cf', // Mint Green
+  coral: '#FF6B6B', // Keeping as is for status/alerts
+
   // Neutral Colors
   white: '#FFF',
   black: '#000000',
-  gray50: '#f8fafc',
-  gray100: '#F3F4F6',
-  gray200: '#E5E7EB',
-  gray300: '#cbd5e1',
-  gray400: '#9CA3AF',
-  gray500: '#64748b',
-  gray600: '#475569',
-  gray700: '#334155',
-  gray800: '#1e293b',
-  gray900: '#0f172a',
-  
+  gray50: '#ecf0f1', // Light Slate
+  gray100: '#ecf0f1', // Light Slate
+  gray200: '#ecf0f1', // Light Slate
+  gray300: '#a8e6cf', // Mint Green as a light neutral
+  gray400: '#7f8c8d', // Cool Grey
+  gray500: '#7f8c8d', // Cool Grey
+  gray600: '#2c3e50', // Charcoal Grey
+  gray700: '#2c3e50', // Charcoal Grey
+  gray800: '#228B22', // Forest Green (for dark mode/contrast)
+  gray900: '#2c3e50', // Charcoal Grey
+
   // Status Colors
-  success: '#10b981',
-  warning: '#f59e0b',
-  error: '#ef4444',
-  info: '#3b82f6',
-  
+  success: '#2ecc71', // Emerald Green
+  warning: '#f59e0b', // Keeping as is
+  error: '#ef4444', // Keeping as is
+  info: '#3b82f6', // Keeping as is
+
   // Background Colors
-  background: '#F8F9FB',
-  surface: '#f8fafc',
+  background: '#ecf0f1', // Light Slate
+  surface: '#a8e6cf', // Mint Green
   card: '#FFF',
-  
+
   // Text Colors
-  text: '#1e293b',
-  textSecondary: '#64748b',
-  textLight: '#94a3b8',
+  text: '#2c3e50', // Charcoal Grey
+  textSecondary: '#7f8c8d', // Cool Grey
+  textLight: '#a8e6cf', // Mint Green (for very light text)
   textInverse: '#ffffff',
-  
+
   // Border Colors
-  border: '#E5E7EB',
-  borderLight: '#f1f5f9',
-  
+  border: '#ecf0f1', // Light Slate
+  borderLight: '#a8e6cf', // Mint Green
+
   // Shadow Colors
-  shadow: '#000',
-  shadowDark: 'rgba(0, 0, 0, 0.2)',
-  
+  shadow: '#2c3e50', // Charcoal Grey
+  shadowDark: 'rgba(44, 62, 80, 0.2)', // Charcoal Grey with opacity
+
   title: TITLE_COLOR,
   subtitle: SUBTITLE_COLOR,
 };
