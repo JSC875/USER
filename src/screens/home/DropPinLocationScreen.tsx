@@ -1,6 +1,6 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator, Alert, ToastAndroid, Platform, TextInput, Button, Modal, Keyboard } from 'react-native';
-import MapView, { Region, PROVIDER_GOOGLE } from 'react-native-maps';
+import MapView, { Region, PROVIDER_GOOGLE, Circle } from 'react-native-maps';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Colors } from '../../constants/Colors';
@@ -41,15 +41,27 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
   const [savedLocations, setSavedLocations] = useState<{ home?: any; work?: any; custom?: any[] }>({});
   const [showSavedModal, setShowSavedModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [accuracy, setAccuracy] = useState<number | null>(null);
 
   useEffect(() => {
+    // If coordinates are passed in, use them for initial region
+    if (route?.params?.latitude && route?.params?.longitude) {
+      setRegion({
+        latitude: route.params.latitude,
+        longitude: route.params.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      });
+      if (route.params.accuracy) setAccuracy(route.params.accuracy);
+      reverseGeocode(route.params.latitude, route.params.longitude);
+    } else {
     (async () => {
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         // Permission denied, keep default region
         return;
       }
-      let loc = await Location.getCurrentPositionAsync({});
+        let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
       const newRegion = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
@@ -57,10 +69,12 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
         longitudeDelta: 0.01,
       };
       setRegion(newRegion);
+        setAccuracy(loc.coords.accuracy || null);
       mapRef.current?.animateToRegion(newRegion, 800);
       // Fetch address for the initial location
       reverseGeocode(loc.coords.latitude, loc.coords.longitude);
     })();
+    }
   }, []);
 
   // Reverse geocode using provided API key
@@ -217,7 +231,17 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
           onRegionChangeComplete={handleRegionChangeComplete}
           showsUserLocation
           showsMyLocationButton={false}
-        />
+        >
+          {/* Draw accuracy circle if available */}
+          {accuracy && (
+            <Circle
+              center={{ latitude: region.latitude, longitude: region.longitude }}
+              radius={accuracy}
+              strokeColor="rgba(30, 144, 255, 0.5)"
+              fillColor="rgba(30, 144, 255, 0.15)"
+            />
+          )}
+        </MapView>
         {/* Floating Center Pin (emoji for Rapido style) */}
         <View pointerEvents="none" style={styles.pinContainer}>
           <View style={{ alignItems: 'center', justifyContent: 'center' }}>
@@ -368,11 +392,11 @@ const styles = StyleSheet.create({
   myLocationBtn: {
     position: 'absolute',
     right: Layout.spacing.md,
-    bottom: Layout.spacing.xl,
+    bottom: 80, // Move higher up to avoid bottom sheet overlap
     backgroundColor: Colors.white,
     borderRadius: 22,
     width: 44,
-    height: 70,
+    height: 40,
     alignItems: 'center',
     justifyContent: 'center',
     shadowColor: Colors.shadow,
