@@ -40,6 +40,9 @@ export default function RideOptionsScreen({ navigation, route }: any) {
 
   // Calculate real ride options based on distance and duration
   useEffect(() => {
+    console.log('🔍 RideOptions - Pickup coordinates:', pickup);
+    console.log('🔍 RideOptions - Drop coordinates:', drop);
+    
     if (pickup && drop && pickup.latitude && pickup.longitude && drop.latitude && drop.longitude) {
       const distanceKm = getDistanceFromLatLonInKm(
         pickup.latitude,
@@ -86,15 +89,21 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const [routeCoords, setRouteCoords] = useState([]);
   const [location, setLocation] = useState<{ latitude: number; longitude: number } | null>(null);
   
-
-  const mockVehicles = [
-    { id: 1, latitude: 17.443, longitude: 78.381, heading: 45 },
-    { id: 2, latitude: 17.442, longitude: 78.383, heading: 90 },
-    { id: 3, latitude: 17.445, longitude: 78.384, heading: 120 },
-    { id: 4, latitude: 17.440, longitude: 78.379, heading: 200 },
-    { id: 5, latitude: 17.4435, longitude: 78.378, heading: 300 },
-    // Add more for more icons
-  ];
+  // Dynamic mock vehicles based on pickup location
+  const mockVehicles = useMemo(() => {
+    if (!pickup || !pickup.latitude || !pickup.longitude) {
+      return [];
+    }
+    
+    // Generate vehicles around the pickup location
+    return [
+      { id: 1, latitude: pickup.latitude + 0.001, longitude: pickup.longitude + 0.001, heading: 45 },
+      { id: 2, latitude: pickup.latitude - 0.001, longitude: pickup.longitude + 0.002, heading: 90 },
+      { id: 3, latitude: pickup.latitude + 0.002, longitude: pickup.longitude - 0.001, heading: 120 },
+      { id: 4, latitude: pickup.latitude - 0.002, longitude: pickup.longitude - 0.002, heading: 200 },
+      { id: 5, latitude: pickup.latitude + 0.0015, longitude: pickup.longitude - 0.0015, heading: 300 },
+    ];
+  }, [pickup]);
 
   // Animated vehicle marker (rotation)
   const animatedMarkers = mockVehicles.map((v) => {
@@ -280,6 +289,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
 
   // Fit map to route on mount
   useEffect(() => {
+    console.log('🗺️ Fitting map to coordinates - Pickup:', pickup, 'Drop:', drop);
     if (mapRef.current && pickup && drop) {
       setTimeout(() => {
         mapRef.current?.fitToCoordinates([pickup, drop], {
