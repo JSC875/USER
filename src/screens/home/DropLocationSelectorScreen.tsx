@@ -68,12 +68,12 @@ function isValidLocation(loc: any) {
 }
 
 // Helper: Default location (Hyderabad)
-const DEFAULT_LOCATION = {
-  latitude: 17.4448,
-  longitude: 78.3498,
-  address: 'Default Current Location',
-  name: 'Current Location',
-};
+// const DEFAULT_LOCATION = {
+//   latitude: 17.4448,
+//   longitude: 78.3498,
+//   address: 'Default Current Location',
+//   name: 'Current Location',
+// };
 
 export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [dropLocation, setDropLocation] = useState<any>(null);
@@ -94,6 +94,33 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [friendName, setFriendName] = useState('');
   const [friendPhone, setFriendPhone] = useState('');
 
+  // Fetch actual current location on component mount
+  useEffect(() => {
+    const fetchCurrentLocation = async () => {
+      try {
+        let { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== 'granted') {
+          console.log('Location permission denied');
+          return;
+        }
+        
+        let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+        const dynamicLocation = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          address: 'Current Location',
+          name: 'Current Location',
+        };
+        console.log('📍 Dynamic current location fetched:', dynamicLocation);
+        setCurrentLocation(dynamicLocation);
+      } catch (error) {
+        console.error('Error fetching current location:', error);
+      }
+    };
+    
+    fetchCurrentLocation();
+  }, []);
+
   useEffect(() => {
     if (route.params?.pickup) {
       setCurrentLocation(route.params.pickup);
@@ -108,14 +135,17 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       if (!autoProceedHandled.current) {
         autoProceedHandled.current = true;
         setTimeout(() => {
-          // Defensive: fallback to default if currentLocation is null
-          const pickup = isValidLocation(currentLocation) ? currentLocation : DEFAULT_LOCATION;
-          if (!isValidLocation(pickup) || !isValidLocation(route.params.destination)) {
+          // Use currentLocation if available, otherwise show error
+          if (!currentLocation) {
+            Alert.alert('Error', 'Current location is not available. Please try again.');
+            return;
+          }
+          if (!isValidLocation(currentLocation) || !isValidLocation(route.params.destination)) {
             Alert.alert('Error', 'Current location or drop location is missing or invalid.');
             return;
           }
           navigation.replace('RideOptions', {
-            pickup,
+            pickup: currentLocation,
             drop: route.params.destination,
             forWhom,
             friendName,
@@ -149,7 +179,12 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   useEffect(() => {
     if (!currentLocation) {
-      setCurrentLocation(DEFAULT_LOCATION);
+      setCurrentLocation({
+        latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
+        longitude: 78.3498,
+        address: 'Current Location',
+        name: 'Current Location',
+      });
     }
   }, [currentLocation]);
 
@@ -354,19 +389,15 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         Alert.alert('Permission to access location was denied');
         return;
       }
-      let loc = await Location.getCurrentPositionAsync({});
-      location = {
+      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      setSearchQuery(item.address || item.name || 'Current Location'); // Ensure the text stays
+      // Instead of setting pickup immediately, navigate to DropPinLocationScreen for confirmation
+      navigation.navigate('DropPinLocation', {
+        mode: 'pickup',
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
-        address: 'Current Location',
-        name: 'Current Location',
-      };
-      setCurrentLocation(location);
-      setSearchQuery('Current Location');
-      setEditing(null);
-      setSearchResults([]);
-      setNoResults(false);
-      Keyboard.dismiss();
+        accuracy: loc.coords.accuracy,
+      });
       return;
     }
     // Handle offline results (they already have coordinates)
@@ -397,7 +428,12 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       setNoResults(false);
       Keyboard.dismiss();
       // Defensive: fallback to default if currentLocation is null
-      const pickup = isValidLocation(currentLocation) ? currentLocation : DEFAULT_LOCATION;
+      const pickup = isValidLocation(currentLocation) ? currentLocation : {
+        latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
+        longitude: 78.3498,
+        address: 'Current Location',
+        name: 'Current Location',
+      };
       if (isValidLocation(pickup) && isValidLocation(location)) {
         navigation.replace('RideOptions', {
           pickup,
@@ -426,7 +462,12 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   const handleConfirmDrop = () => {
     // Defensive: fallback to default if currentLocation is null
-    const pickup = isValidLocation(currentLocation) ? currentLocation : DEFAULT_LOCATION;
+    const pickup = isValidLocation(currentLocation) ? currentLocation : {
+      latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
+      longitude: 78.3498,
+      address: 'Current Location',
+      name: 'Current Location',
+    };
     if (isValidLocation(pickup) && isValidLocation(dropLocation)) {
       navigation.replace('RideOptions', {
         pickup,
@@ -685,7 +726,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
                     <Ionicons name="square" size={18} color={'#E53935'} style={{ marginTop: 2 }} />
                   </View>
                   <View style={{ flex: 1, justifyContent: 'center' }}>
-                    <TouchableOpacity onPress={() => { setEditing('current'); setSearchQuery(currentLocation?.address || currentLocation?.name || ''); }} activeOpacity={0.8}>
+                    <TouchableOpacity onPress={() => { setEditing('current'); setSearchQuery(''); }} activeOpacity={0.8}>
                       {editing === 'current' ? (
                         <TextInput
                           style={{ color: '#222', fontWeight: 'bold', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginBottom: 0 }}
