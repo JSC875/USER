@@ -1,21 +1,20 @@
 import { io, Socket } from "socket.io-client";
 import { getUserIdFromJWT, getUserTypeFromJWT } from "./jwtDecoder";
 import { Alert } from "react-native";
-import Constants from 'expo-constants';
+import { socketConfig, isDevelopment, isProduction, isAPK } from "../config/environment";
 
 // Configuration for socket connection
-const SOCKET_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL || process.env.EXPO_PUBLIC_SOCKET_URL || 'https://testsocketio-roqet.up.railway.app'; // From Constants with fallback
+const SOCKET_URL = socketConfig.url;
 
-console.log('🔧 Socket URL configured:', SOCKET_URL, 'DEV mode:', __DEV__);
-console.log('🔧 Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL:', Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL);
-console.log('🔧 process.env.EXPO_PUBLIC_SOCKET_URL:', process.env.EXPO_PUBLIC_SOCKET_URL);
+if (isDevelopment) {
+  console.log('🔧 Socket URL configured:', SOCKET_URL, 'DEV mode:', __DEV__);
+  console.log('🔧 Socket configuration:', socketConfig);
+}
 
 // Validate socket URL
 if (!SOCKET_URL || SOCKET_URL === 'undefined') {
   console.error('❌ CRITICAL: Socket URL is not configured properly!');
-  console.error('❌ Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL:', Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL);
-  console.error('❌ process.env.EXPO_PUBLIC_SOCKET_URL:', process.env.EXPO_PUBLIC_SOCKET_URL);
-  console.error('❌ Using fallback URL:', 'https://testsocketio-roqet.up.railway.app');
+  console.error('❌ Socket URL from config:', SOCKET_URL);
 }
 
 let socket: Socket | null = null;
@@ -133,7 +132,7 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   if (!SOCKET_URL || SOCKET_URL === 'undefined' || SOCKET_URL === 'null') {
     console.error('❌ Cannot connect: Socket URL is invalid');
     console.error('❌ SOCKET_URL:', SOCKET_URL);
-    console.error('❌ EXPO_PUBLIC_SOCKET_URL:', Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL || process.env.EXPO_PUBLIC_SOCKET_URL);
+    console.error('❌ Socket configuration:', socketConfig);
     throw new Error('Socket URL is not configured. Please check environment variables.');
   }
   
@@ -142,7 +141,7 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   const userAgent = isProduction ? 'ReactNative-APK' : 'ReactNative';
   
   // Enhanced socket configuration for better APK compatibility
-  const socketConfig = {
+  const socketOptions = {
     transports: ["websocket"], // Force WebSocket only for better reliability
     query: {
       type: userType,
@@ -151,10 +150,10 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
       version: '1.0.0'
     },
     reconnection: true,
-    reconnectionAttempts: isProduction ? 25 : 15, // More retries in production
-    reconnectionDelay: isProduction ? 1500 : 1000, // Shorter delay in production
-    reconnectionDelayMax: isProduction ? 8000 : 5000, // Shorter max delay in production
-    timeout: isProduction ? 25000 : 20000, // Longer timeout in production
+    reconnectionAttempts: isProduction ? socketConfig.reconnectionAttempts * 2 : socketConfig.reconnectionAttempts,
+    reconnectionDelay: isProduction ? socketConfig.reconnectionDelay * 1.5 : socketConfig.reconnectionDelay,
+    reconnectionDelayMax: isProduction ? socketConfig.reconnectionDelayMax * 1.6 : socketConfig.reconnectionDelayMax,
+    timeout: isProduction ? socketConfig.timeout * 1.25 : socketConfig.timeout,
     forceNew: true,
     upgrade: false, // Disable upgrade to prevent transport switching issues
     rememberUpgrade: false,
@@ -172,16 +171,16 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     rejectUnauthorized: false,
     // APK-specific settings
     ...(isProduction && {
-      pingTimeout: 60000,
-      pingInterval: 25000,
-      maxReconnectionAttempts: 25,
-      reconnectionAttempts: 25
+      pingTimeout: socketConfig.pingTimeout,
+      pingInterval: socketConfig.pingInterval,
+      maxReconnectionAttempts: socketConfig.reconnectionAttempts * 2,
+      reconnectionAttempts: socketConfig.reconnectionAttempts * 2
     })
   };
 
-  console.log('🔧 Socket configuration:', socketConfig);
+  console.log('🔧 Socket configuration:', socketOptions);
   
-  socket = io(SOCKET_URL, socketConfig);
+  socket = io(SOCKET_URL, socketOptions);
 
   // Add connection event listeners
   socket.on("connect", () => {

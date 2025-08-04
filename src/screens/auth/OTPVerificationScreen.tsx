@@ -3,18 +3,20 @@ import {
   View,
   Text,
   StyleSheet,
-  TextInput,
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
+  ScrollView,
+  TextInput,
   Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { useSignIn, useSignUp, useUser } from '@clerk/clerk-expo';
+import { useSignIn, useSignUp, useUser, useAuth } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
+import { logJWTDetails } from '../../utils/jwtDecoder';
 import { useAssignUserType } from '../../utils/helpers';
 
 export default function OTPVerificationScreen({ navigation, route }: any) {
@@ -27,7 +29,8 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
   const { signIn, setActive: setSignInActive } = useSignIn();
   const { signUp, setActive: setSignUpActive } = useSignUp();
   const { user } = useUser();
-  
+  const { getToken } = useAuth();
+
   const inputRefs = useRef<(TextInput | null)[]>([]);
 
   // Assign customer type to user
@@ -107,6 +110,17 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
               unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
             });
             console.log('OTPVerificationScreen - User type set to customer');
+            
+            // Force new JWT with updated userType
+            if (typeof getToken === 'function') {
+              const newToken = await getToken({ template: 'my_app_token', skipCache: true });
+              console.log('OTPVerificationScreen - New JWT with userType (sign-in):', newToken ? 'Generated' : 'Failed');
+              
+              // Log the JWT details to verify custom fields
+              if (newToken) {
+                await logJWTDetails(getToken, 'OTP Sign-In JWT Analysis');
+              }
+            }
           }
           
           if (setSignInActive) {

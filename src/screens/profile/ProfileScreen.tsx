@@ -67,6 +67,10 @@ export default function ProfileScreen({ navigation, route }: any) {
       if (route?.params?.updatedPhoto) {
         setProfilePhoto(route.params.updatedPhoto);
       }
+      if (route?.params?.updatedProfile) {
+        // Refresh profile data if updated
+        console.log('Profile updated:', route.params.updatedProfile);
+      }
     }, [route])
   );
 

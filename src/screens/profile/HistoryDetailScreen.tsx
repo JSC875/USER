@@ -22,9 +22,9 @@ const StarRating = ({ rating }: { rating: number }) => {
   return <View style={{ flexDirection: 'row', alignItems: 'center' }}>{stars}</View>;
 };
 
-function formatDateTime(dateStr: string, timeStr: string) {
-  // Simple formatting, expects date as 'YYYY-MM-DD' or similar, time as 'HH:mm'
-  const date = new Date(`${dateStr}T${timeStr}`);
+function formatDateTime(dateStr: string) {
+  // Format ISO date string to readable format
+  const date = new Date(dateStr);
   return date.toLocaleString();
 }
 
@@ -70,22 +70,22 @@ export default function HistoryDetailScreen({ route }: any) {
         <View style={styles.detailRow}>
           <Ionicons name="navigate" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
           <Text style={styles.detailLabel}>Distance:</Text>
-          <Text style={styles.detailValue}>{formatDistance(ride.distance)}</Text>
+          <Text style={styles.detailValue}>{formatDistance(ride.distance || 0)}</Text>
         </View>
         <View style={styles.detailRow}>
           <Ionicons name="location" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
           <Text style={styles.detailLabel}>Pickup:</Text>
-          <Text style={styles.detailValue}>{ride.fromAddress || ride.from}</Text>
+          <Text style={styles.detailValue}>{ride.pickupLocation?.address || 'Pickup Location'}</Text>
         </View>
         <View style={styles.detailRow}>
           <Ionicons name="flag" size={18} color={Colors.coral} style={{ marginRight: 8 }} />
           <Text style={styles.detailLabel}>Drop:</Text>
-          <Text style={styles.detailValue}>{ride.toAddress || ride.to}</Text>
+          <Text style={styles.detailValue}>{ride.dropLocation?.address || 'Destination'}</Text>
         </View>
         <View style={styles.detailRow}>
           <Ionicons name="calendar" size={18} color={Colors.primary} style={{ marginRight: 8 }} />
           <Text style={styles.detailLabel}>Date & Time:</Text>
-          <Text style={styles.detailValue}>{formatDateTime(ride.date, ride.time)}</Text>
+          <Text style={styles.detailValue}>{formatDateTime(ride.createdAt)}</Text>
         </View>
       </View>
 

@@ -15,6 +15,7 @@ import { useUser, useAuth } from '@clerk/clerk-expo';
 import { calculateRideFare, getDistanceFromLatLonInKm } from '../../utils/helpers';
 import { getUserIdFromJWT } from '../../utils/jwtDecoder';
 import { Images } from '../../constants/Images';
+import { rideApi, RideRequestResponse } from '../../services/rideService';
 
 const { width, height } = Dimensions.get('window');
 
@@ -142,7 +143,8 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     setBookingError(null);
     
     try {
-      console.log('🚗 Starting ride booking process...');
+      console.log('🚗 === STARTING RIDE BOOKING PROCESS ===');
+      console.log('🔍 === DETAILED BOOKING FLOW LOG ===');
       
       // Get the selected ride option details
       const selectedRide = rideOptions.find(o => o.id === selected);
@@ -172,11 +174,11 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         }, 500);
       }
       
-      console.log('📤 Preparing ride request data...');
+      console.log('📤 Step 1: Preparing ride request data...');
       console.log('📍 Pickup:', pickup);
       console.log('🎯 Drop:', drop);
       
-      // Send full pickup and drop objects
+      // Step 1: Prepare ride request data
       const rideRequest = {
         pickup,
         drop: {
@@ -192,20 +194,58 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         userId: await getUserIdFromJWT(getToken), // Use JWT user ID for consistency
       };
       
-      console.log('🚗 Sending ride booking request:', rideRequest);
-      const success = emitEvent('request_ride', rideRequest);
+      console.log('🚗 Ride request data prepared:', rideRequest);
+
+      // Step 2: Call API endpoint first
+      console.log('🌐 === CALLING API ENDPOINT FIRST ===');
+      console.log('🎯 Step 2: Converting to API payload...');
+      const apiPayload = rideApi.convertToApiPayload(rideRequest);
+      console.log('📦 API Payload:', apiPayload);
+      
+      console.log('🚀 Step 3: Making API call to /api/rides/request...');
+      const apiResponse: RideRequestResponse = await rideApi.requestRide(apiPayload, getToken as () => Promise<string>);
+      console.log('✅ API Response received:', apiResponse);
+      console.log('📊 API Response Details:');
+      console.log('   - Ride ID:', apiResponse.id);
+      console.log('   - Status:', apiResponse.status);
+      console.log('   - Estimated Fare:', apiResponse.estimatedFare);
+      console.log('   - Requested At:', apiResponse.requestedAt);
+      
+      // Step 3: Send Socket.IO event with API response data
+      console.log('🔌 === SENDING SOCKET.IO EVENT WITH API DATA ===');
+      const socketRideRequest = {
+        ...rideRequest,
+        rideId: apiResponse.id, // Use the ride ID from API response
+        estimatedFare: apiResponse.estimatedFare,
+        status: apiResponse.status,
+      };
+      
+      console.log('🔌 Socket ride request:', socketRideRequest);
+      console.log('📤 Attempting to emit event: request_ride');
+      const success = emitEvent('request_ride', socketRideRequest);
       
       if (!success) {
         throw new Error('Unable to connect to server. Please check your internet connection.');
       }
       
-      console.log('✅ Ride booking request sent successfully');
+      console.log('✅ Socket.IO event sent successfully');
+      console.log('🎉 === RIDE BOOKING COMPLETED SUCCESSFULLY ===');
+      console.log('📋 Final Ride Details:');
+      console.log('   - Ride ID:', apiResponse.id);
+      console.log('   - Estimated Fare: ₹', apiResponse.estimatedFare.toFixed(2));
+      console.log('   - Status:', apiResponse.status);
+      console.log('   - Pickup:', pickup);
+      console.log('   - Drop:', drop);
       
       // Don't navigate immediately - wait for server response
       // The navigation will happen in the useEffect below when we receive 'ride_booked' event
       
-    } catch (error) {
-      console.error('❌ Ride booking failed:', error);
+    } catch (error: any) {
+      console.error('❌ === RIDE BOOKING FAILED ===');
+      console.error('Error details:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
       setBookingError(error instanceof Error ? error.message : 'Booking failed. Please try again.');
       Alert.alert('Booking Failed', error instanceof Error ? error.message : 'Booking failed. Please try again.');
     } finally {
@@ -405,13 +445,13 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         {/* Chips overlay */}
         <View style={styles.chipContainer} pointerEvents="box-none">
           <View style={[styles.chip, { left: width * 0.25, top: 30 }]}> 
-            <Text numberOfLines={1} style={styles.chipText}>{pickup.address}</Text>
+            <Text numberOfLines={1} style={styles.chipText}>{pickup?.address || 'Pickup Location'}</Text>
             <TouchableOpacity onPress={handleEditPickup} style={styles.chipEdit}>
               <Ionicons name="pencil" size={16} color="#222" />
             </TouchableOpacity>
           </View>
           <View style={[styles.chip, { left: width * 0.55, top: 80 }]}> 
-            <Text numberOfLines={1} style={styles.chipText}>{drop.address}</Text>
+            <Text numberOfLines={1} style={styles.chipText}>{drop?.address || 'Destination'}</Text>
             <TouchableOpacity onPress={handleEditDrop} style={styles.chipEdit}>
               <Ionicons name="pencil" size={16} color="#222" />
             </TouchableOpacity>

@@ -20,6 +20,7 @@ import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import { logJWTDetails } from '../../utils/jwtDecoder';
 
 // Types
 interface NameStepProps {
@@ -570,6 +571,24 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
         console.log('SignUpScreen - Phone verification successful!');
         console.log('SignUpScreen - Missing fields:', completeSignUp?.missingFields);
         
+        // Set userType in Clerk metadata immediately after phone verification
+        if (user) {
+          try {
+            await user.update({
+              unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
+            });
+            console.log('SignUpScreen - User type set to customer after phone verification');
+            
+            // Force new JWT with updated userType
+            if (typeof getToken === 'function') {
+              const newToken = await getToken({ template: 'my_app_token', skipCache: true });
+              console.log('SignUpScreen - New JWT with userType after phone verification:', newToken ? 'Generated' : 'Failed');
+            }
+          } catch (metadataErr) {
+            console.error('SignUpScreen - Error setting user type after phone verification:', metadataErr);
+          }
+        }
+        
         // Check if we have all required fields (phone is verified, but we still need first_name and last_name)
         if (completeSignUp?.missingFields?.includes('first_name') || completeSignUp?.missingFields?.includes('last_name')) {
           console.log('SignUpScreen - Phone verified but missing name fields, proceeding to next step');
@@ -687,18 +706,29 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
           }
         }
       }
+      
       // Set userType in Clerk metadata if user is available
       if (user) {
-        await user.update({
-          firstName: firstName.trim(),
-          lastName: lastName.trim(),
-          unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
-        });
-        console.log('SignUpScreen - Clerk user updated with name');
-        // Force new JWT with updated userType
-        if (typeof getToken === 'function') {
-          const newToken = await getToken({ template: 'my_app_token', skipCache: true });
-          console.log('SignUpScreen - New JWT with userType:', newToken);
+        try {
+          await user.update({
+            firstName: firstName.trim(),
+            lastName: lastName.trim(),
+            unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
+          });
+          console.log('SignUpScreen - Clerk user updated with name and userType');
+          
+          // Force new JWT with updated userType and name fields
+          if (typeof getToken === 'function') {
+            const newToken = await getToken({ template: 'my_app_token', skipCache: true });
+            console.log('SignUpScreen - New JWT with complete user data:', newToken ? 'Generated' : 'Failed');
+            
+            // Log the JWT details to verify custom fields
+            if (newToken) {
+              await logJWTDetails(getToken, 'SignUp Profile Completion JWT Analysis');
+            }
+          }
+        } catch (userUpdateErr) {
+          console.error('SignUpScreen - Error updating user data:', userUpdateErr);
         }
       }
       
