@@ -101,7 +101,16 @@ export default function RideInProgressScreen({ navigation, route }: any) {
   }, []);
 
   const handleChat = () => {
-    navigation.navigate('Chat', { driver: driverInfo });
+    console.log('🔗 Navigating to Chat with data:', { 
+      ride: { rideId: rideId },
+      driver: driverInfo,
+      userId: route.params.userId || 'user123'
+    });
+    navigation.navigate('Chat', { 
+      ride: { rideId: rideId },
+      driver: driverInfo,
+      userId: route.params.userId || 'user123'
+    });
   };
 
   const handleCall = () => {

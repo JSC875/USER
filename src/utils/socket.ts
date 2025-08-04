@@ -81,6 +81,45 @@ export type RideCompletedCallback = (data: {
   timestamp: number;
 }) => void;
 
+// Chat event types
+export type ChatMessageCallback = (data: {
+  id: string;
+  rideId: string;
+  senderId: string;
+  senderType: 'user' | 'driver';
+  message: string;
+  timestamp: string;
+  isRead: boolean;
+}) => void;
+
+export type ChatHistoryCallback = (data: {
+  rideId: string;
+  messages: Array<{
+    id: string;
+    rideId: string;
+    senderId: string;
+    senderType: 'user' | 'driver';
+    message: string;
+    timestamp: string;
+    isRead: boolean;
+  }>;
+  totalMessages: number;
+}) => void;
+
+export type TypingIndicatorCallback = (data: {
+  rideId: string;
+  isTyping: boolean;
+  senderId: string;
+  senderType: 'user' | 'driver';
+}) => void;
+
+export type MessagesReadCallback = (data: {
+  rideId: string;
+  readBy: string;
+  readByType: 'user' | 'driver';
+  timestamp: number;
+}) => void;
+
 // Event callbacks
 let onRideBookedCallback: RideBookedCallback | null = null;
 let onRideAcceptedCallback: RideAcceptedCallback | null = null;
@@ -90,6 +129,12 @@ let onDriverOfflineCallback: DriverOfflineCallback | null = null;
 let onDriverDisconnectedCallback: DriverDisconnectedCallback | null = null;
 let onRideTimeoutCallback: RideTimeoutCallback | null = null;
 let onRideCompletedCallback: RideCompletedCallback | null = null;
+
+// Chat event callbacks
+let onChatMessageCallback: ChatMessageCallback | null = null;
+let onChatHistoryCallback: ChatHistoryCallback | null = null;
+let onTypingIndicatorCallback: TypingIndicatorCallback | null = null;
+let onMessagesReadCallback: MessagesReadCallback | null = null;
 
 export const connectSocket = (userId: string, userType: string = "customer") => {
   // Prevent duplicate connections for the same user
@@ -218,6 +263,49 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
       ? `${data.message}\n\nCancellation fee: ₹${data.cancellationFee}`
       : data.message;
     Alert.alert('Ride Cancelled', message);
+  });
+
+  // Chat event listeners
+  socket.on("receive_chat_message", (data) => {
+    console.log("💬 Received chat message:", data);
+    if (onChatMessageCallback) {
+      onChatMessageCallback(data);
+    }
+  });
+
+  socket.on("chat_history", (data) => {
+    console.log("📚 Received chat history:", data);
+    if (onChatHistoryCallback) {
+      onChatHistoryCallback(data);
+    }
+  });
+
+  socket.on("typing_indicator", (data) => {
+    console.log("⌨️ Typing indicator:", data);
+    if (onTypingIndicatorCallback) {
+      onTypingIndicatorCallback(data);
+    }
+  });
+
+  socket.on("messages_read", (data) => {
+    console.log("👁️ Messages read:", data);
+    if (onMessagesReadCallback) {
+      onMessagesReadCallback(data);
+    }
+  });
+
+  socket.on("chat_message_sent", (data) => {
+    console.log("✅ Chat message sent successfully:", data);
+  });
+
+  socket.on("chat_message_error", (data) => {
+    console.log("❌ Chat message error:", data);
+    Alert.alert('Chat Error', data.message || 'Failed to send message.');
+  });
+
+  socket.on("chat_history_error", (data) => {
+    console.log("❌ Chat history error:", data);
+    Alert.alert('Chat Error', data.message || 'Failed to load chat history.');
   });
   
   socket.on("disconnect", (reason) => {
@@ -663,6 +751,84 @@ export const onRideCompleted = (callback: RideCompletedCallback) => {
   onRideCompletedCallback = callback;
 };
 
+// Chat callback setters
+export const onChatMessage = (callback: ChatMessageCallback) => {
+  onChatMessageCallback = callback;
+};
+
+export const onChatHistory = (callback: ChatHistoryCallback) => {
+  onChatHistoryCallback = callback;
+};
+
+export const onTypingIndicator = (callback: TypingIndicatorCallback) => {
+  onTypingIndicatorCallback = callback;
+};
+
+export const onMessagesRead = (callback: MessagesReadCallback) => {
+  onMessagesReadCallback = callback;
+};
+
+// Chat methods
+export const sendChatMessage = (data: {
+  rideId: string;
+  senderId: string;
+  senderType: 'user' | 'driver';
+  message: string;
+}) => {
+  if (socket && socket.connected) {
+    console.log("💬 Sending chat message:", data);
+    socket.emit("send_chat_message", data);
+  } else {
+    console.error("❌ Cannot send chat message: Socket not connected");
+  }
+};
+
+export const getChatHistory = (data: {
+  rideId: string;
+  requesterId: string;
+  requesterType: 'user' | 'driver';
+}) => {
+  if (socket && socket.connected) {
+    console.log("📚 Requesting chat history:", data);
+    socket.emit("get_chat_history", data);
+  } else {
+    console.error("❌ Cannot get chat history: Socket not connected");
+  }
+};
+
+export const markMessagesAsRead = (data: {
+  rideId: string;
+  readerId: string;
+  readerType: 'user' | 'driver';
+}) => {
+  if (socket && socket.connected) {
+    console.log("👁️ Marking messages as read:", data);
+    socket.emit("mark_messages_read", data);
+  } else {
+    console.error("❌ Cannot mark messages as read: Socket not connected");
+  }
+};
+
+export const sendTypingStart = (data: {
+  rideId: string;
+  senderId: string;
+  senderType: 'user' | 'driver';
+}) => {
+  if (socket && socket.connected) {
+    socket.emit("typing_start", data);
+  }
+};
+
+export const sendTypingStop = (data: {
+  rideId: string;
+  senderId: string;
+  senderType: 'user' | 'driver';
+}) => {
+  if (socket && socket.connected) {
+    socket.emit("typing_stop", data);
+  }
+};
+
 // Clear all callbacks
 export const clearCallbacks = () => {
   onRideBookedCallback = null;
@@ -673,6 +839,12 @@ export const clearCallbacks = () => {
   onDriverDisconnectedCallback = null;
   onRideTimeoutCallback = null;
   onRideCompletedCallback = null;
+  
+  // Clear chat callbacks
+  onChatMessageCallback = null;
+  onChatHistoryCallback = null;
+  onTypingIndicatorCallback = null;
+  onMessagesReadCallback = null;
 };
 
 // Test connection function

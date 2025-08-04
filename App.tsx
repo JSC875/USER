@@ -6,6 +6,7 @@ import * as SecureStore from 'expo-secure-store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { clerkConfig, isDevelopment } from './src/config/environment';
+import { ChatProvider } from './src/store/ChatContext';
 
 const tokenCache = {
   async getToken(key: string) {
@@ -71,7 +72,9 @@ export default function App() {
         <SafeAreaProvider>
           <StatusBar style="dark" backgroundColor="#ffffff" />
           <SocketInitializer />
-          <AppNavigator />
+          <ChatProvider>
+            <AppNavigator />
+          </ChatProvider>
         </SafeAreaProvider>
       </ClerkProvider>
     </GestureHandlerRootView>
