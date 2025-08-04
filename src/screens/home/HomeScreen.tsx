@@ -34,8 +34,10 @@ import {
   clearCallbacks,
   connectSocketWithJWT
 } from "../../utils/socket";
-import { getUserIdFromJWT } from "../../utils/jwtDecoder";
+import { getUserIdFromJWT, decodeJWT, logJWTDetails, logFullJWT } from "../../utils/jwtDecoder";
 import ConnectionStatus from "../../components/common/ConnectionStatus";
+import { rideApi, RideRequestResponse } from "../../services/rideService";
+// JWTLoggingTest import - REMOVED
 
 const { width } = Dimensions.get('window');
 
@@ -52,15 +54,15 @@ export default function HomeScreen({ navigation, route }: any) {
   } = useLocationStore();
   const { getToken } = useAuth();
 
-  const [region, setRegion] = React.useState({
+  const [region, setRegion] = useState({
     latitude: 28.6139, // Default: New Delhi
     longitude: 77.2090,
     latitudeDelta: 0.05,
     longitudeDelta: 0.05,
   });
 
-  const [dropLocation, setDropLocation] = React.useState<any>(null);
-  const [hasSentToBackend, setHasSentToBackend] = React.useState(false);
+  const [dropLocation, setDropLocation] = useState<any>(null);
+  const [hasSentToBackend, setHasSentToBackend] = useState(false);
   
   // New state for ride booking
   const [isBookingRide, setIsBookingRide] = useState(false);
@@ -68,6 +70,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const [driverLocation, setDriverLocation] = useState<any>(null);
   const [rideStatus, setRideStatus] = useState<string>('');
   const [showRideModal, setShowRideModal] = useState(false);
+  // JWT Test state - REMOVED
 
   useAssignUserType('customer');
 
@@ -100,13 +103,13 @@ export default function HomeScreen({ navigation, route }: any) {
 
   // When pickup or dropoff location changes, update map region
   useEffect(() => {
-    if (dropoffLocation) {
+    if (dropoffLocation && dropoffLocation.latitude && dropoffLocation.longitude) {
       setRegion((prev) => ({
         ...prev,
         latitude: dropoffLocation.latitude,
         longitude: dropoffLocation.longitude,
       }));
-    } else if (pickupLocation) {
+    } else if (pickupLocation && pickupLocation.latitude && pickupLocation.longitude) {
       setRegion((prev) => ({
         ...prev,
         latitude: pickupLocation.latitude,
@@ -129,39 +132,67 @@ export default function HomeScreen({ navigation, route }: any) {
   }, [route.params?.destination]);
 
   useEffect(() => {
-    // Send custom JWT to backend only once per session
+    // Enhanced JWT logging and backend communication
     const sendCustomJWTToBackend = async () => {
       if (!user || hasSentToBackend) return;
+      
       try {
-        const token = await getToken({ template: 'my_app_token' });
-        if (!token) return;
+        // Use comprehensive JWT logging utility
+        const decodedJWT = await logJWTDetails(getToken, 'Home Screen JWT Analysis');
+        if (!decodedJWT) {
+          console.log('❌ No JWT token available or failed to decode');
+          return;
+        }
+        
+        // Send JWT to backend
+        console.log('🌐 Sending JWT to backend...');
+        console.log('🔑 Full JWT Token being sent:');
+        console.log(decodedJWT ? 'Token available' : 'No token');
+        
+        // Get the actual token for the API call
+        const token = await getToken({ template: 'my_app_token', skipCache: true });
+        
         const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/users/me`, {
           method: 'GET',
           headers: {
             'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'X-App-Version': '1.0.0',
+            'X-Platform': 'ReactNative',
+            'X-Environment': 'development',
           },
         });
+        
         let result = null;
+        let responseText = '';
         try {
-          const text = await response.text();
-          result = text ? JSON.parse(text) : null;
+          responseText = await response.text();
+          result = responseText ? JSON.parse(responseText) : null;
         } catch (e) {
           result = null; // Not JSON, or empty
         }
-        console.log('Backend response:', result, 'Status:', response.status);
+        
+        console.log('📡 Backend Response:');
+        console.log(`  ✅ Status: ${response.status} ${response.statusText}`);
+        console.log(`  📦 Data:`, result);
+        console.log(`  📏 Response Size: ${responseText?.length || 0} characters`);
+        
         setHasSentToBackend(true);
+        console.log('✅ === JWT LOGGING COMPLETED ===');
+        
       } catch (err) {
+        console.error('❌ === JWT LOGGING ERROR ===');
         console.error('Failed to send custom JWT to backend:', err);
       }
     };
+    
     sendCustomJWTToBackend();
   }, [user, getToken, hasSentToBackend]);
 
   // Enhanced socket event listeners
   useEffect(() => {
     // Connect to socket using JWT with APK-specific handling
-    const { handleAPKConnection } = require('../../utils/socket');
-    handleAPKConnection(getToken).then((socket: any) => {
+    connectSocketWithJWT(getToken).then((socket: any) => {
       console.log('🔗 HomeScreen: Socket connected successfully');
       
       // Set up event callbacks
@@ -173,7 +204,34 @@ export default function HomeScreen({ navigation, route }: any) {
           status: 'searching'
         });
         setIsBookingRide(true);
-        Alert.alert('Ride Booked!', `Searching for pilots...\nRide ID: ${data.rideId}`);
+        Alert.alert(
+          'Ride Booked!', 
+          `Searching for pilots...\nRide ID: ${data.rideId}`,
+          [
+            {
+              text: 'OK',
+              onPress: () => {
+                console.log('🎯 Navigating to FindingDriver after ride booked');
+                // Navigate to FindingDriver screen with ride details
+                navigation.navigate('FindingDriver', {
+                  rideId: data.rideId,
+                  price: data.price,
+                  status: 'searching',
+                  destination: dropoffLocation || { address: 'Destination' },
+                  pickup: pickupLocation || { address: 'Current Location' },
+                  estimate: {
+                    fare: data.price,
+                    distance: '2.5 km',
+                    duration: '8 mins',
+                    eta: '5 mins',
+                  },
+                  paymentMethod: 'Cash',
+                  driver: null,
+                });
+              }
+            }
+          ]
+        );
       });
 
       onRideAccepted((data) => {
@@ -259,6 +317,8 @@ export default function HomeScreen({ navigation, route }: any) {
     navigation.navigate('HelpSupport');
   };
 
+  // Test functions - REMOVED (handleLogFullJWT, handleTestRideRequest)
+
   const getUserName = () => {
     if (user?.firstName) {
       return user.firstName;
@@ -268,73 +328,160 @@ export default function HomeScreen({ navigation, route }: any) {
     return 'User';
   };
 
-  // Enhanced ride booking function
+  // Enhanced ride booking function with API + Socket.IO integration
   const handleBookRide = async () => {
     if (!dropLocation) {
       Alert.alert('Select Destination', 'Please select a destination first.');
       return;
     }
 
-    // Ensure socket is connected before booking - use APK-specific handling
-    const { handleAPKConnection } = require('../../utils/socket');
-    try {
-      await handleAPKConnection(getToken);
-      console.log('✅ Socket ready for ride booking');
-    } catch (error: any) {
-      console.error('❌ Failed to ensure socket connection for ride booking:', error);
-      Alert.alert('Connection Error', 'Unable to connect to server. Please check your internet connection and try again.');
-      return;
-    }
+    setIsBookingRide(true);
 
-    // Fetch real-time GPS location
-    let { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== 'granted') {
-      Alert.alert('Location permission is required to book a ride.');
-      return;
-    }
-    let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-    console.log('📍 Fetched GPS position:', loc.coords);
-    const pickup = {
-      latitude: loc.coords.latitude,
-      longitude: loc.coords.longitude,
-      address: 'Current Location',
-      name: 'Current Location',
-    };
-    console.log('📍 Pickup:', pickup);
-    console.log('🎯 Drop:', dropLocation);
-    console.log('drop latitude:', dropLocation?.latitude, 'drop longitude:', dropLocation?.longitude);
-    
-    // Get user ID from JWT to ensure consistency with socket connection
-    const userId = await getUserIdFromJWT(getToken);
-    console.log('🔑 Using user ID for ride booking:', userId);
-    
-    const rideRequest = {
-      pickup,
-      drop: {
-        id: dropLocation?.id || '1',
-        name: dropLocation?.name || dropLocation?.address || 'Drop Location',
-        address: dropLocation?.address || dropLocation?.name || 'Drop Location',
-        latitude: dropLocation?.latitude,
-        longitude: dropLocation?.longitude,
-        type: dropLocation?.type || 'recent',
-      },
-      rideType: 'Bike',
-      price: Math.floor(Math.random() * 50) + 20, // Random price for demo
-      userId: userId,
-    };
-    console.log('🚗 Sending ride booking request:', rideRequest);
-    
     try {
-      const success = bookRide(rideRequest);
-      if (success) {
-        setIsBookingRide(true);
-        Alert.alert('Booking Ride...', 'Request sent to server!');
-      } else {
-        throw new Error('Failed to send ride request');
+      console.log('🚗 === STARTING RIDE BOOKING PROCESS ===');
+      console.log('🔍 === DETAILED BOOKING FLOW LOG ===');
+
+      // Step 1: Ensure socket is connected before booking
+      console.log('🔌 Step 1: Connecting socket...');
+      await connectSocketWithJWT(getToken);
+      console.log('✅ Socket ready for ride booking');
+
+      // Step 2: Fetch real-time GPS location
+      console.log('📍 Step 2: Fetching GPS location...');
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert('Location permission is required to book a ride.');
+        setIsBookingRide(false);
+        return;
       }
-    } catch (error) {
-      console.error('❌ Ride booking failed:', error);
-      Alert.alert('Booking Failed', 'Unable to book ride. Please check your connection and try again.');
+      
+      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      console.log('📍 Fetched GPS position:', loc.coords);
+      
+      const pickup = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        address: 'Current Location',
+        name: 'Current Location',
+      };
+      
+      console.log('📍 Pickup:', pickup);
+      console.log('🎯 Drop:', dropLocation);
+      console.log('drop latitude:', dropLocation?.latitude, 'drop longitude:', dropLocation?.longitude);
+      
+      // Step 3: Get user ID from JWT
+      console.log('🔑 Step 3: Extracting user ID from JWT...');
+      const userId = await getUserIdFromJWT(getToken);
+      console.log('🔑 Using user ID for ride booking:', userId);
+      
+      // Step 4: Prepare ride request data
+      console.log('📦 Step 4: Preparing ride request data...');
+      const rideRequest = {
+        pickup,
+        drop: {
+          id: dropLocation?.id || '1',
+          name: dropLocation?.name || dropLocation?.address || 'Drop Location',
+          address: dropLocation?.address || dropLocation?.name || 'Drop Location',
+          latitude: dropLocation?.latitude,
+          longitude: dropLocation?.longitude,
+          type: dropLocation?.type || 'recent',
+        },
+        rideType: 'Bike',
+        price: Math.floor(Math.random() * 50) + 20, // Random price for demo
+        userId: userId,
+      };
+      
+      console.log('🚗 Ride request data prepared:', rideRequest);
+
+      // Step 5: Call API endpoint first
+      console.log('🌐 === CALLING API ENDPOINT FIRST ===');
+      console.log('🎯 Step 5: Converting to API payload...');
+      const apiPayload = rideApi.convertToApiPayload(rideRequest);
+      console.log('📦 API Payload:', apiPayload);
+      
+      // Create a wrapper function that handles null token
+      const getTokenWrapper = async (): Promise<string> => {
+        const token = await getToken();
+        if (!token) {
+          throw new Error('No authentication token available');
+        }
+        return token;
+      };
+      
+      console.log('🚀 Step 6: Making API call to /api/rides/request...');
+      const apiResponse: RideRequestResponse = await rideApi.requestRide(apiPayload, getTokenWrapper);
+      console.log('✅ API Response received:', apiResponse);
+      console.log('📊 API Response Details:');
+      console.log('   - Ride ID:', apiResponse.id);
+      console.log('   - Status:', apiResponse.status);
+      console.log('   - Estimated Fare:', apiResponse.estimatedFare);
+      console.log('   - Requested At:', apiResponse.requestedAt);
+      
+      // Step 7: Send Socket.IO event with API response data
+      console.log('🔌 === SENDING SOCKET.IO EVENT WITH API DATA ===');
+      const socketRideRequest = {
+        ...rideRequest,
+        rideId: apiResponse.id, // Use the ride ID from API response
+        estimatedFare: apiResponse.estimatedFare,
+        status: apiResponse.status,
+      };
+      
+      console.log('🔌 Socket ride request:', socketRideRequest);
+      console.log('📤 Attempting to emit event: request_ride');
+      const socketSuccess = bookRide(socketRideRequest);
+      
+      if (socketSuccess) {
+        console.log('✅ Socket.IO event sent successfully');
+        
+        // Update current ride state with API response
+        setCurrentRide({
+          rideId: apiResponse.id,
+          price: apiResponse.estimatedFare,
+          status: apiResponse.status,
+          pickup: pickup,
+          drop: dropLocation,
+          requestedAt: apiResponse.requestedAt,
+        });
+        
+        console.log('🎉 === RIDE BOOKING COMPLETED SUCCESSFULLY ===');
+        console.log('📋 Final Ride Details:');
+        console.log('   - Ride ID:', apiResponse.id);
+        console.log('   - Estimated Fare: ₹', apiResponse.estimatedFare.toFixed(2));
+        console.log('   - Status:', apiResponse.status);
+        console.log('   - Pickup:', pickup);
+        console.log('   - Drop:', dropLocation);
+        
+        Alert.alert(
+          'Ride Booked Successfully! 🎉',
+          `Your ride has been requested!\n\nRide ID: ${apiResponse.id}\nEstimated Fare: ₹${apiResponse.estimatedFare.toFixed(2)}\nStatus: ${apiResponse.status}\n\nSearching for pilots...`
+        );
+      } else {
+        console.warn('⚠️ Socket.IO event failed, but API call succeeded');
+        Alert.alert(
+          'Ride Booked (Partial)',
+          `Your ride has been requested via API!\n\nRide ID: ${apiResponse.id}\nEstimated Fare: ₹${apiResponse.estimatedFare.toFixed(2)}\n\nNote: Real-time updates may be limited.`
+        );
+      }
+      
+    } catch (error: any) {
+      console.error('❌ === RIDE BOOKING FAILED ===');
+      console.error('Error details:', error);
+      console.error('Error message:', error.message);
+      console.error('Error stack:', error.stack);
+      
+      let errorMessage = 'Unable to book ride. Please check your connection and try again.';
+      
+      if (error.message?.includes('401')) {
+        errorMessage = 'Authentication failed. Please log in again.';
+      } else if (error.message?.includes('400')) {
+        errorMessage = 'Invalid ride request. Please check your pickup and drop locations.';
+      } else if (error.message?.includes('500')) {
+        errorMessage = 'Server error. Please try again later.';
+      }
+      
+      Alert.alert('Booking Failed', errorMessage);
+    } finally {
+      setIsBookingRide(false);
     }
   };
 
@@ -391,7 +538,9 @@ export default function HomeScreen({ navigation, route }: any) {
             <Text style={styles.userName}>{getUserName()}</Text>
           </View>
         </View>
-        {/* Debug buttons moved to Profile screen */}
+              <View style={styles.headerRight}>
+        {/* Test buttons removed - preserving core functionality */}
+      </View>
       </View>
 
       <View style={styles.mapFullScreen}>
@@ -401,23 +550,23 @@ export default function HomeScreen({ navigation, route }: any) {
           showsUserLocation={true}
           showsMyLocationButton={true}
         >
-          {pickupLocation && (
+          {pickupLocation && pickupLocation.latitude && pickupLocation.longitude && (
             <Marker
               coordinate={{
                 latitude: pickupLocation.latitude,
                 longitude: pickupLocation.longitude,
               }}
-              title={pickupLocation.address || 'Pickup Location'}
+              title={pickupLocation?.address || 'Pickup Location'}
               pinColor={'green'}
             />
           )}
-          {dropoffLocation && (
+          {dropoffLocation && dropoffLocation.latitude && dropoffLocation.longitude && (
             <Marker
               coordinate={{
                 latitude: dropoffLocation.latitude,
                 longitude: dropoffLocation.longitude,
               }}
-              title={dropoffLocation.address || 'Destination'}
+              title={dropoffLocation?.address || 'Destination'}
               pinColor={'red'}
             />
           )}
@@ -499,6 +648,7 @@ export default function HomeScreen({ navigation, route }: any) {
           </View>
         </View>
       </Modal>
+      {/* JWT Test Modal - REMOVED */}
     </SafeAreaView>
   );
 }
@@ -522,9 +672,14 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
   },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   menuButton: {
     marginRight: Layout.spacing.md,
   },
+  // jwtButton styles - REMOVED
   greeting: {
     fontSize: Layout.fontSize.sm,
     color: Colors.textSecondary,

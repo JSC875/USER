@@ -36,6 +36,7 @@ import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
 // Profile Screens
 import ProfileScreen from '../screens/profile/ProfileScreen';
 import RideHistoryScreen from '../screens/profile/RideHistoryScreen';
+import HistoryDetailScreen from '../screens/profile/HistoryDetailScreen';
 
 import SettingsScreen from '../screens/profile/SettingsScreen';
 import EditProfileScreen from '../screens/profile/EditProfileScreen';
@@ -200,6 +201,7 @@ function MainNavigator() {
       <Stack.Screen name="About" component={AboutScreen} />
       <Stack.Screen name="Payment" component={PaymentScreen} />
       <Stack.Screen name="PrivacySecurity" component={PrivacySecurityScreen} />
+      <Stack.Screen name="HistoryDetail" component={HistoryDetailScreen} />
       
       {/* Debug Flow */}
       <Stack.Screen name="ConnectionTest" component={require('../screens/debug/ConnectionTestScreen').default} />
