@@ -74,12 +74,23 @@ export default function ChatScreen({ navigation, route }: any) {
           const fallbackId = route.params?.userId || 'user123';
           console.log('🔄 Using fallback user ID:', fallbackId);
           setUserId(fallbackId);
+          
+          // Show error to user if it's a critical error
+          if (error instanceof Error && error.message.includes('No token available')) {
+            Alert.alert(
+              'Authentication Error',
+              'Unable to get user information. Please try logging in again.',
+              [
+                { text: 'OK', onPress: () => navigation.navigate('Login') }
+              ]
+            );
+          }
         }
       }
     };
 
     getUserId();
-  }, [isLoaded, getToken, route.params]);
+  }, [isLoaded, getToken, route.params, navigation]);
 
   console.log('🔍 ChatScreen Debug:', {
     routeParams: route.params,
@@ -124,6 +135,14 @@ export default function ChatScreen({ navigation, route }: any) {
     console.log('✅ All data available, setting up chat:', { userId, rideId });
 
     // Set up chat event listeners
+    const cleanupListeners = () => {
+      // Clean up typing timeout
+      if (typingTimeoutRef.current) {
+        clearTimeout(typingTimeoutRef.current);
+        typingTimeoutRef.current = null;
+      }
+    };
+
     onChatMessage((message) => {
       console.log('💬 Received chat message:', message);
       setMessages(prev => [...prev, message]);
@@ -163,13 +182,8 @@ export default function ChatScreen({ navigation, route }: any) {
     // Load chat history
     loadChatHistory();
 
-    return () => {
-      // Clean up typing timeout
-      if (typingTimeoutRef.current) {
-        clearTimeout(typingTimeoutRef.current);
-      }
-    };
-  }, [userId, rideId, isLoaded]);
+    return cleanupListeners;
+  }, [userId, rideId, isLoaded, navigation]);
 
   const loadChatHistory = () => {
     if (userId && rideId) {

@@ -267,8 +267,6 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
     checkConnection();
 
-
-
     // Set up socket event listeners
     const setupSocketListeners = () => {
       console.log('🔧 Setting up socket listeners for FindingDriverScreen');
@@ -431,39 +429,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
             origin: pickup,
           });
         });
-
-        // Remove the redundant ride_response listener to prevent duplicate processing
-        // The onRideAccepted callback already handles this event
-        // socket.on('ride_response', (data) => {
-        //   console.log('🔄 Ride response received (direct):', data);
-        //   if (data.response === 'accept' && !isDriverFound && !hasNavigated) {
-        //     console.log('✅ Processing ride_response accept (direct)');
-        //     setIsDriverFound(true);
-        //     setDriverInfo(data);
-        //     setSearchText('Driver found! Confirming ride...');
-        //     setHasNavigated(true);
-        //     
-        //     navigation.replace('LiveTracking', {
-        //       destination,
-        //       estimate,
-        //       paymentMethod,
-        //       driver: {
-        //         id: data.driverId,
-        //         name: data.driverName,
-        //         phone: data.driverPhone,
-        //         eta: data.estimatedArrival,
-        //       },
-        //       rideId: data.rideId,
-        //       origin: pickup,
-        //     });
-        //   }
-        // });
       }
-
-      // Cleanup function
-      return () => {
-        clearCallbacks();
-      };
     };
 
     setupSocketListeners();
@@ -484,7 +450,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
         socket.off('disconnect');
       }
     };
-  }, [navigation, destination, estimate, paymentMethod, rideId, isDriverFound, pickup, hasNavigated]);
+  }, [navigation, destination, estimate, paymentMethod, rideId, pickup]); // Remove isDriverFound and hasNavigated from dependencies
 
   const handleCancel = () => {
     setShowCancelModal(true);

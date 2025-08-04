@@ -6,7 +6,17 @@ import * as SecureStore from 'expo-secure-store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import { clerkConfig, isDevelopment } from './src/config/environment';
-import { ChatProvider } from './src/store/ChatContext';
+
+// Conditional logging function
+const log = (message: string, data?: any) => {
+  if (isDevelopment) {
+    if (data) {
+      console.log(message, data);
+    } else {
+      console.log(message);
+    }
+  }
+};
 
 const tokenCache = {
   async getToken(key: string) {
@@ -38,28 +48,59 @@ function SocketInitializer() {
   const { getToken } = useAuth();
 
   useEffect(() => {
+    let isMounted = true;
+    let initializationTimeout: ReturnType<typeof setTimeout> | null = null;
+
     const initializeSocket = async () => {
       try {
-        console.log('🚀 App: Initializing socket connection on startup...');
+        log('🚀 App: Initializing socket connection on startup...');
         
         // Wait a bit for the app to fully load
         await new Promise(resolve => setTimeout(resolve, 2000));
+        
+        // Check if component is still mounted
+        if (!isMounted) {
+          log('🚫 App: Component unmounted, skipping socket initialization');
+          return;
+        }
         
         // Initialize socket connection
         const { initializeAPKConnection, startBackgroundRetry } = require('./src/utils/socket');
         await initializeAPKConnection(getToken);
         
-        // Start background retry mechanism for APK builds
-        startBackgroundRetry(getToken);
-        
-        console.log('✅ App: Socket connection initialized successfully');
+        // Check if component is still mounted before starting background retry
+        if (isMounted) {
+          // Start background retry mechanism for APK builds
+          startBackgroundRetry(getToken);
+          log('✅ App: Socket connection initialized successfully');
+        }
       } catch (error) {
         console.error('❌ App: Failed to initialize socket connection:', error);
-        // Don't show error to user, let individual screens handle connection
+        
+        // Only show error to user if component is still mounted
+        if (isMounted) {
+          // Don't show error to user, let individual screens handle connection
+          // But log it for debugging
+          log('⚠️ App: Socket initialization failed, will retry on screen load');
+        }
       }
     };
 
+    // Set a timeout for socket initialization
+    initializationTimeout = setTimeout(() => {
+      if (isMounted) {
+        log('⚠️ App: Socket initialization timeout, will retry on screen load');
+      }
+    }, 10000); // 10 second timeout
+
     initializeSocket();
+
+    return () => {
+      isMounted = false;
+      if (initializationTimeout) {
+        clearTimeout(initializationTimeout);
+      }
+    };
   }, [getToken]);
 
   return null;
@@ -72,9 +113,7 @@ export default function App() {
         <SafeAreaProvider>
           <StatusBar style="dark" backgroundColor="#ffffff" />
           <SocketInitializer />
-          <ChatProvider>
-            <AppNavigator />
-          </ChatProvider>
+          <AppNavigator />
         </SafeAreaProvider>
       </ClerkProvider>
     </GestureHandlerRootView>

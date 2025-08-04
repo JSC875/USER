@@ -106,20 +106,30 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
           
           // Set user type as customer
           if (user) {
-            await user.update({
-              unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
-            });
-            console.log('OTPVerificationScreen - User type set to customer');
-            
-            // Force new JWT with updated userType
-            if (typeof getToken === 'function') {
-              const newToken = await getToken({ template: 'my_app_token', skipCache: true });
-              console.log('OTPVerificationScreen - New JWT with userType (sign-in):', newToken ? 'Generated' : 'Failed');
+            try {
+              await user.update({
+                unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
+              });
+              console.log('OTPVerificationScreen - User type set to customer');
               
-              // Log the JWT details to verify custom fields
-              if (newToken) {
-                await logJWTDetails(getToken, 'OTP Sign-In JWT Analysis');
+              // Force new JWT with updated userType
+              if (typeof getToken === 'function') {
+                try {
+                  const newToken = await getToken({ template: 'my_app_token', skipCache: true });
+                  console.log('OTPVerificationScreen - New JWT with userType (sign-in):', newToken ? 'Generated' : 'Failed');
+                  
+                  // Log the JWT details to verify custom fields
+                  if (newToken) {
+                    await logJWTDetails(getToken, 'OTP Sign-In JWT Analysis');
+                  }
+                } catch (jwtError) {
+                  console.error('OTPVerificationScreen - Error generating new JWT:', jwtError);
+                  // Don't fail the sign-in process for JWT errors
+                }
               }
+            } catch (updateError) {
+              console.error('OTPVerificationScreen - Error updating user metadata:', updateError);
+              // Don't fail the sign-in process for metadata update errors
             }
           }
           
@@ -162,10 +172,15 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
           
           // Set user type as customer
           if (user) {
-            await user.update({
-              unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
-            });
-            console.log('OTPVerificationScreen - User type set to customer');
+            try {
+              await user.update({
+                unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
+              });
+              console.log('OTPVerificationScreen - User type set to customer');
+            } catch (updateError) {
+              console.error('OTPVerificationScreen - Error updating user metadata:', updateError);
+              // Don't fail the sign-up process for metadata update errors
+            }
           }
           
           if (setSignUpActive && completeSignUp.createdSessionId) {
