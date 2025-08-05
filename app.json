@@ -24,7 +24,8 @@
       },
       "permissions": [
         "ACCESS_FINE_LOCATION",
-        "ACCESS_COARSE_LOCATION"
+        "ACCESS_COARSE_LOCATION",
+        "CAMERA"
       ],
       "config": {
         "googleMaps": {
@@ -55,7 +56,9 @@
       ],
       "expo-font",
       "expo-web-browser",
-      "expo-secure-store"
+      "expo-secure-store",
+      "expo-camera",
+      "expo-barcode-scanner"
     ],
     "experiments": {
       "typedRoutes": true

@@ -32,6 +32,7 @@ import MpinEntryScreen from '../screens/ride/MpinEntryScreen';
 import RideInProgressScreen from '../screens/ride/RideInProgressScreen';
 import ChatScreen from '../screens/ride/ChatScreen';
 import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
+import QRScannerScreen from '../screens/ride/QRScannerScreen';
 
 // Profile Screens
 import ProfileScreen from '../screens/profile/ProfileScreen';
@@ -43,6 +44,8 @@ import EditProfileScreen from '../screens/profile/EditProfileScreen';
 import PersonalDetailsScreen from '../screens/profile/PersonalDetailsScreen';
 import AboutScreen from '../screens/profile/AboutScreen';
 import PaymentScreen from '../screens/profile/PaymentScreen';
+import RidePaymentScreen from '../screens/ride/PaymentScreen';
+import WebViewPaymentScreen from '../screens/ride/WebViewPaymentScreen';
 import PrivacySecurityScreen from '../screens/profile/PrivacySecurityScreen';
 
 // Support Screens
@@ -191,6 +194,9 @@ function MainNavigator() {
       <Stack.Screen name="MpinEntry" component={MpinEntryScreen} />
       <Stack.Screen name="RideInProgress" component={RideInProgressScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen name="RidePayment" component={RidePaymentScreen} />
+      <Stack.Screen name="WebViewPayment" component={WebViewPaymentScreen} />
+      <Stack.Screen name="QRScanner" component={QRScannerScreen} />
       <Stack.Screen name="RideSummary" component={RideSummaryScreen} />
       <Stack.Screen name="RateDriver" component={require('../screens/ride/RateDriverScreen').default} />
       

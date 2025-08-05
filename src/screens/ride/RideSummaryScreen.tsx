@@ -25,7 +25,7 @@ const feedbackTags = [
 ];
 
 export default function RideSummaryScreen({ navigation, route }: any) {
-  const { destination, estimate, driver } = route.params;
+  const { destination, estimate, driver, paymentInfo } = route.params;
   const [rating, setRating] = useState(0);
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [comments, setComments] = useState('');
@@ -55,6 +55,18 @@ export default function RideSummaryScreen({ navigation, route }: any) {
 
   const handleBookAnother = () => {
     navigation.navigate('TabNavigator', { screen: 'Home' });
+  };
+
+  const handleQRScanPayment = () => {
+    console.log('🔍 QR Payment button pressed');
+    // Navigate to QR scanner for payment
+    const amount = parseInt(estimate?.fare || '100') * 100; // Convert to paise
+    console.log('💰 Amount for QR payment:', amount);
+    console.log('🚗 Ride ID:', route.params?.rideId);
+    navigation.navigate('QRScanner', {
+      rideId: route.params?.rideId,
+      amount: amount
+    });
   };
 
   return (
@@ -112,15 +124,82 @@ export default function RideSummaryScreen({ navigation, route }: any) {
         {/* Payment Summary */}
         <View style={styles.paymentCard}>
           <Text style={styles.cardTitle}>Payment Summary</Text>
-          <View style={styles.paymentItem}>
-            <Text style={styles.paymentLabel}>Ride Fare</Text>
-            <Text style={styles.paymentValue}>₹{estimate?.fare ?? '--'}</Text>
-          </View>
-          <View style={styles.paymentDivider} />
-          <View style={styles.paymentTotal}>
-            <Text style={styles.paymentTotalLabel}>Total Paid</Text>
-            <Text style={styles.paymentTotalValue}>₹{estimate?.fare ?? '--'}</Text>
-          </View>
+          
+          {paymentInfo ? (
+            <>
+              <View style={styles.paymentItem}>
+                <Text style={styles.paymentLabel}>Ride Fare</Text>
+                <Text style={styles.paymentValue}>₹{estimate?.fare ?? '--'}</Text>
+              </View>
+              <View style={styles.paymentItem}>
+                <Text style={styles.paymentLabel}>Platform Fee</Text>
+                <Text style={styles.paymentValue}>₹0</Text>
+              </View>
+              <View style={styles.paymentItem}>
+                <Text style={styles.paymentLabel}>Taxes</Text>
+                <Text style={styles.paymentValue}>₹0</Text>
+              </View>
+              <View style={styles.paymentDivider} />
+              <View style={styles.paymentTotal}>
+                <Text style={styles.paymentTotalLabel}>Total Paid</Text>
+                <Text style={styles.paymentTotalValue}>{paymentInfo.amount || `₹${estimate?.fare ?? '--'}`}</Text>
+              </View>
+              
+              {/* Payment Status */}
+              <View style={styles.paymentStatusContainer}>
+                <View style={[
+                  styles.paymentStatusBadge,
+                  paymentInfo.status === 'completed' ? styles.paymentStatusSuccess : 
+                  paymentInfo.status === 'skipped' ? styles.paymentStatusWarning : 
+                  styles.paymentStatusPending
+                ]}>
+                  <Ionicons 
+                    name={
+                      paymentInfo.status === 'completed' ? 'checkmark-circle' :
+                      paymentInfo.status === 'skipped' ? 'warning' :
+                      'time'
+                    } 
+                    size={16} 
+                    color={Colors.white} 
+                  />
+                  <Text style={styles.paymentStatusText}>
+                    {paymentInfo.status === 'completed' ? 'Payment Completed' :
+                     paymentInfo.status === 'skipped' ? 'Payment Skipped' :
+                     'Payment Pending'}
+                  </Text>
+                </View>
+                
+                {paymentInfo.paymentId && (
+                  <Text style={styles.paymentIdText}>
+                    Payment ID: {paymentInfo.paymentId}
+                  </Text>
+                )}
+              </View>
+            </>
+          ) : (
+            <>
+              {/* Show payment details when no payment info exists */}
+              <View style={styles.paymentItem}>
+                <Text style={styles.paymentLabel}>Ride Fare</Text>
+                <Text style={styles.paymentValue}>₹{estimate?.fare ?? '--'}</Text>
+              </View>
+              <View style={styles.paymentDivider} />
+              <View style={styles.paymentTotal}>
+                <Text style={styles.paymentTotalLabel}>Total Amount</Text>
+                <Text style={styles.paymentTotalValue}>₹{estimate?.fare ?? '--'}</Text>
+              </View>
+            </>
+          )}
+          
+          {/* QR Payment Button - Always visible for testing */}
+          <TouchableOpacity
+            style={styles.qrPaymentButton}
+            onPress={handleQRScanPayment}
+            activeOpacity={0.7}
+          >
+            <Ionicons name="qr-code" size={20} color={Colors.white} />
+            <Text style={styles.qrPaymentText}>Scan QR Code to Pay</Text>
+          </TouchableOpacity>
         </View>
       </ScrollView>
 
@@ -462,5 +541,61 @@ const styles = StyleSheet.create({
     fontSize: Layout.fontSize.md,
     fontWeight: '600',
     color: Colors.white,
+  },
+  paymentStatusContainer: {
+    marginTop: Layout.spacing.md,
+    paddingTop: Layout.spacing.md,
+    borderTopWidth: 1,
+    borderTopColor: Colors.borderLight,
+  },
+  paymentStatusBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    alignSelf: 'flex-start',
+    paddingHorizontal: Layout.spacing.md,
+    paddingVertical: Layout.spacing.sm,
+    borderRadius: Layout.borderRadius.lg,
+    marginBottom: Layout.spacing.sm,
+  },
+  paymentStatusSuccess: {
+    backgroundColor: Colors.success,
+  },
+  paymentStatusWarning: {
+    backgroundColor: Colors.warning || '#FF9500',
+  },
+  paymentStatusPending: {
+    backgroundColor: Colors.warning || '#FF9500',
+  },
+  paymentStatusText: {
+    fontSize: Layout.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.white,
+    marginLeft: Layout.spacing.xs,
+  },
+  paymentIdText: {
+    fontSize: Layout.fontSize.xs,
+    color: Colors.textSecondary,
+    fontFamily: 'monospace',
+  },
+  qrPaymentButton: {
+    backgroundColor: Colors.primary,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: Layout.spacing.md,
+    paddingHorizontal: Layout.spacing.lg,
+    borderRadius: Layout.borderRadius.md,
+    marginTop: Layout.spacing.md,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  qrPaymentText: {
+    color: Colors.white,
+    fontSize: Layout.fontSize.md,
+    fontWeight: '600',
+    marginLeft: Layout.spacing.sm,
   },
 });

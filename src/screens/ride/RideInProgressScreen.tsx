@@ -18,7 +18,7 @@ import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks } from 
 import MapView, { Marker, Polyline } from 'react-native-maps';
 
 export default function RideInProgressScreen({ navigation, route }: any) {
-  const { destination, driver, rideId, origin, mpinVerified } = route.params;
+  const { destination, driver, rideId, origin, mpinVerified, estimate } = route.params;
   const [rideStatus, setRideStatus] = useState('in_progress');
   const [currentETA, setCurrentETA] = useState('25 mins');
   const [callModalVisible, setCallModalVisible] = useState(false);
@@ -38,30 +38,48 @@ export default function RideInProgressScreen({ navigation, route }: any) {
         setRideStatus(data.status);
         
         if (data.status === 'completed') {
-          navigation.navigate('RideSummary', {
+          console.log('✅ Ride completed, navigating to payment screen');
+          // Convert fare from INR to paise for payment
+          const fareInINR = estimate?.fare || 73; // Default to 73 INR
+          const paymentAmount = Math.round(fareInINR * 100); // Convert to paise
+          console.log('💰 Fare in INR:', fareInINR);
+          console.log('💰 Payment amount in paise:', paymentAmount);
+          
+          // Navigate to payment screen first
+          navigation.navigate('WebViewPayment', {
+            rideId,
+            amount: paymentAmount,
             destination,
             driver: driverInfo,
-            rideId,
+            estimate: estimate || { fare: fareInINR },
           });
-        }
-        if (data.status === 'cancelled') {
+        } else if (data.status === 'cancelled') {
           Alert.alert('Ride Cancelled', data.message || 'Your ride has been cancelled.');
           navigation.navigate('TabNavigator', { screen: 'Home' });
         }
       }
     });
 
-    // Listen for ride completed event specifically
+    // Listen for ride completed event specifically (backup for payment flow)
     onRideCompleted((data: { rideId: string; status: string; message: string; timestamp: number; }) => {
       console.log('✅ RideInProgressScreen received ride completed event:', data);
       console.log('✅ Checking if rideId matches:', data.rideId, '===', rideId);
       
       if (data.rideId === rideId) {
-        console.log('✅ Ride completed event matches current ride, navigating to RideSummary');
-        navigation.navigate('RideSummary', {
+        console.log('✅ Ride completed event matches current ride, navigating to payment screen');
+        // Convert fare from INR to paise for payment
+        const fareInINR = estimate?.fare || 73; // Default to 73 INR
+        const paymentAmount = Math.round(fareInINR * 100); // Convert to paise
+        console.log('💰 Fare in INR from completed event:', fareInINR);
+        console.log('💰 Payment amount in paise from completed event:', paymentAmount);
+        
+        // Navigate to payment screen instead of directly to summary
+        navigation.navigate('WebViewPayment', {
+          rideId,
+          amount: paymentAmount,
           destination,
           driver: driverInfo,
-          rideId,
+          estimate: estimate || { fare: fareInINR },
         });
       } else {
         console.log('🚫 Ignoring ride completed event for different ride:', data.rideId, 'expected:', rideId);
@@ -73,7 +91,8 @@ export default function RideInProgressScreen({ navigation, route }: any) {
       setDriverLocation({ latitude: data.latitude, longitude: data.longitude });
       setDriverPath(prev => {
         // Only add if different from last
-        if (!prev.length || prev[prev.length-1].latitude !== data.latitude || prev[prev.length-1].longitude !== data.longitude) {
+        const lastLocation = prev.length > 0 ? prev[prev.length - 1] : null;
+        if (!lastLocation || lastLocation.latitude !== data.latitude || lastLocation.longitude !== data.longitude) {
           return [...prev, { latitude: data.latitude, longitude: data.longitude }];
         }
         return prev;
@@ -208,7 +227,12 @@ export default function RideInProgressScreen({ navigation, route }: any) {
             longitude: driverLocation.longitude,
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
-          } : undefined}
+          } : {
+            latitude: destination?.latitude || 17.4448,
+            longitude: destination?.longitude || 78.3498,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
         >
           {/* Show driver's path as polyline */}
           {driverPath.length > 1 && (
@@ -286,6 +310,28 @@ export default function RideInProgressScreen({ navigation, route }: any) {
           <TouchableOpacity style={styles.shareButton} onPress={onShareTrip}>
             <Ionicons name="share" size={16} color={Colors.primary} />
             <Text style={styles.shareText}>Share Trip</Text>
+          </TouchableOpacity>
+          
+          {/* Test Payment Button - Remove this in production */}
+          <TouchableOpacity 
+            style={[styles.shareButton, { marginLeft: 12, backgroundColor: '#FFE4E1' }]} 
+            onPress={() => {
+              console.log('🧪 Test: Manually navigating to payment screen');
+              const fareInINR = estimate?.fare || 73; // Use estimate or default to 73 INR
+              const testAmount = Math.round(fareInINR * 100); // Convert to paise
+              console.log('🧪 Test fare in INR:', fareInINR);
+              console.log('🧪 Test payment amount in paise:', testAmount);
+              navigation.navigate('WebViewPayment', {
+                rideId,
+                amount: testAmount,
+                destination,
+                driver: driverInfo,
+                estimate: estimate || { fare: fareInINR },
+              });
+            }}
+          >
+            <Ionicons name="card" size={16} color="#FF6B6B" />
+            <Text style={[styles.shareText, { color: '#FF6B6B' }]}>Test Payment</Text>
           </TouchableOpacity>
         </View>
       </View>

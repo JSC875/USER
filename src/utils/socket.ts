@@ -88,6 +88,44 @@ export type RideCompletedCallback = (data: {
   timestamp: number;
 }) => void;
 
+export type PaymentStatusCallback = (data: {
+  rideId: string;
+  paymentId: string;
+  status: string;
+  amount: number;
+  message: string;
+}) => void;
+
+export type PaymentFailedCallback = (data: {
+  rideId: string;
+  error: string;
+  message: string;
+}) => void;
+
+export type QRPaymentReadyCallback = (data: {
+  rideId: string;
+  orderId: string;
+  amount: number;
+  currency: string;
+  timestamp: number;
+}) => void;
+
+export type QRCodeScannedCallback = (data: {
+  rideId: string;
+  orderId: string;
+  amount: number;
+  timestamp: number;
+}) => void;
+
+export type PaymentCompletedCallback = (data: {
+  rideId: string;
+  orderId: string;
+  paymentId: string;
+  amount: number;
+  currency: string;
+  timestamp: number;
+}) => void;
+
 // Event callbacks
 let onRideBookedCallback: RideBookedCallback | null = null;
 let onRideAcceptedCallback: RideAcceptedCallback | null = null;
@@ -97,6 +135,14 @@ let onDriverOfflineCallback: DriverOfflineCallback | null = null;
 let onDriverDisconnectedCallback: DriverDisconnectedCallback | null = null;
 let onRideTimeoutCallback: RideTimeoutCallback | null = null;
 let onRideCompletedCallback: RideCompletedCallback | null = null;
+let onPaymentStatusCallback: PaymentStatusCallback | null = null;
+let onPaymentFailedCallback: PaymentFailedCallback | null = null;
+let onPaymentSuccessCallback: ((data: any) => void) | null = null;
+
+// QR Payment callbacks
+let onQRPaymentReadyCallback: QRPaymentReadyCallback | null = null;
+let onQRCodeScannedCallback: QRCodeScannedCallback | null = null;
+let onPaymentCompletedCallback: PaymentCompletedCallback | null = null;
 
 // Chat-related event callbacks
 let onChatMessageCallback: ((message: any) => void) | null = null;
@@ -229,6 +275,9 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
       
       // Add chat event listeners
       addChatEventListeners();
+      
+      // Add QR payment event listeners
+      addQRPaymentEventListeners();
       
       resolve(socket);
     });
@@ -399,6 +448,21 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     socket.on("ride_completed", (data) => {
       log("✅ Ride completed:", data);
       onRideCompletedCallback?.(data);
+    });
+
+    socket.on("payment_status", (data) => {
+      log("💰 Payment status update:", data);
+      onPaymentStatusCallback?.(data);
+    });
+
+    socket.on("payment_failed", (data) => {
+      log("❌ Payment failed:", data);
+      onPaymentFailedCallback?.(data);
+    });
+
+    socket.on("payment_success", (data) => {
+      log("✅ Payment success:", data);
+      onPaymentSuccessCallback?.(data);
     });
   });
 
@@ -705,6 +769,43 @@ export const onRideCompleted = (callback: RideCompletedCallback) => {
   onRideCompletedCallback = callback;
 };
 
+export const onPaymentStatus = (callback: PaymentStatusCallback) => {
+  onPaymentStatusCallback = callback;
+};
+
+export const onPaymentFailed = (callback: PaymentFailedCallback) => {
+  onPaymentFailedCallback = callback;
+};
+
+export const onPaymentSuccess = (callback: (data: any) => void) => {
+  onPaymentSuccessCallback = callback;
+  return () => {
+    onPaymentSuccessCallback = null;
+  };
+};
+
+// QR Payment event listeners
+export const onQRPaymentReady = (callback: QRPaymentReadyCallback) => {
+  onQRPaymentReadyCallback = callback;
+  return () => {
+    onQRPaymentReadyCallback = null;
+  };
+};
+
+export const onQRCodeScanned = (callback: QRCodeScannedCallback) => {
+  onQRCodeScannedCallback = callback;
+  return () => {
+    onQRCodeScannedCallback = null;
+  };
+};
+
+export const onPaymentCompleted = (callback: PaymentCompletedCallback) => {
+  onPaymentCompletedCallback = callback;
+  return () => {
+    onPaymentCompletedCallback = null;
+  };
+};
+
 // Chat event callback setters
 export const onChatMessage = (callback: (message: any) => void) => {
   onChatMessageCallback = callback;
@@ -789,6 +890,36 @@ const addChatEventListeners = () => {
   });
 };
 
+// Add QR payment event listeners to the socket connection
+const addQRPaymentEventListeners = () => {
+  if (!socket) return;
+
+  socket.on("qr_payment_ready", (data) => {
+    log("📱 QR Payment ready:", data);
+    onQRPaymentReadyCallback?.(data);
+  });
+
+  socket.on("qr_code_scanned", (data) => {
+    log("📱 QR Code scanned:", data);
+    onQRCodeScannedCallback?.(data);
+  });
+
+  socket.on("payment_completed", (data) => {
+    log("✅ Payment completed:", data);
+    onPaymentCompletedCallback?.(data);
+  });
+
+  socket.on("payment_success", (data) => {
+    log("🎉 Payment success:", data);
+    onPaymentSuccessCallback?.(data);
+  });
+
+  socket.on("payment_failed", (data) => {
+    log("❌ Payment failed:", data);
+    onPaymentFailedCallback?.(data);
+  });
+};
+
 // Clear all callbacks
 export const clearCallbacks = () => {
   onRideBookedCallback = null;
@@ -799,6 +930,9 @@ export const clearCallbacks = () => {
   onDriverDisconnectedCallback = null;
   onRideTimeoutCallback = null;
   onRideCompletedCallback = null;
+  onPaymentStatusCallback = null;
+  onPaymentFailedCallback = null;
+  onPaymentSuccessCallback = null;
 };
 
 // Test connection function
