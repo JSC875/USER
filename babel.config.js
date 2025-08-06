@@ -1,4 +1,4 @@
-module.exports = function(api) {
+module.exports = function (api) {
   api.cache(true);
   return {
     presets: ['babel-preset-expo'],
@@ -16,11 +16,26 @@ module.exports = function(api) {
         {
           root: ['./src'],
           alias: {
-            '@': ['./src'],
-            '@/images': ['./assets/images'],
+            '@': './src',
+            '@/components': './src/components',
+            '@/screens': './src/screens',
+            '@/utils': './src/utils',
+            '@/services': './src/services',
+            '@/config': './src/config',
+            '@/constants': './src/constants',
+            '@/navigation': './src/navigation',
+            '@/store': './src/store',
+            '@/data': './src/data',
+            '@/images': './assets/images',
+            '@/fonts': './assets/fonts',
           },
         },
       ],
     ],
+    env: {
+      production: {
+        plugins: ['transform-remove-console'],
+      },
+    },
   };
 }; 

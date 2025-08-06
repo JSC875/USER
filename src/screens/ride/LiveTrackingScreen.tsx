@@ -114,7 +114,8 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         setDriverLocation({ latitude: data.latitude, longitude: data.longitude });
         setDriverPath(prev => {
           // Only add if different from last
-          if (!prev.length || prev[prev.length-1].latitude !== data.latitude || prev[prev.length-1].longitude !== data.longitude) {
+          const lastPoint = prev[prev.length - 1];
+          if (!prev.length || !lastPoint || lastPoint.latitude !== data.latitude || lastPoint.longitude !== data.longitude) {
             return [...prev, { latitude: data.latitude, longitude: data.longitude }];
           }
           return prev;
@@ -169,6 +170,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           rideId,
           destination,
           origin,
+          estimate, // Add the estimate data
         });
       } else {
         console.log('🚫 Ignoring ride_started event for different ride:', data.rideId, 'expected:', rideId);
@@ -320,7 +322,12 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
             longitude: driverLocation.longitude,
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
-          } : undefined}
+          } : {
+            latitude: destination?.latitude || 17.4448,
+            longitude: destination?.longitude || 78.3498,
+            latitudeDelta: 0.01,
+            longitudeDelta: 0.01,
+          }}
         >
           {/* Polyline from driver to pickup (origin) when arriving */}
           {rideStatus === 'arriving' && driverLocation && origin && origin.latitude && origin.longitude && (

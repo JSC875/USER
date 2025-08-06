@@ -1,6 +1,17 @@
 import { apiConfig, isDevelopment, isProduction } from '../config/environment';
 import { getUserIdFromJWT, getUserTypeFromJWT } from '../utils/jwtDecoder';
 
+// Conditional logging function
+const log = (message: string, data?: any) => {
+  if (isDevelopment) {
+    if (data) {
+      console.log(message, data);
+    } else {
+      console.log(message);
+    }
+  }
+};
+
 // API Response types
 export interface ApiResponse<T = any> {
   success: boolean;
@@ -41,14 +52,12 @@ class ApiService {
     this.defaultRetryAttempts = apiConfig.retryAttempts;
     this.defaultRetryDelay = apiConfig.retryDelay;
     
-    if (isDevelopment) {
-      console.log('🔧 === API SERVICE CONFIGURATION ===');
-      console.log(`📍 Base URL: ${this.baseUrl}`);
-      console.log(`⏱️ Default Timeout: ${this.defaultTimeout}ms`);
-      console.log(`🔄 Default Retry Attempts: ${this.defaultRetryAttempts}`);
-      console.log(`⏳ Default Retry Delay: ${this.defaultRetryDelay}ms`);
-      console.log('🔧 === END CONFIGURATION ===');
-    }
+    log('🔧 === API SERVICE CONFIGURATION ===');
+    log(`📍 Base URL: ${this.baseUrl}`);
+    log(`⏱️ Default Timeout: ${this.defaultTimeout}ms`);
+    log(`🔄 Default Retry Attempts: ${this.defaultRetryAttempts}`);
+    log(`⏳ Default Retry Delay: ${this.defaultRetryDelay}ms`);
+    log('🔧 === END CONFIGURATION ===');
   }
 
   // Create request headers
@@ -161,48 +170,50 @@ class ApiService {
 
     if (isDevelopment) {
       // Enhanced logging for detailed debugging
-              console.log('🔍 === DETAILED API REQUEST LOG ===');
-        console.log(`📍 Base URL: ${this.baseUrl}`);
-        console.log(`🎯 Endpoint: ${endpoint}`);
-        console.log(`🔗 Full URL: ${url}`);
-        console.log(`📋 Method: ${method}`);
-        console.log(`⏱️ Timeout: ${timeout}ms`);
-        console.log(`🔄 Retry Attempts: ${retryAttempts}`);
-        console.log(`⏳ Retry Delay: ${retryDelay}ms`);
-        console.log(`🏗️ Environment: ${isProduction ? 'production' : 'development'}`);
+      log('🔍 === DETAILED API REQUEST LOG ===');
+      log(`📍 Base URL: ${this.baseUrl}`);
+      log(`🎯 Endpoint: ${endpoint}`);
+      log(`🔗 Full URL: ${url}`);
+      log(`📋 Method: ${method}`);
+      log(`⏱️ Timeout: ${timeout}ms`);
+      log(`🔄 Retry Attempts: ${retryAttempts}`);
+      log(`⏳ Retry Delay: ${retryDelay}ms`);
+      log(`🏗️ Environment: ${isProduction ? 'production' : 'development'}`);
       
       // Log headers with token info
-      console.log('📨 Headers:');
+      log('📨 Headers:');
       Object.entries(headers).forEach(([key, value]) => {
         if (key === 'Authorization') {
           const token = value.replace('Bearer ', '');
-          console.log(`  ${key}: Bearer ${token.substring(0, 20)}...${token.substring(token.length - 10)}`);
-          console.log(`  🔑 Token Length: ${token.length} characters`);
+          log(`  ${key}: Bearer ${token.substring(0, 20)}...${token.substring(token.length - 10)}`);
+          log(`  🔑 Token Length: ${token.length} characters`);
         } else {
-          console.log(`  ${key}: ${value}`);
+          log(`  ${key}: ${value}`);
         }
       });
       
       // Log request body if present
       if (config.body) {
-        console.log('📦 Request Body:');
-        console.log(JSON.stringify(config.body, null, 2));
+        log('📦 Request Body:');
+        log(JSON.stringify(config.body, null, 2));
       } else {
-        console.log('📦 Request Body: undefined');
+        log('📦 Request Body: undefined');
       }
       
-      console.log('🔍 === END REQUEST LOG ===');
+      log('🔍 === END REQUEST LOG ===');
     }
 
     const requestFn = async (): Promise<ApiResponse<T>> => {
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), timeout);
+      const timeoutId = setTimeout(() => {
+        controller.abort();
+      }, timeout);
 
       try {
         const response = await fetch(url, {
           method,
           headers,
-          body: config.body ? JSON.stringify(config.body) : undefined,
+          body: config.body ? JSON.stringify(config.body) : null,
           signal: controller.signal,
         });
 
@@ -221,16 +232,16 @@ class ApiService {
         }
 
         if (isDevelopment) {
-          console.log('📡 === DETAILED API RESPONSE LOG ===');
-          console.log(`📍 Base URL: ${this.baseUrl}`);
-          console.log(`🎯 Endpoint: ${endpoint}`);
-          console.log(`🔗 Full URL: ${url}`);
-          console.log(`📋 Method: ${method}`);
-          console.log(`✅ Status: ${response.status} ${response.statusText}`);
-          console.log(`📊 Response Headers:`, Object.fromEntries(response.headers.entries()));
-          console.log(`📦 Response Data:`, responseData);
-          console.log(`📏 Response Size: ${responseText.length} characters`);
-          console.log('📡 === END RESPONSE LOG ===');
+          log('📡 === DETAILED API RESPONSE LOG ===');
+          log(`📍 Base URL: ${this.baseUrl}`);
+          log(`🎯 Endpoint: ${endpoint}`);
+          log(`🔗 Full URL: ${url}`);
+          log(`📋 Method: ${method}`);
+          log(`✅ Status: ${response.status} ${response.statusText}`);
+          log(`📊 Response Headers:`, Object.fromEntries(response.headers.entries()));
+          log(`📦 Response Data:`, responseData);
+          log(`📏 Response Size: ${responseText.length} characters`);
+          log('📡 === END RESPONSE LOG ===');
         }
 
         if (!response.ok) {
@@ -249,6 +260,17 @@ class ApiService {
           if (error.name === 'AbortError') {
             throw new Error(`Request timeout after ${timeout}ms`);
           }
+          
+          // Handle network errors
+          if (error.message.includes('fetch')) {
+            throw new Error('Network error: Unable to connect to server. Please check your internet connection.');
+          }
+          
+          // Handle CORS errors
+          if (error.message.includes('CORS')) {
+            throw new Error('CORS error: Cross-origin request blocked. Please check server configuration.');
+          }
+          
           throw error;
         }
         

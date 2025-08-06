@@ -5,6 +5,17 @@ import { productionConfig } from './environments/production';
 import { stagingConfig } from './environments/staging';
 import type { AppConfig, Environment } from './environment';
 
+// Conditional logging function
+const log = (message: string, data?: any) => {
+  if (__DEV__) {
+    if (data) {
+      console.log(message, data);
+    } else {
+      console.log(message);
+    }
+  }
+};
+
 // Configuration manager class
 class ConfigManager {
   private config: AppConfig | null = null;
@@ -145,7 +156,10 @@ class ConfigManager {
     });
 
     if (missingFields.length > 0) {
-      throw new Error(`Missing required configuration fields: ${missingFields.join(', ')}`);
+      const errorMessage = `Missing required configuration fields: ${missingFields.join(', ')}`;
+      console.error('❌ Configuration validation failed:', errorMessage);
+      console.error('❌ Current configuration:', config);
+      throw new Error(errorMessage);
     }
   }
 
@@ -169,7 +183,7 @@ class ConfigManager {
 
       // Log configuration in development
       if (this.config.isDevelopment) {
-        console.log('🔧 Configuration loaded:', {
+        log('🔧 Configuration loaded:', {
           environment: this.config.environment,
           api: { baseUrl: this.config.api.baseUrl },
           socket: { url: this.config.socket.url },
@@ -183,6 +197,63 @@ class ConfigManager {
       return this.config;
     } catch (error) {
       console.error('❌ Failed to initialize configuration:', error);
+      
+      // Provide fallback configuration for critical errors
+      if (error instanceof Error && error.message.includes('Missing required configuration fields')) {
+        console.warn('⚠️ Using fallback configuration due to missing required fields');
+        const fallbackConfig: AppConfig = {
+          environment: 'development',
+          isDevelopment: true,
+          isProduction: false,
+          isStaging: false,
+          api: {
+            baseUrl: 'https://bike-taxi-production.up.railway.app',
+            timeout: 30000,
+            retryAttempts: 3,
+            retryDelay: 1000,
+          },
+          socket: {
+            url: 'https://testsocketio-roqet.up.railway.app',
+            timeout: 20000,
+            reconnectionAttempts: 15,
+            reconnectionDelay: 1000,
+            reconnectionDelayMax: 5000,
+            pingTimeout: 60000,
+            pingInterval: 25000,
+          },
+          clerk: {
+            publishableKey: 'pk_test_dXNlZnVsLWZsYW1pbmdvLTQxLmNsZXJrLmFjY291bnRzLmRldiQ',
+            frontendApi: '',
+          },
+          googleMaps: {
+            apiKey: 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU',
+            androidApiKey: 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU',
+            iosApiKey: 'AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU',
+          },
+          app: {
+            name: 'Roqet-app',
+            version: '1.0.0',
+            buildNumber: '1',
+            bundleId: 'com.roqet.roqetapp',
+          },
+          platform: {
+            isAndroid: false,
+            isIOS: false,
+            isWeb: false,
+            isAPK: false,
+          },
+          features: {
+            enableDebugLogs: true,
+            enableAnalytics: false,
+            enableCrashReporting: false,
+            enablePerformanceMonitoring: false,
+          },
+        };
+        
+        this.config = fallbackConfig;
+        return this.config;
+      }
+      
       throw error;
     }
   }

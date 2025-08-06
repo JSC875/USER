@@ -1,5 +1,29 @@
-import { apiService } from './api';
-import { apiConfig, isDevelopment } from '../config/environment';
+import { useAuth } from '@clerk/clerk-expo';
+
+export interface RideDetails {
+  id: string;
+  status: string;
+  otp: string;
+  estimatedFare: number;
+  requestedAt: string;
+  pickupLat: number;
+  pickupLng: number;
+  dropLat: number;
+  dropLng: number;
+  customer?: {
+    clerkUserId: string;
+    firstName: string;
+    lastName: string;
+    phoneNumber: string;
+  };
+}
+
+export interface RideDetailsResponse {
+  success: boolean;
+  data?: RideDetails;
+  message?: string;
+  error?: string;
+}
 
 // Types for ride requests and responses
 export interface RideRequestPayload {
@@ -50,14 +74,7 @@ export interface RideBookingRequest {
 }
 
 class RideService {
-  private baseUrl: string;
-
-  constructor() {
-    this.baseUrl = apiConfig.baseUrl;
-    console.log('🚗 === RIDE SERVICE INITIALIZED ===');
-    console.log('🌐 API Base URL:', this.baseUrl);
-    console.log('🏗️ Environment:', isDevelopment ? 'development' : 'production');
-  }
+  private baseUrl = 'https://bike-taxi-production.up.railway.app';
 
   /**
    * Request a ride via API endpoint
@@ -72,22 +89,33 @@ class RideService {
       console.log('📋 Method: POST');
       console.log('📦 Request Payload:', JSON.stringify(rideData, null, 2));
 
-      const response = await apiService.postAuth(
-        '/api/rides/request',
-        rideData,
-        getToken
-      );
+      const token = await getToken();
+      const response = await fetch(`${this.baseUrl}/api/rides/request`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-App-Version': '1.0.0',
+          'X-Platform': 'ReactNative',
+          'X-Environment': 'development',
+        },
+        body: JSON.stringify(rideData),
+      });
 
       console.log('✅ === RIDE REQUEST API RESPONSE ===');
-      console.log('📊 Response Success:', response.success);
-      console.log('📦 Response Data:', response.data);
-      console.log('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+      console.log('📊 Response Status:', response.status);
 
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to request ride');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API Error Response:', errorData);
+        throw new Error(`API request failed: ${response.status} - ${errorData.message || response.statusText}`);
       }
 
-      return response.data;
+      const data = await response.json();
+      console.log('📦 Response Data:', data);
+      console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+
+      return data;
     } catch (error) {
       console.error('❌ === RIDE REQUEST API ERROR ===');
       console.error('Error requesting ride:', error);
@@ -129,20 +157,31 @@ class RideService {
       console.log('🎯 Endpoint: /api/rides/' + rideId);
       console.log('📋 Method: GET');
 
-      const response = await apiService.getAuth(
-        `/api/rides/${rideId}`,
-        getToken
-      );
+      const token = await getToken();
+      const response = await fetch(`${this.baseUrl}/api/rides/${rideId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-App-Version': '1.0.0',
+          'X-Platform': 'ReactNative',
+          'X-Environment': 'development',
+        },
+      });
 
       console.log('✅ === GET RIDE DETAILS API RESPONSE ===');
-      console.log('📊 Response Success:', response.success);
-      console.log('📦 Response Data:', response.data);
+      console.log('📊 Response Status:', response.status);
 
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to get ride details');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API Error Response:', errorData);
+        throw new Error(`API request failed: ${response.status} - ${errorData.message || response.statusText}`);
       }
 
-      return response.data;
+      const data = await response.json();
+      console.log('📦 Response Data:', data);
+
+      return data;
     } catch (error) {
       console.error('❌ === GET RIDE DETAILS API ERROR ===');
       console.error('Error getting ride details:', error);
@@ -162,21 +201,31 @@ class RideService {
       console.log('🎯 Endpoint: /api/rides/' + rideId + '/cancel');
       console.log('📋 Method: POST');
 
-      const response = await apiService.postAuth(
-        `/api/rides/${rideId}/cancel`,
-        {},
-        getToken
-      );
+      const token = await getToken();
+      const response = await fetch(`${this.baseUrl}/api/rides/${rideId}/cancel`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-App-Version': '1.0.0',
+          'X-Platform': 'ReactNative',
+          'X-Environment': 'development',
+        },
+      });
 
       console.log('✅ === CANCEL RIDE API RESPONSE ===');
-      console.log('📊 Response Success:', response.success);
-      console.log('📦 Response Data:', response.data);
+      console.log('📊 Response Status:', response.status);
 
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to cancel ride');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API Error Response:', errorData);
+        throw new Error(`API request failed: ${response.status} - ${errorData.message || response.statusText}`);
       }
 
-      return response.data;
+      const data = await response.json();
+      console.log('📦 Response Data:', data);
+
+      return data;
     } catch (error) {
       console.error('❌ === CANCEL RIDE API ERROR ===');
       console.error('Error canceling ride:', error);
@@ -195,36 +244,157 @@ class RideService {
       console.log('🎯 Endpoint: /api/rides/active');
       console.log('📋 Method: GET');
 
-      const response = await apiService.getAuth(
-        '/api/rides/active',
-        getToken
-      );
+      const token = await getToken();
+      const response = await fetch(`${this.baseUrl}/api/rides/active`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-App-Version': '1.0.0',
+          'X-Platform': 'ReactNative',
+          'X-Environment': 'development',
+        },
+      });
 
       console.log('✅ === GET ACTIVE RIDES API RESPONSE ===');
-      console.log('📊 Response Success:', response.success);
-      console.log('📦 Response Data:', response.data);
+      console.log('📊 Response Status:', response.status);
 
-      if (!response.success) {
-        throw new Error(response.error || 'Failed to get active rides');
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API Error Response:', errorData);
+        throw new Error(`API request failed: ${response.status} - ${errorData.message || response.statusText}`);
       }
 
-      return response.data;
+      const data = await response.json();
+      console.log('📦 Response Data:', data);
+
+      return data;
     } catch (error) {
       console.error('❌ === GET ACTIVE RIDES API ERROR ===');
       console.error('Error getting active rides:', error);
       throw error;
     }
   }
+
+  async getRideDetailsForOTP(rideId: string, token?: string): Promise<RideDetailsResponse> {
+    try {
+      if (!token) {
+        throw new Error('No authentication token provided');
+      }
+
+      if (!rideId) {
+        throw new Error('Ride ID is required');
+      }
+
+      console.log('🚀 Fetching ride details via API...');
+      console.log('📍 Endpoint:', `${this.baseUrl}/api/rides/${rideId}`);
+      console.log('🕐 API call timestamp:', new Date().toISOString());
+      console.log('🆔 Ride ID:', rideId);
+
+      const response = await fetch(`${this.baseUrl}/api/rides/${rideId}`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-App-Version': '1.0.0',
+          'X-Platform': 'ReactNative',
+          'X-Environment': 'development',
+        },
+      });
+
+      console.log('📡 API Response Status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API Error Response:', errorData);
+        console.error('❌ API Status:', response.status);
+        console.error('❌ API Status Text:', response.statusText);
+        throw new Error(`API request failed: ${response.status} - ${errorData.message || response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Ride details fetched successfully via API:', data);
+      console.log('🔐 OTP from backend:', data.otp);
+
+      return {
+        success: true,
+        data: data,
+        message: 'Ride details fetched successfully'
+      };
+    } catch (error) {
+      console.error('❌ Error fetching ride details via API:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: 'Failed to fetch ride details'
+      };
+    }
+  }
+
+  async completeRide(rideId: string, token?: string): Promise<RideDetailsResponse> {
+    try {
+      if (!token) {
+        throw new Error('No authentication token provided');
+      }
+
+      if (!rideId) {
+        throw new Error('Ride ID is required');
+      }
+
+      console.log('🚀 Completing ride via API...');
+      console.log('📍 Endpoint:', `${this.baseUrl}/api/rides/${rideId}/complete`);
+      console.log('🕐 API call timestamp:', new Date().toISOString());
+      console.log('🆔 Ride ID:', rideId);
+
+      const response = await fetch(`${this.baseUrl}/api/rides/${rideId}/complete`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          'X-App-Version': '1.0.0',
+          'X-Platform': 'ReactNative',
+          'X-Environment': 'development',
+        },
+      });
+
+      console.log('📡 API Response Status:', response.status);
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ API Error Response:', errorData);
+        console.error('❌ API Status:', response.status);
+        console.error('❌ API Status Text:', response.statusText);
+        throw new Error(`API request failed: ${response.status} - ${errorData.message || response.statusText}`);
+      }
+
+      const data = await response.json();
+      console.log('✅ Ride completed successfully via API:', data);
+
+      return {
+        success: true,
+        data: data,
+        message: 'Ride completed successfully'
+      };
+    } catch (error) {
+      console.error('❌ Error completing ride via API:', error);
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Unknown error occurred',
+        message: 'Failed to complete ride'
+      };
+    }
+  }
 }
 
-// Export singleton instance
 export const rideService = new RideService();
 
-// Convenience functions
+// Export convenience functions for backward compatibility
 export const rideApi = {
   requestRide: rideService.requestRide.bind(rideService),
   getRideDetails: rideService.getRideDetails.bind(rideService),
   cancelRide: rideService.cancelRide.bind(rideService),
   getActiveRides: rideService.getActiveRides.bind(rideService),
   convertToApiPayload: rideService.convertToApiPayload.bind(rideService),
-}; 
+};
+
+export default rideService; 

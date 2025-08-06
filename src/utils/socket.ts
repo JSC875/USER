@@ -6,10 +6,16 @@ import { socketConfig, isDevelopment, isProduction, isAPK } from "../config/envi
 // Configuration for socket connection
 const SOCKET_URL = socketConfig.url;
 
-if (isDevelopment) {
-  console.log('🔧 Socket URL configured:', SOCKET_URL, 'DEV mode:', __DEV__);
-  console.log('🔧 Socket configuration:', socketConfig);
-}
+// Conditional logging function
+const log = (message: string, data?: any) => {
+  if (isDevelopment) {
+    if (data) {
+      console.log(message, data);
+    } else {
+      console.log(message);
+    }
+  }
+};
 
 // Validate socket URL
 if (!SOCKET_URL || SOCKET_URL === 'undefined') {
@@ -28,6 +34,7 @@ let connectionState: 'disconnected' | 'connecting' | 'connected' | 'error' = 'di
 let lastConnectionAttempt = 0;
 let connectionTimeout: ReturnType<typeof setTimeout> | null = null;
 let backgroundRetryInterval: ReturnType<typeof setInterval> | null = null;
+let connectionPromise: Promise<Socket | null> | null = null; // Add connection promise tracking
 
 // Event callback types
 export type RideBookedCallback = (data: {
@@ -81,42 +88,41 @@ export type RideCompletedCallback = (data: {
   timestamp: number;
 }) => void;
 
-// Chat event types
-export type ChatMessageCallback = (data: {
-  id: string;
+export type PaymentStatusCallback = (data: {
   rideId: string;
-  senderId: string;
-  senderType: 'user' | 'driver';
+  paymentId: string;
+  status: string;
+  amount: number;
   message: string;
-  timestamp: string;
-  isRead: boolean;
 }) => void;
 
-export type ChatHistoryCallback = (data: {
+export type PaymentFailedCallback = (data: {
   rideId: string;
-  messages: Array<{
-    id: string;
-    rideId: string;
-    senderId: string;
-    senderType: 'user' | 'driver';
-    message: string;
-    timestamp: string;
-    isRead: boolean;
-  }>;
-  totalMessages: number;
+  error: string;
+  message: string;
 }) => void;
 
-export type TypingIndicatorCallback = (data: {
+export type QRPaymentReadyCallback = (data: {
   rideId: string;
-  isTyping: boolean;
-  senderId: string;
-  senderType: 'user' | 'driver';
+  orderId: string;
+  amount: number;
+  currency: string;
+  timestamp: number;
 }) => void;
 
-export type MessagesReadCallback = (data: {
+export type QRCodeScannedCallback = (data: {
   rideId: string;
-  readBy: string;
-  readByType: 'user' | 'driver';
+  orderId: string;
+  amount: number;
+  timestamp: number;
+}) => void;
+
+export type PaymentCompletedCallback = (data: {
+  rideId: string;
+  orderId: string;
+  paymentId: string;
+  amount: number;
+  currency: string;
   timestamp: number;
 }) => void;
 
@@ -129,28 +135,42 @@ let onDriverOfflineCallback: DriverOfflineCallback | null = null;
 let onDriverDisconnectedCallback: DriverDisconnectedCallback | null = null;
 let onRideTimeoutCallback: RideTimeoutCallback | null = null;
 let onRideCompletedCallback: RideCompletedCallback | null = null;
+let onPaymentStatusCallback: PaymentStatusCallback | null = null;
+let onPaymentFailedCallback: PaymentFailedCallback | null = null;
+let onPaymentSuccessCallback: ((data: any) => void) | null = null;
 
-// Chat event callbacks
-let onChatMessageCallback: ChatMessageCallback | null = null;
-let onChatHistoryCallback: ChatHistoryCallback | null = null;
-let onTypingIndicatorCallback: TypingIndicatorCallback | null = null;
-let onMessagesReadCallback: MessagesReadCallback | null = null;
+// QR Payment callbacks
+let onQRPaymentReadyCallback: QRPaymentReadyCallback | null = null;
+let onQRCodeScannedCallback: QRCodeScannedCallback | null = null;
+let onPaymentCompletedCallback: PaymentCompletedCallback | null = null;
+
+// Chat-related event callbacks
+let onChatMessageCallback: ((message: any) => void) | null = null;
+let onChatHistoryCallback: ((data: any) => void) | null = null;
+let onTypingIndicatorCallback: ((data: any) => void) | null = null;
+let onMessagesReadCallback: ((data: any) => void) | null = null;
 
 export const connectSocket = (userId: string, userType: string = "customer") => {
   // Prevent duplicate connections for the same user
   if (isConnecting) {
-    console.log("🔄 Connection already in progress, ignoring duplicate request");
-    return socket;
+    log("🔄 Connection already in progress, returning existing promise");
+    return connectionPromise;
   }
   
   if (socket && socket.connected && lastConnectedUserId === userId) {
-    console.log("🔄 Socket already connected for this user, reusing existing connection");
-    return socket;
+    log("🔄 Socket already connected for this user, reusing existing connection");
+    return Promise.resolve(socket);
+  }
+
+  // If there's an existing connection promise, return it
+  if (connectionPromise) {
+    log("🔄 Connection promise already exists, returning it");
+    return connectionPromise;
   }
 
   // Disconnect existing socket if it exists
   if (socket) {
-    console.log("🔄 Disconnecting existing socket before creating new one");
+    log("🔄 Disconnecting existing socket before creating new one");
     socket.disconnect();
     socket = null;
   }
@@ -169,286 +189,284 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
   // Reset retry count for new connection attempt
   connectionRetryCount = 0;
 
-  console.log(`🔗 Connecting socket for user: ${userId}, type: ${userType}`);
-  console.log(`🌐 Socket URL: ${SOCKET_URL}`);
-  console.log(`🏗️ Environment: ${__DEV__ ? 'Development' : 'Production'}`);
+  log(`🔗 Connecting socket for user: ${userId}, type: ${userType}`);
+  log(`🌐 Socket URL: ${SOCKET_URL}`);
+  log(`🏗️ Environment: ${__DEV__ ? 'Development' : 'Production'}`);
   
   // Validate socket URL before attempting connection
   if (!SOCKET_URL || SOCKET_URL === 'undefined' || SOCKET_URL === 'null') {
     console.error('❌ Cannot connect: Socket URL is invalid');
     console.error('❌ SOCKET_URL:', SOCKET_URL);
     console.error('❌ Socket configuration:', socketConfig);
+    isConnecting = false;
+    connectionState = 'error';
     throw new Error('Socket URL is not configured. Please check environment variables.');
   }
-  
-  // Adjust configuration based on environment
-  const isProduction = !__DEV__;
-  const userAgent = isProduction ? 'ReactNative-APK' : 'ReactNative';
-  
-  // Enhanced socket configuration for better APK compatibility
-  const socketOptions = {
-    transports: ["websocket"], // Force WebSocket only for better reliability
-    query: {
-      type: userType,
-      id: userId,
-      platform: isProduction ? 'android-apk' : 'react-native',
-      version: '1.0.0'
-    },
-    reconnection: true,
-    reconnectionAttempts: isProduction ? socketConfig.reconnectionAttempts * 2 : socketConfig.reconnectionAttempts,
-    reconnectionDelay: isProduction ? socketConfig.reconnectionDelay * 1.5 : socketConfig.reconnectionDelay,
-    reconnectionDelayMax: isProduction ? socketConfig.reconnectionDelayMax * 1.6 : socketConfig.reconnectionDelayMax,
-    timeout: isProduction ? socketConfig.timeout * 1.25 : socketConfig.timeout,
-    forceNew: true,
-    upgrade: false, // Disable upgrade to prevent transport switching issues
-    rememberUpgrade: false,
-    autoConnect: true,
-    path: "/socket.io/",
-    extraHeaders: {
-      "Access-Control-Allow-Origin": "*",
-      "User-Agent": userAgent,
-      "X-Platform": "Android",
-      "X-Environment": isProduction ? "production" : "development",
-      "X-App-Version": "1.0.0"
-    },
-    // Additional options for better Android compatibility
-    withCredentials: false,
-    rejectUnauthorized: false,
-    // APK-specific settings
-    ...(isProduction && {
-      pingTimeout: socketConfig.pingTimeout,
-      pingInterval: socketConfig.pingInterval,
-      maxReconnectionAttempts: socketConfig.reconnectionAttempts * 2,
-      reconnectionAttempts: socketConfig.reconnectionAttempts * 2
-    })
-  };
 
-  console.log('🔧 Socket configuration:', socketOptions);
-  
-  socket = io(SOCKET_URL, socketOptions);
-
-  // Add connection event listeners
-  socket.on("connect", () => {
-    console.log("🟢 Socket.IO connected to server");
-    console.log("🔗 Socket ID:", socket?.id || 'None');
-    console.log("📡 Transport:", socket?.io?.engine?.transport?.name || 'Unknown');
-    console.log("🌐 Server URL:", SOCKET_URL);
-    console.log("👤 User ID:", userId);
-    console.log("👤 User Type:", userType);
+  // Create connection promise
+  connectionPromise = new Promise<Socket | null>((resolve, reject) => {
+    // Adjust configuration based on environment
+    const isProduction = !__DEV__;
+    const userAgent = isProduction ? 'ReactNative-APK' : 'ReactNative';
     
-    isConnecting = false;
-    connectionState = 'connected';
-    connectionRetryCount = 0; // Reset retry count on successful connection
+    // Enhanced socket configuration for better APK compatibility
+    const socketOptions = {
+      transports: ["websocket"], // Force WebSocket only for better reliability
+      query: {
+        type: userType,
+        id: userId,
+        platform: isProduction ? 'android-apk' : 'react-native',
+        version: '1.0.0'
+      },
+      reconnection: true,
+      reconnectionAttempts: isProduction ? socketConfig.reconnectionAttempts * 2 : socketConfig.reconnectionAttempts,
+      reconnectionDelay: isProduction ? socketConfig.reconnectionDelay * 1.5 : socketConfig.reconnectionDelay,
+      reconnectionDelayMax: isProduction ? socketConfig.reconnectionDelayMax * 1.6 : socketConfig.reconnectionDelayMax,
+      timeout: isProduction ? socketConfig.timeout * 1.25 : socketConfig.timeout,
+      forceNew: true,
+      upgrade: false, // Disable upgrade to prevent transport switching issues
+      rememberUpgrade: false,
+      autoConnect: true,
+      path: "/socket.io/",
+      extraHeaders: {
+        "Access-Control-Allow-Origin": "*",
+        "User-Agent": userAgent,
+        "X-Platform": "Android",
+        "X-Environment": isProduction ? "production" : "development",
+        "X-App-Version": "1.0.0"
+      },
+      // Additional options for better Android compatibility
+      withCredentials: false,
+      rejectUnauthorized: false,
+      // APK-specific settings
+      ...(isProduction && {
+        pingTimeout: socketConfig.pingTimeout,
+        pingInterval: socketConfig.pingInterval,
+        maxReconnectionAttempts: socketConfig.reconnectionAttempts * 2,
+        reconnectionAttempts: socketConfig.reconnectionAttempts * 2
+      })
+    };
+
+    log('🔧 Socket configuration:', socketOptions);
     
-    // Clear connection timeout
-    if (connectionTimeout) {
-      clearTimeout(connectionTimeout);
-      connectionTimeout = null;
-    }
-  });
+    socket = io(SOCKET_URL, socketOptions);
 
-  socket.on("ride_response_error", (data) => {
-    console.log("❌ Ride response error:", data);
-    Alert.alert('Ride Error', data.message || 'Ride could not be processed.');
-  });
+    // Add connection event listeners
+    socket.on("connect", () => {
+      log("🟢 Socket.IO connected to server");
+      log("🔗 Socket ID:", socket?.id || 'None');
+      log("📡 Transport:", socket?.io?.engine?.transport?.name || 'Unknown');
+      log("🌐 Server URL:", SOCKET_URL);
+      log("👤 User ID:", userId);
+      log("👤 User Type:", userType);
+      
+      isConnecting = false;
+      connectionState = 'connected';
+      connectionRetryCount = 0; // Reset retry count on successful connection
+      
+      // Clear connection timeout
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
+      }
 
-  socket.on("ride_cancellation_error", (data) => {
-    console.log("❌ Ride cancellation error:", data);
-    Alert.alert('Cancellation Error', data.message || 'Ride could not be cancelled.');
-  });
+      // Clear connection promise
+      connectionPromise = null;
+      
+      // Add chat event listeners
+      addChatEventListeners();
+      
+      // Add QR payment event listeners
+      addQRPaymentEventListeners();
+      
+      resolve(socket);
+    });
 
-  socket.on("ride_cancellation_success", (data) => {
-    console.log("✅ Ride cancellation successful:", data);
-    const message = data.cancellationFee > 0 
-      ? `${data.message}\n\nCancellation fee: ₹${data.cancellationFee}`
-      : data.message;
-    Alert.alert('Ride Cancelled', message);
-  });
+    socket.on("ride_response_error", (data) => {
+      log("❌ Ride response error:", data);
+      Alert.alert('Ride Error', data.message || 'Ride could not be processed.');
+    });
 
-  // Chat event listeners
-  socket.on("receive_chat_message", (data) => {
-    console.log("💬 Received chat message:", data);
-    if (onChatMessageCallback) {
-      onChatMessageCallback(data);
-    }
-  });
+    socket.on("ride_cancellation_error", (data) => {
+      log("❌ Ride cancellation error:", data);
+      Alert.alert('Cancellation Error', data.message || 'Ride could not be cancelled.');
+    });
 
-  socket.on("chat_history", (data) => {
-    console.log("📚 Received chat history:", data);
-    if (onChatHistoryCallback) {
-      onChatHistoryCallback(data);
-    }
-  });
-
-  socket.on("typing_indicator", (data) => {
-    console.log("⌨️ Typing indicator:", data);
-    if (onTypingIndicatorCallback) {
-      onTypingIndicatorCallback(data);
-    }
-  });
-
-  socket.on("messages_read", (data) => {
-    console.log("👁️ Messages read:", data);
-    if (onMessagesReadCallback) {
-      onMessagesReadCallback(data);
-    }
-  });
-
-  socket.on("chat_message_sent", (data) => {
-    console.log("✅ Chat message sent successfully:", data);
-  });
-
-  socket.on("chat_message_error", (data) => {
-    console.log("❌ Chat message error:", data);
-    Alert.alert('Chat Error', data.message || 'Failed to send message.');
-  });
-
-  socket.on("chat_history_error", (data) => {
-    console.log("❌ Chat history error:", data);
-    Alert.alert('Chat Error', data.message || 'Failed to load chat history.');
-  });
-  
-  socket.on("disconnect", (reason) => {
-    console.log("🔴 Socket.IO disconnected:", reason);
-    connectionState = 'disconnected';
-    isConnecting = false;
-    
-    // Clear connection timeout
-    if (connectionTimeout) {
-      clearTimeout(connectionTimeout);
-      connectionTimeout = null;
-    }
-    
-    // For APK builds, try to reconnect more aggressively
-    if (!__DEV__ && reason !== 'io client disconnect') {
-      console.log("🔄 APK disconnect detected, attempting reconnection...");
-      setTimeout(() => {
-        if (lastConnectedUserId) {
-          connectSocket(lastConnectedUserId, userType);
-        }
-      }, 2000);
-    }
-  });
-
-  socket.on("connect_error", (error) => {
-    console.log("❌ Socket.IO connection error:", error);
-    console.log("❌ Error details:", {
-      message: error.message,
-      name: error.name,
-      type: (error as any).type,
-      context: (error as any).context
+    socket.on("ride_cancellation_success", (data) => {
+      log("✅ Ride cancellation successful:", data);
+      const message = data.cancellationFee > 0 
+        ? `${data.message}\n\nCancellation fee: ₹${data.cancellationFee}`
+        : data.message;
+      Alert.alert('Ride Cancelled', message);
     });
     
-    connectionState = 'error';
-    isConnecting = false;
-    
-    // Clear connection timeout
-    if (connectionTimeout) {
-      clearTimeout(connectionTimeout);
-      connectionTimeout = null;
-    }
-    
-    // Handle specific error types
-    if (error.message.includes('websocket error')) {
-      console.log("🔄 WebSocket connection error detected, will retry automatically");
-      console.log("💡 This is common in production builds, retrying...");
-    } else if (error.message.includes('timeout')) {
-      console.log("⏰ Connection timeout, will retry automatically");
-    } else if (error.message.includes('connection failed')) {
-      console.log("🔌 Connection failed, will retry automatically");
-    } else if (error.message.includes('xhr poll error')) {
-      console.log("🔄 XHR poll error detected - this is expected in React Native");
-      console.log("💡 Using WebSocket transport to avoid this issue");
-    } else {
-      console.log("❌ Unknown connection error:", error.message);
-      // Only show alert for non-retryable errors
-      if (!error.message.includes('websocket error') && !error.message.includes('timeout')) {
-        Alert.alert('Connection Error', 'Could not connect to server. Please check your internet connection.');
+    socket.on("disconnect", (reason) => {
+      log("🔴 Socket.IO disconnected:", reason);
+      connectionState = 'disconnected';
+      isConnecting = false;
+      
+      // Clear connection timeout
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
       }
-    }
-  });
 
-  socket.on("reconnect", (attemptNumber) => {
-    console.log("🔄 Socket.IO reconnected after", attemptNumber, "attempts");
-    connectionState = 'connected';
-    isConnecting = false;
-  });
+      // Clear connection promise
+      connectionPromise = null;
+      
+      // For APK builds, try to reconnect more aggressively
+      if (!__DEV__ && reason !== 'io client disconnect') {
+        log("🔄 APK disconnect detected, attempting reconnection...");
+        setTimeout(() => {
+          if (lastConnectedUserId) {
+            connectSocket(lastConnectedUserId, userType);
+          }
+        }, 2000);
+      }
+    });
 
-  socket.on("reconnect_error", (error) => {
-    console.error("❌ Socket.IO reconnection error:", error);
-    connectionState = 'error';
-  });
+    socket.on("connect_error", (error) => {
+      log("❌ Socket.IO connection error:", error);
+      log("❌ Error details:", {
+        message: error.message,
+        name: error.name,
+        type: (error as any).type,
+        context: (error as any).context
+      });
+      
+      connectionState = 'error';
+      isConnecting = false;
+      
+      // Clear connection timeout
+      if (connectionTimeout) {
+        clearTimeout(connectionTimeout);
+        connectionTimeout = null;
+      }
 
-  socket.on("reconnect_attempt", (attemptNumber) => {
-    console.log("🔄 Socket.IO reconnection attempt:", attemptNumber);
-    connectionState = 'connecting';
-  });
+      // Clear connection promise
+      connectionPromise = null;
+      
+      // Handle specific error types
+      if (error.message.includes('websocket error')) {
+        log("🔄 WebSocket connection error detected, will retry automatically");
+        log("💡 This is common in production builds, retrying...");
+      } else if (error.message.includes('timeout')) {
+        log("⏰ Connection timeout, will retry automatically");
+      } else if (error.message.includes('connection failed')) {
+        log("🔌 Connection failed, will retry automatically");
+      } else if (error.message.includes('xhr poll error')) {
+        log("🔄 XHR poll error detected - this is expected in React Native");
+        log("💡 Using WebSocket transport to avoid this issue");
+      } else {
+        log("❌ Unknown connection error:", error.message);
+        // Only show alert for non-retryable errors
+        if (!error.message.includes('websocket error') && !error.message.includes('timeout')) {
+          Alert.alert('Connection Error', 'Could not connect to server. Please check your internet connection.');
+        }
+      }
 
-  socket.on("reconnect_failed", () => {
-    console.error("❌ Socket.IO reconnection failed after all attempts");
-    isConnecting = false;
-    connectionState = 'error';
-    Alert.alert('Connection Failed', 'Unable to connect to server after multiple attempts. Please check your internet connection and try again.');
-  });
-  
-  // Add connection timeout with better handling
-  connectionTimeout = setTimeout(() => {
-    if (isConnecting && socket && !socket.connected) {
-      console.log("⏰ Connection timeout, attempting retry");
+      reject(error);
+    });
+
+    socket.on("reconnect", (attemptNumber) => {
+      log(`🔄 Socket.IO reconnected after ${attemptNumber} attempts`);
+      connectionState = 'connected';
+      isConnecting = false;
+    });
+
+    socket.on("reconnect_error", (error) => {
+      console.error("❌ Socket.IO reconnection error:", error);
+      connectionState = 'error';
+    });
+
+    socket.on("reconnect_attempt", (attemptNumber) => {
+      log("🔄 Socket.IO reconnection attempt:", attemptNumber);
+      connectionState = 'connecting';
+    });
+
+    socket.on("reconnect_failed", () => {
+      console.error("❌ Socket.IO reconnection failed after all attempts");
       isConnecting = false;
       connectionState = 'error';
-      retryConnection(userId, userType);
-    }
-  }, isProduction ? 30000 : 25000); // Longer timeout for production
+      Alert.alert('Connection Failed', 'Unable to connect to server after multiple attempts. Please check your internet connection and try again.');
+      reject(new Error('Socket reconnection failed'));
+    });
+    
+    // Add connection timeout with better handling
+    connectionTimeout = setTimeout(() => {
+      if (isConnecting && socket && !socket.connected) {
+        log("⏰ Connection timeout, attempting retry");
+        isConnecting = false;
+        connectionState = 'error';
+        connectionPromise = null;
+        retryConnection(userId, userType);
+      }
+    }, isProduction ? 30000 : 25000); // Longer timeout for production
 
-  // Ride booking events
-  socket.on("ride_request_created", (data) => {
-    console.log("✅ Ride request created:", data);
-    onRideBookedCallback?.(data);
+    // Ride booking events
+    socket.on("ride_request_created", (data) => {
+      log("✅ Ride request created:", data);
+      onRideBookedCallback?.(data);
+    });
+
+    // Legacy event for backward compatibility
+    socket.on("ride_booked", (data) => {
+      log("✅ Ride booked (legacy):", data);
+      onRideBookedCallback?.(data);
+    });
+
+    socket.on("ride_accepted", (data) => {
+      log("✅ Ride accepted by driver:", data);
+      onRideAcceptedCallback?.(data);
+    });
+
+    socket.on("driver_location_update", (data) => {
+      log("📍 Driver location update:", data);
+      onDriverLocationCallback?.(data);
+    });
+
+    socket.on("ride_status_update", (data) => {
+      log("📊 Ride status update:", data);
+      onRideStatusCallback?.(data);
+    });
+
+    socket.on("driver_offline", (data) => {
+      log("🔴 Driver went offline:", data);
+      onDriverOfflineCallback?.(data);
+    });
+
+    socket.on("driver_disconnected", (data) => {
+      log("🔌 Driver disconnected:", data);
+      onDriverDisconnectedCallback?.(data);
+    });
+
+    socket.on("ride_timeout", (data) => {
+      log("⏰ Ride timeout:", data);
+      onRideTimeoutCallback?.(data);
+    });
+
+    socket.on("ride_completed", (data) => {
+      log("✅ Ride completed:", data);
+      onRideCompletedCallback?.(data);
+    });
+
+    socket.on("payment_status", (data) => {
+      log("💰 Payment status update:", data);
+      onPaymentStatusCallback?.(data);
+    });
+
+    socket.on("payment_failed", (data) => {
+      log("❌ Payment failed:", data);
+      onPaymentFailedCallback?.(data);
+    });
+
+    socket.on("payment_success", (data) => {
+      log("✅ Payment success:", data);
+      onPaymentSuccessCallback?.(data);
+    });
   });
 
-  // Legacy event for backward compatibility
-  socket.on("ride_booked", (data) => {
-    console.log("✅ Ride booked (legacy):", data);
-    onRideBookedCallback?.(data);
-  });
-
-  socket.on("ride_accepted", (data) => {
-    console.log("✅ Ride accepted by driver:", data);
-    onRideAcceptedCallback?.(data);
-  });
-
-  socket.on("driver_location_update", (data) => {
-    console.log("📍 Driver location update:", data);
-    onDriverLocationCallback?.(data);
-  });
-
-  socket.on("ride_status_update", (data) => {
-    console.log("📊 Ride status update:", data);
-    onRideStatusCallback?.(data);
-  });
-
-  socket.on("driver_offline", (data) => {
-    console.log("🔴 Driver went offline:", data);
-    onDriverOfflineCallback?.(data);
-  });
-
-  socket.on("driver_disconnected", (data) => {
-    console.log("🔌 Driver disconnected:", data);
-    onDriverDisconnectedCallback?.(data);
-  });
-
-  socket.on("ride_timeout", (data) => {
-    console.log("⏰ Ride timeout:", data);
-    onRideTimeoutCallback?.(data);
-  });
-
-  socket.on("ride_completed", (data) => {
-    console.log("✅ Ride completed:", data);
-    onRideCompletedCallback?.(data);
-  });
-
-  return socket;
+  return connectionPromise;
 };
 
 export const connectSocketWithJWT = async (getToken: any) => {
@@ -461,7 +479,7 @@ export const getSocket = () => socket;
 
 export const disconnectSocket = () => {
   if (socket) {
-    console.log("🔌 Disconnecting socket");
+    log("🔌 Disconnecting socket");
     socket.disconnect();
     socket = null;
   }
@@ -485,7 +503,7 @@ export const retryConnection = (userId: string, userType: string = "customer") =
   }
   
   connectionRetryCount++;
-  console.log(`🔄 Retrying connection (attempt ${connectionRetryCount}/${maxRetryAttempts})`);
+  log(`🔄 Retrying connection (attempt ${connectionRetryCount}/${maxRetryAttempts})`);
   
   // Disconnect existing socket
   if (socket) {
@@ -495,10 +513,10 @@ export const retryConnection = (userId: string, userType: string = "customer") =
   
   // Wait a bit before retrying with exponential backoff
   const delay = Math.min(1000 * Math.pow(2, connectionRetryCount - 1), 10000); // Exponential backoff with max 10s
-  console.log(`⏰ Waiting ${delay}ms before retry...`);
+  log(`⏰ Waiting ${delay}ms before retry...`);
   
   setTimeout(() => {
-    console.log(`🔄 Attempting retry ${connectionRetryCount}...`);
+    log(`🔄 Attempting retry ${connectionRetryCount}...`);
     return connectSocket(userId, userType);
   }, delay);
   
@@ -508,8 +526,8 @@ export const retryConnection = (userId: string, userType: string = "customer") =
 // Helper function to emit events with error handling
 export const emitEvent = (eventName: string, data: any) => {
   const socket = getSocket();
-  console.log(`📤 Attempting to emit event: ${eventName}`);
-  console.log("🔍 Current socket status:", {
+  log(`📤 Attempting to emit event: ${eventName}`);
+  log("🔍 Current socket status:", {
     exists: !!socket,
     connected: socket?.connected || false,
     id: socket?.id || 'None',
@@ -521,15 +539,15 @@ export const emitEvent = (eventName: string, data: any) => {
   if (socket && socket.connected) {
     try {
       socket.emit(eventName, data);
-      console.log(`✅ Successfully emitted event: ${eventName}`, data);
+      log(`✅ Successfully emitted event: ${eventName}`, data);
       return true;
     } catch (error) {
       console.error(`❌ Error emitting event ${eventName}:`, error);
       return false;
     }
   } else {
-    console.warn("⚠️ Socket not connected, cannot emit event:", eventName);
-    console.log("🔍 Socket status:", {
+    log("⚠️ Socket not connected, cannot emit event:", eventName);
+    log("🔍 Socket status:", {
       exists: !!socket,
       connected: socket?.connected || false,
       id: socket?.id || 'None',
@@ -572,18 +590,18 @@ export const getDetailedConnectionStatus = () => {
 // Helper function to ensure socket is connected
 export const ensureSocketConnected = async (getToken: any) => {
   const socket = getSocket();
-  console.log('🔍 Ensuring socket connection...');
-  console.log('🔍 Current socket status:', getDetailedConnectionStatus());
+  log('🔍 Ensuring socket connection...');
+  log('🔍 Current socket status:', getDetailedConnectionStatus());
   
   if (socket && socket.connected) {
-    console.log('✅ Socket already connected');
+    log('✅ Socket already connected');
     return socket;
   }
   
-  console.log('🔌 Socket not connected, attempting to connect...');
+  log('🔌 Socket not connected, attempting to connect...');
   try {
     const connectedSocket = await connectSocketWithJWT(getToken);
-    console.log('✅ Socket connected successfully');
+    log('✅ Socket connected successfully');
     
     // Wait a bit to ensure connection is stable
     await new Promise(resolve => setTimeout(resolve, 1000));
@@ -591,10 +609,10 @@ export const ensureSocketConnected = async (getToken: any) => {
     // Verify connection is still active
     const currentSocket = getSocket();
     if (currentSocket && currentSocket.connected) {
-      console.log('✅ Socket connection verified and stable');
+      log('✅ Socket connection verified and stable');
       return connectedSocket;
     } else {
-      console.log('⚠️ Socket connection not stable, attempting retry...');
+      log('⚠️ Socket connection not stable, attempting retry...');
       // Try one more time
       const retrySocket = await connectSocketWithJWT(getToken);
       await new Promise(resolve => setTimeout(resolve, 2000));
@@ -608,11 +626,11 @@ export const ensureSocketConnected = async (getToken: any) => {
 
 // Force reconnect function for debugging
 export const forceReconnect = async (getToken: any) => {
-  console.log('🔄 Force reconnecting socket...');
+  log('🔄 Force reconnecting socket...');
   
   // Disconnect existing socket
   if (socket) {
-    console.log('🔄 Disconnecting existing socket...');
+    log('🔄 Disconnecting existing socket...');
     socket.disconnect();
     socket = null;
   }
@@ -635,7 +653,7 @@ export const forceReconnect = async (getToken: any) => {
   // Reconnect with APK-specific handling
   try {
     const connectedSocket = await connectSocketWithJWT(getToken);
-    console.log('✅ Force reconnect successful');
+    log('✅ Force reconnect successful');
     
     // Wait longer for APK builds to ensure connection is fully established
     const waitTime = !__DEV__ ? 3000 : 2000;
@@ -644,21 +662,21 @@ export const forceReconnect = async (getToken: any) => {
     // Verify connection
     const currentSocket = getSocket();
     if (currentSocket && currentSocket.connected) {
-      console.log('✅ Force reconnect verified - socket is connected');
+      log('✅ Force reconnect verified - socket is connected');
       connectionState = 'connected';
     } else {
-      console.log('⚠️ Force reconnect completed but socket not verified as connected');
+      log('⚠️ Force reconnect completed but socket not verified as connected');
       
       // For APK builds, try one more time
       if (!__DEV__) {
-        console.log('🔄 APK: Attempting one more reconnection...');
+        log('🔄 APK: Attempting one more reconnection...');
         await new Promise(resolve => setTimeout(resolve, 2000));
         const retrySocket = await connectSocketWithJWT(getToken);
         await new Promise(resolve => setTimeout(resolve, 3000));
         
         const finalSocket = getSocket();
         if (finalSocket && finalSocket.connected) {
-          console.log('✅ APK: Second reconnection attempt successful');
+          log('✅ APK: Second reconnection attempt successful');
           connectionState = 'connected';
           return retrySocket;
         }
@@ -751,36 +769,68 @@ export const onRideCompleted = (callback: RideCompletedCallback) => {
   onRideCompletedCallback = callback;
 };
 
-// Chat callback setters
-export const onChatMessage = (callback: ChatMessageCallback) => {
+export const onPaymentStatus = (callback: PaymentStatusCallback) => {
+  onPaymentStatusCallback = callback;
+};
+
+export const onPaymentFailed = (callback: PaymentFailedCallback) => {
+  onPaymentFailedCallback = callback;
+};
+
+export const onPaymentSuccess = (callback: (data: any) => void) => {
+  onPaymentSuccessCallback = callback;
+  return () => {
+    onPaymentSuccessCallback = null;
+  };
+};
+
+// QR Payment event listeners
+export const onQRPaymentReady = (callback: QRPaymentReadyCallback) => {
+  onQRPaymentReadyCallback = callback;
+  return () => {
+    onQRPaymentReadyCallback = null;
+  };
+};
+
+export const onQRCodeScanned = (callback: QRCodeScannedCallback) => {
+  onQRCodeScannedCallback = callback;
+  return () => {
+    onQRCodeScannedCallback = null;
+  };
+};
+
+export const onPaymentCompleted = (callback: PaymentCompletedCallback) => {
+  onPaymentCompletedCallback = callback;
+  return () => {
+    onPaymentCompletedCallback = null;
+  };
+};
+
+// Chat event callback setters
+export const onChatMessage = (callback: (message: any) => void) => {
   onChatMessageCallback = callback;
 };
 
-export const onChatHistory = (callback: ChatHistoryCallback) => {
+export const onChatHistory = (callback: (data: any) => void) => {
   onChatHistoryCallback = callback;
 };
 
-export const onTypingIndicator = (callback: TypingIndicatorCallback) => {
+export const onTypingIndicator = (callback: (data: any) => void) => {
   onTypingIndicatorCallback = callback;
 };
 
-export const onMessagesRead = (callback: MessagesReadCallback) => {
+export const onMessagesRead = (callback: (data: any) => void) => {
   onMessagesReadCallback = callback;
 };
 
-// Chat methods
-export const sendChatMessage = (data: {
+// Chat message functions
+export const sendChatMessage = (messageData: {
   rideId: string;
   senderId: string;
   senderType: 'user' | 'driver';
   message: string;
 }) => {
-  if (socket && socket.connected) {
-    console.log("💬 Sending chat message:", data);
-    socket.emit("send_chat_message", data);
-  } else {
-    console.error("❌ Cannot send chat message: Socket not connected");
-  }
+  return emitEvent("send_chat_message", messageData);
 };
 
 export const getChatHistory = (data: {
@@ -788,12 +838,7 @@ export const getChatHistory = (data: {
   requesterId: string;
   requesterType: 'user' | 'driver';
 }) => {
-  if (socket && socket.connected) {
-    console.log("📚 Requesting chat history:", data);
-    socket.emit("get_chat_history", data);
-  } else {
-    console.error("❌ Cannot get chat history: Socket not connected");
-  }
+  return emitEvent("get_chat_history", data);
 };
 
 export const markMessagesAsRead = (data: {
@@ -801,12 +846,7 @@ export const markMessagesAsRead = (data: {
   readerId: string;
   readerType: 'user' | 'driver';
 }) => {
-  if (socket && socket.connected) {
-    console.log("👁️ Marking messages as read:", data);
-    socket.emit("mark_messages_read", data);
-  } else {
-    console.error("❌ Cannot mark messages as read: Socket not connected");
-  }
+  return emitEvent("mark_messages_read", data);
 };
 
 export const sendTypingStart = (data: {
@@ -814,9 +854,7 @@ export const sendTypingStart = (data: {
   senderId: string;
   senderType: 'user' | 'driver';
 }) => {
-  if (socket && socket.connected) {
-    socket.emit("typing_start", data);
-  }
+  return emitEvent("typing_start", data);
 };
 
 export const sendTypingStop = (data: {
@@ -824,9 +862,62 @@ export const sendTypingStop = (data: {
   senderId: string;
   senderType: 'user' | 'driver';
 }) => {
-  if (socket && socket.connected) {
-    socket.emit("typing_stop", data);
-  }
+  return emitEvent("typing_stop", data);
+};
+
+// Add chat event listeners to the socket connection
+const addChatEventListeners = () => {
+  if (!socket) return;
+
+  socket.on("chat_message", (message) => {
+    log("💬 Received chat message:", message);
+    onChatMessageCallback?.(message);
+  });
+
+  socket.on("chat_history", (data) => {
+    log("📚 Received chat history:", data);
+    onChatHistoryCallback?.(data);
+  });
+
+  socket.on("typing_indicator", (data) => {
+    log("⌨️ Typing indicator:", data);
+    onTypingIndicatorCallback?.(data);
+  });
+
+  socket.on("messages_read", (data) => {
+    log("👁️ Messages read:", data);
+    onMessagesReadCallback?.(data);
+  });
+};
+
+// Add QR payment event listeners to the socket connection
+const addQRPaymentEventListeners = () => {
+  if (!socket) return;
+
+  socket.on("qr_payment_ready", (data) => {
+    log("📱 QR Payment ready:", data);
+    onQRPaymentReadyCallback?.(data);
+  });
+
+  socket.on("qr_code_scanned", (data) => {
+    log("📱 QR Code scanned:", data);
+    onQRCodeScannedCallback?.(data);
+  });
+
+  socket.on("payment_completed", (data) => {
+    log("✅ Payment completed:", data);
+    onPaymentCompletedCallback?.(data);
+  });
+
+  socket.on("payment_success", (data) => {
+    log("🎉 Payment success:", data);
+    onPaymentSuccessCallback?.(data);
+  });
+
+  socket.on("payment_failed", (data) => {
+    log("❌ Payment failed:", data);
+    onPaymentFailedCallback?.(data);
+  });
 };
 
 // Clear all callbacks
@@ -839,17 +930,14 @@ export const clearCallbacks = () => {
   onDriverDisconnectedCallback = null;
   onRideTimeoutCallback = null;
   onRideCompletedCallback = null;
-  
-  // Clear chat callbacks
-  onChatMessageCallback = null;
-  onChatHistoryCallback = null;
-  onTypingIndicatorCallback = null;
-  onMessagesReadCallback = null;
+  onPaymentStatusCallback = null;
+  onPaymentFailedCallback = null;
+  onPaymentSuccessCallback = null;
 };
 
 // Test connection function
 export const testConnection = (userId: string, userType: string = "customer") => {
-  console.log("🧪 Testing Socket.IO connection...");
+  log("🧪 Testing Socket.IO connection...");
   
   const testSocket = io(SOCKET_URL, {
     transports: ["websocket", "polling"],
@@ -869,14 +957,14 @@ export const testConnection = (userId: string, userType: string = "customer") =>
 
     testSocket.on("connect", () => {
       clearTimeout(timeout);
-      console.log("✅ Test connection successful");
+      log("✅ Test connection successful");
       testSocket.disconnect();
       resolve(true);
     });
 
     testSocket.on("connect_error", (error) => {
       clearTimeout(timeout);
-      console.log("❌ Test connection failed:", error);
+      log("❌ Test connection failed:", error);
       resolve(false);
     });
   });
@@ -884,40 +972,40 @@ export const testConnection = (userId: string, userType: string = "customer") =>
 
 // Debug function to log current socket state
 export const debugSocketConnection = () => {
-  console.log("🔍 Socket Debug Information:");
-  console.log("🌐 Socket URL:", SOCKET_URL);
-  console.log("📊 Connection State:", connectionState);
-  console.log("🔄 Is Connecting:", isConnecting);
-  console.log("👤 Last Connected User ID:", lastConnectedUserId);
-  console.log("🔄 Connection Retry Count:", connectionRetryCount);
-  console.log("⏰ Last Connection Attempt:", new Date(lastConnectionAttempt).toISOString());
-  console.log("🏗️ Environment:", __DEV__ ? 'Development' : 'Production');
+  log("🔍 Socket Debug Information:");
+  log("🌐 Socket URL:", SOCKET_URL);
+  log("📊 Connection State:", connectionState);
+  log("🔄 Is Connecting:", isConnecting);
+  log("👤 Last Connected User ID:", lastConnectedUserId);
+  log("🔄 Connection Retry Count:", connectionRetryCount);
+  log("⏰ Last Connection Attempt:", new Date(lastConnectionAttempt).toISOString());
+  log("🏗️ Environment:", __DEV__ ? 'Development' : 'Production');
   
   const socket = getSocket();
   if (socket) {
-    console.log("🔗 Socket Details:");
-    console.log("- Exists: true");
-    console.log("- Connected:", socket.connected);
-    console.log("- ID:", socket.id || 'None');
-    console.log("- Transport:", socket.io?.engine?.transport?.name || 'Unknown');
+    log("🔗 Socket Details:");
+    log("- Exists: true");
+    log("- Connected:", socket.connected);
+    log("- ID:", socket.id || 'None');
+    log("- Transport:", socket.io?.engine?.transport?.name || 'Unknown');
   } else {
-    console.log("🔗 Socket: null");
+    log("🔗 Socket: null");
   }
   
-  console.log("📡 Detailed Status:", getDetailedConnectionStatus());
+  log("📡 Detailed Status:", getDetailedConnectionStatus());
 };
 
 // Function to handle APK-specific connection issues
 export const handleAPKConnection = async (getToken: any) => {
-  console.log("🔧 Handling APK connection...");
+  log("🔧 Handling APK connection...");
   
   // For APK builds, we need to be more aggressive with connection
   if (!__DEV__) {
-    console.log("🏗️ Running in production mode - using APK-specific handling");
+    log("🏗️ Running in production mode - using APK-specific handling");
     
     // Force disconnect any existing connection
     if (socket) {
-      console.log("🔄 Force disconnecting existing socket for APK...");
+      log("🔄 Force disconnecting existing socket for APK...");
       socket.disconnect();
       socket = null;
     }
@@ -947,20 +1035,20 @@ export const handleAPKConnection = async (getToken: any) => {
       // Verify connection
       const currentSocket = getSocket();
       if (currentSocket && currentSocket.connected) {
-        console.log("✅ APK connection successful and verified");
+        log("✅ APK connection successful and verified");
         return connectedSocket;
       } else {
-        console.log("⚠️ APK connection not verified, attempting one more time...");
+        log("⚠️ APK connection not verified, attempting one more time...");
         await new Promise(resolve => setTimeout(resolve, 2000));
         const retrySocket = await connectSocketWithJWT(getToken);
         await new Promise(resolve => setTimeout(resolve, 3000));
         
         const finalSocket = getSocket();
         if (finalSocket && finalSocket.connected) {
-          console.log("✅ APK: Second connection attempt successful");
+          log("✅ APK: Second connection attempt successful");
           return retrySocket;
         } else {
-          console.log("❌ APK: Both connection attempts failed");
+          log("❌ APK: Both connection attempts failed");
           throw new Error("Failed to establish APK connection after multiple attempts");
         }
       }
@@ -982,16 +1070,16 @@ export const startBackgroundRetry = (getToken: any) => {
   
   // Only start background retry for APK builds
   if (!__DEV__) {
-    console.log('🔄 Starting background retry mechanism for APK...');
+    log('🔄 Starting background retry mechanism for APK...');
     backgroundRetryInterval = setInterval(async () => {
       const currentSocket = getSocket();
       if (!currentSocket || !currentSocket.connected) {
-        console.log('🔄 Background retry: Socket not connected, attempting reconnection...');
+        log('🔄 Background retry: Socket not connected, attempting reconnection...');
         try {
           await connectSocketWithJWT(getToken);
-          console.log('✅ Background retry: Reconnection successful');
+          log('✅ Background retry: Reconnection successful');
         } catch (error) {
-          console.log('❌ Background retry: Reconnection failed:', error);
+          log('❌ Background retry: Reconnection failed:', error);
         }
       }
     }, 30000); // Check every 30 seconds
@@ -1000,10 +1088,10 @@ export const startBackgroundRetry = (getToken: any) => {
 
 // New function specifically for APK initialization
 export const initializeAPKConnection = async (getToken: any) => {
-  console.log("🚀 Initializing APK connection...");
+  log("🚀 Initializing APK connection...");
   
   if (!__DEV__) {
-    console.log("🏗️ APK initialization mode");
+    log("🏗️ APK initialization mode");
     
     // Clear any existing connection
     if (socket) {
@@ -1027,18 +1115,18 @@ export const initializeAPKConnection = async (getToken: any) => {
     
     try {
       // First connection attempt
-      console.log("🔄 APK: First connection attempt...");
+      log("🔄 APK: First connection attempt...");
       const firstSocket = await connectSocketWithJWT(getToken);
       await new Promise(resolve => setTimeout(resolve, 5000));
       
       let currentSocket = getSocket();
       if (currentSocket && currentSocket.connected) {
-        console.log("✅ APK: First connection successful");
+        log("✅ APK: First connection successful");
         return firstSocket;
       }
       
       // Second attempt with different strategy
-      console.log("🔄 APK: Second connection attempt...");
+      log("🔄 APK: Second connection attempt...");
       const existingSocket = getSocket();
       if (existingSocket) {
         existingSocket.disconnect();
@@ -1051,12 +1139,12 @@ export const initializeAPKConnection = async (getToken: any) => {
       
       currentSocket = getSocket();
       if (currentSocket && currentSocket.connected) {
-        console.log("✅ APK: Second connection successful");
+        log("✅ APK: Second connection successful");
         return secondSocket;
       }
       
       // Final attempt with force reconnect
-      console.log("🔄 APK: Final connection attempt with force reconnect...");
+      log("🔄 APK: Final connection attempt with force reconnect...");
       const finalSocket = await forceReconnect(getToken);
       
       // Start background retry mechanism for APK builds

@@ -1,8 +1,15 @@
 // JWT Decoder utility for user app
 export const decodeJWT = (token: string) => {
   try {
+    if (!token || typeof token !== 'string') {
+      throw new Error('Invalid token: token is null, undefined, or not a string');
+    }
+    
     const parts = token.split('.');
-    if (parts.length !== 3) throw new Error('Invalid JWT format');
+    if (parts.length !== 3) {
+      throw new Error('Invalid JWT format: token must have 3 parts');
+    }
+    
     const payload = parts[1];
     const paddedPayload = payload + '='.repeat((4 - payload.length % 4) % 4);
     const decodedPayload = atob(paddedPayload.replace(/-/g, '+').replace(/_/g, '/'));
@@ -16,27 +23,56 @@ export const decodeJWT = (token: string) => {
 // Utility to get user ID for socket connection
 export const getUserIdFromJWT = async (getToken: any) => {
   try {
+    if (!getToken || typeof getToken !== 'function') {
+      throw new Error('getToken is not a function');
+    }
+    
     const token = await getToken({ template: 'my_app_token' });
-    if (!token) return 'user123';
+    if (!token) {
+      throw new Error('No token available');
+    }
+    
     const decoded = decodeJWT(token);
-    if (!decoded) return 'user123';
-    return decoded.sub || decoded.user_id || decoded.userId || 'user123';
+    if (!decoded) {
+      throw new Error('Failed to decode JWT');
+    }
+    
+    // Try different possible user ID fields
+    const userId = decoded.sub || decoded.user_id || decoded.userId || decoded.id;
+    if (!userId) {
+      throw new Error('No user ID found in JWT payload');
+    }
+    
+    return userId;
   } catch (error) {
     console.error('Error getting user ID from JWT:', error);
-    return 'user123';
+    throw error; // Re-throw to let caller handle the error
   }
 };
 
 // Utility to get user type from JWT
 export const getUserTypeFromJWT = async (getToken: any) => {
   try {
+    if (!getToken || typeof getToken !== 'function') {
+      throw new Error('getToken is not a function');
+    }
+    
     const token = await getToken({ template: 'my_app_token' });
-    if (!token) return 'customer';
+    if (!token) {
+      throw new Error('No token available');
+    }
+    
     const decoded = decodeJWT(token);
-    if (!decoded) return 'customer';
-    return decoded.user_type || decoded.type || 'customer';
+    if (!decoded) {
+      throw new Error('Failed to decode JWT');
+    }
+    
+    // Try different possible user type fields
+    const userType = decoded.user_type || decoded.type || decoded.role || 'customer';
+    return userType;
   } catch (error) {
     console.error('Error getting user type from JWT:', error);
+    // Default to customer if we can't get the type
     return 'customer';
   }
 };
