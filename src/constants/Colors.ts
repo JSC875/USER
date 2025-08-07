@@ -38,7 +38,7 @@ export const Colors = {
   info: '#3b82f6', // Keeping as is
 
   // Background Colors
-  background: '#ecf0f1', // Light Slate
+  background: '#f4f6f8', // Light Slate
   surface: '#a8e6cf', // Mint Green
   card: '#FFF',
 

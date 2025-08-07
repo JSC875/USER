@@ -246,17 +246,26 @@ export default function RazorpayWebView({
       
       if (isDevelopment) {
         console.log('🔍 WebView message received:', message);
+        console.log('📋 Message type:', message.type);
+        console.log('📋 Message data:', message.data);
       }
       
       switch (message.type) {
         case 'PAGE_LOADED':
+          if (isDevelopment) {
+            console.log('✅ WebView page loaded successfully');
+          }
           setIsLoading(false);
           break;
           
         case 'PAYMENT_SUCCESS':
           const { data } = message;
           if (isDevelopment) {
-            console.log('✅ Payment successful:', data);
+            console.log('✅ Payment successful in WebView:', data);
+            console.log('🔍 Payment data validation:');
+            console.log('  - razorpay_payment_id:', data.razorpay_payment_id);
+            console.log('  - razorpay_order_id:', data.razorpay_order_id);
+            console.log('  - razorpay_signature:', data.razorpay_signature);
           }
           onSuccess({
             paymentId: data.razorpay_payment_id,
@@ -268,6 +277,7 @@ export default function RazorpayWebView({
         case 'PAYMENT_DISMISSED':
           if (isDevelopment) {
             console.log('❌ Payment dismissed by user');
+            console.log('🔍 Dismiss reason: User closed payment modal');
           }
           onFailure('Payment was cancelled');
           break;
@@ -275,6 +285,7 @@ export default function RazorpayWebView({
         case 'PAGE_ERROR':
           if (isDevelopment) {
             console.error('❌ WebView error:', message.error);
+            console.log('🔍 Error details:', message);
           }
           setError('Payment page error. Please try again.');
           break;
@@ -282,11 +293,13 @@ export default function RazorpayWebView({
         default:
           if (isDevelopment) {
             console.log('🔍 Unknown message type:', message.type);
+            console.log('📋 Full message:', message);
           }
       }
     } catch (error) {
       if (isDevelopment) {
         console.error('❌ Error parsing WebView message:', error);
+        console.error('📋 Raw message data:', event.nativeEvent.data);
       }
       setError('Communication error. Please try again.');
     }

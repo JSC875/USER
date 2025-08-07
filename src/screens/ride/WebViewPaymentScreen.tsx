@@ -115,21 +115,9 @@ export default function WebViewPaymentScreen({ navigation, route }: WebViewPayme
           message: 'QR payment order ready'
         };
       } else {
-        // Regular payment flow - create new order
-        orderResponse = await paymentService.processPaymentWithWebView(
-          rideId,
-          validatedAmount,
-          {
-            email: 'user@example.com', // Replace with actual user email
-            phone: '+919876543210', // Replace with actual user phone
-            name: 'User Name', // Replace with actual user name
-          },
-          () => getToken()
-        );
-      }
-
-      if (!orderResponse.success) {
-        throw new Error(orderResponse.error || 'Failed to create payment order');
+        // Payment orders are now created by driver app
+        // Customer should scan QR code from driver
+        throw new Error('Please scan the QR code shown by your driver to complete payment');
       }
 
       if (isDevelopment) {

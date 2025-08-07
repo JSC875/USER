@@ -1,5 +1,6 @@
 import { api } from './api';
 import { isDevelopment } from '../config/environment';
+import { getRazorpayKey, validatePaymentAmount, logRazorpayConfig } from '../config/razorpay';
 
 // Payment types
 export interface PaymentOrder {
@@ -24,6 +25,8 @@ export interface PaymentResponse {
     currency?: string;
     receipt?: string;
     message?: string;
+    upi_link?: string;
+    qr_code_url?: string;
   };
   message?: string;
   error?: string;
@@ -57,39 +60,70 @@ export interface PaymentVerificationData {
   orderId: string;
 }
 
+export interface PostRidePaymentData {
+  rideId: string;
+  amount: number;
+  currency: string;
+  userInfo: {
+    email?: string;
+    phone?: string;
+    name?: string;
+  };
+}
+
 // Payment Service class
 class PaymentService {
   private baseUrl = 'https://bike-taxi-production.up.railway.app';
 
-    // Create payment order
-  async createPaymentOrder(
-    rideId: string,
-    amount: number,
+  // Create payment order for post-ride payment
+  async createPostRideOrder(
+    paymentData: PostRidePaymentData,
     getToken: () => Promise<string | null>
   ): Promise<PaymentResponse> {
     try {
       if (isDevelopment) {
-        console.log('💰 Creating payment order...');
-        console.log('🆔 Ride ID:', rideId);
-        console.log('💵 Amount (paise):', amount);
-        console.log('💵 Amount (INR):', amount / 100);
-        console.log('💵 Amount sent to backend (INR):', Math.floor(amount / 100));
+        console.log('💳 Creating post-ride payment order...');
+        console.log('📋 Payment data:', paymentData);
       }
 
-      const response = await api.postAuth<{ order: PaymentOrder }>(
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication token not found');
+      }
+
+      if (!validatePaymentAmount(paymentData.amount)) {
+        throw new Error('Invalid payment amount');
+      }
+
+      // Log Razorpay configuration
+      logRazorpayConfig();
+
+      const response = await api.postAuth<{ 
+        success: boolean; 
+        message: string; 
+        data?: {
+          orderId: string;
+          keyId: string;
+          amount: number;
+          currency: string;
+          receipt: string;
+          upi_link?: string;
+          qr_code_url?: string;
+        };
+      }>(
         '/api/payments/create-order',
         {
-          rideId,
-          amount: Math.floor(amount / 100), // Convert paise to INR for backend
+          rideId: paymentData.rideId,
+          amount: paymentData.amount,
+          currency: paymentData.currency || 'INR',
+          payment_method: 'razorpay_webview',
+          userInfo: paymentData.userInfo
         },
         getToken
       );
 
       if (isDevelopment) {
-        console.log('✅ Payment order created:', response);
-        console.log('📦 Response data:', response.data);
-        console.log('📦 Response success:', response.success);
-        console.log('📦 Response message:', response.message);
+        console.log('✅ Post-ride payment order created:', response);
       }
 
       return {
@@ -99,8 +133,7 @@ class PaymentService {
       };
     } catch (error) {
       if (isDevelopment) {
-        console.error('❌ Error creating payment order:', error);
-        console.error('❌ Error details:', JSON.stringify(error, null, 2));
+        console.error('❌ Error creating post-ride payment order:', error);
       }
       return {
         success: false,
@@ -109,8 +142,17 @@ class PaymentService {
     }
   }
 
-  // Complete payment flow with WebView
-  async processPaymentWithWebView(
+  // Generate UUID for ride ID if not provided
+  private generateRideId(): string {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  }
+
+  // Create direct payment order for immediate payment
+  async createDirectPaymentOrder(
     rideId: string,
     amount: number,
     userInfo: {
@@ -122,55 +164,117 @@ class PaymentService {
   ): Promise<PaymentResponse> {
     try {
       if (isDevelopment) {
-        console.log('🚀 Starting complete payment flow with WebView...');
+        console.log('💳 Creating direct payment order...');
+        console.log('📋 Ride ID:', rideId);
+        console.log('📋 Amount:', amount);
         console.log('📋 User info:', userInfo);
       }
 
-      // Step 1: Create payment order
-      const orderResponse = await this.createPaymentOrder(rideId, amount, getToken);
-      
-      if (!orderResponse.success) {
-        throw new Error(orderResponse.error || 'Failed to create payment order');
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication token not found');
       }
 
-      // Extract order data from response
-      const orderData = orderResponse.data;
-      if (!orderData?.orderId || !orderData?.keyId) {
-        throw new Error('Invalid order data received from backend');
+      if (!validatePaymentAmount(amount)) {
+        throw new Error('Invalid payment amount');
       }
+
+      // Log Razorpay configuration
+      logRazorpayConfig();
+
+      // Generate proper UUID if rideId is not in UUID format
+      const finalRideId = rideId.includes('-') ? rideId : this.generateRideId();
+      
+      const response = await api.postAuth<{ 
+        success: boolean; 
+        message: string; 
+        data?: {
+          order?: PaymentOrder;
+          orderId?: string;
+          keyId?: string;
+          amount?: number;
+          currency?: string;
+          receipt?: string;
+        };
+      }>(
+        '/api/payments/create-order',
+        {
+          rideId: finalRideId,
+          amount: amount,
+          currency: 'INR',
+          payment_method: 'razorpay_direct',
+          userInfo: userInfo
+        },
+        getToken
+      );
 
       if (isDevelopment) {
-        console.log('✅ Payment order created successfully');
-        console.log('📦 Order data:', orderData);
+        console.log('✅ Direct payment order created:', response);
       }
 
-      // Return order data for WebView
+      return {
+        success: response.success,
+        data: response.data,
+        message: response.message,
+      };
+    } catch (error) {
+      if (isDevelopment) {
+        console.error('❌ Error creating direct payment order:', error);
+      }
+      return {
+        success: false,
+        error: error instanceof Error ? error.message : 'Failed to create payment order',
+      };
+    }
+  }
+
+  // Process payment using WebView with order data
+  async processWebViewPayment(
+    orderData: {
+      orderId: string;
+      keyId: string;
+      amount: number;
+      currency: string;
+      receipt: string;
+    },
+    userInfo: {
+      email?: string;
+      phone?: string;
+      name?: string;
+    },
+    getToken: () => Promise<string | null>
+  ): Promise<PaymentResponse> {
+    try {
+      if (isDevelopment) {
+        console.log('🌐 Processing WebView payment...');
+        console.log('📋 Order data:', orderData);
+        console.log('👤 User info:', userInfo);
+      }
+
+      // Return order data for WebView processing
       return {
         success: true,
         data: {
           orderId: orderData.orderId,
           keyId: orderData.keyId,
-          amount: orderData.amount || amount,
-          currency: orderData.currency || 'INR',
-          name: 'Roqet Bike Taxi',
-          description: `Payment for ride ${rideId}`,
-          prefill: userInfo,
+          amount: orderData.amount,
+          currency: orderData.currency,
+          receipt: orderData.receipt,
         },
-        message: 'Payment order created successfully',
+        message: 'Order ready for WebView payment',
       };
-
     } catch (error) {
       if (isDevelopment) {
-        console.error('❌ Error in payment flow:', error);
+        console.error('❌ Error in WebView payment processing:', error);
       }
       return {
         success: false,
-        error: error instanceof Error ? error.message : 'Payment flow failed',
+        error: error instanceof Error ? error.message : 'WebView payment processing failed',
       };
     }
   }
 
-  // Verify payment
+  // Verify payment after WebView completion
   async verifyPayment(
     verificationData: PaymentVerificationData,
     getToken: () => Promise<string | null>
@@ -181,7 +285,16 @@ class PaymentService {
         console.log('📋 Verification data:', verificationData);
       }
 
-      const response = await api.postAuth<{ success: boolean; message: string }>(
+      const response = await api.postAuth<{ 
+        success: boolean; 
+        message: string;
+        data?: {
+          payment_verified: boolean;
+          payment_id: string;
+          order_id: string;
+          amount: number;
+        };
+      }>(
         '/api/payments/verify',
         verificationData,
         getToken
@@ -291,15 +404,15 @@ class PaymentService {
         console.log('📝 Reason:', reason);
       }
 
-             const response = await api.postAuth<{ refundId: string; status: string }>(
-         '/api/payments/refund',
-         {
-           paymentId,
-           amount: Math.floor(amount / 100), // Convert paise to INR for backend
-           reason,
-         },
-         getToken
-       );
+      const response = await api.postAuth<{ refundId: string; status: string }>(
+        '/api/payments/refund',
+        {
+          paymentId,
+          amount: Math.floor(amount / 100), // Convert paise to INR for backend
+          reason,
+        },
+        getToken
+      );
 
       if (isDevelopment) {
         console.log('✅ Refund processed:', response);
@@ -318,6 +431,34 @@ class PaymentService {
         success: false,
         error: error instanceof Error ? error.message : 'Failed to process refund',
       };
+    }
+  }
+
+  // Test payment connectivity
+  async testPaymentConnectivity(
+    getToken: () => Promise<string | null>
+  ): Promise<boolean> {
+    try {
+      if (isDevelopment) {
+        console.log('🧪 Testing payment connectivity...');
+      }
+
+      // Use a simple health check endpoint that doesn't require UUID
+      const response = await api.getAuth<{ status: string }>(
+        '/api/health',
+        getToken
+      );
+
+      if (isDevelopment) {
+        console.log('✅ Payment connectivity test result:', response);
+      }
+
+      return response.success;
+    } catch (error) {
+      if (isDevelopment) {
+        console.error('❌ Payment connectivity test failed:', error);
+      }
+      return false;
     }
   }
 }

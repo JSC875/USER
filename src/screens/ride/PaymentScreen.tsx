@@ -15,8 +15,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
-import { initializePayment, PaymentOptions, PaymentResult, formatAmount } from '../../utils/razorpay';
-import { useAuth } from '@clerk/clerk-expo';
+import RazorpayTestButton from '../../components/common/RazorpayTestButton';
+import AmountTestButton from '../../components/common/AmountTestButton';
+import { initializePayment, PaymentOptions, PaymentResult, formatAmount, ensureAmountInPaise, convertPaiseToRupees, debugAmountConversion } from '../../utils/razorpay';
+import { useAuth, useUser } from '@clerk/clerk-expo';
+import { paymentService } from '../../services/paymentService';
+import { emitEvent } from '../../utils/socket';
+import { isUsingLiveKeys, getPaymentWarningMessage } from '../../config/razorpay';
 
 type RootStackParamList = {
   RidePayment: {
@@ -33,16 +38,29 @@ type PaymentScreenProps = NativeStackScreenProps<RootStackParamList, 'RidePaymen
 export default function PaymentScreen({ navigation, route }: PaymentScreenProps) {
   const { rideId, amount, destination, driver, estimate } = route.params;
   const { getToken } = useAuth();
+  const { user } = useUser();
   
   const [isLoading, setIsLoading] = useState(false);
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
   const [errorMessage, setErrorMessage] = useState<string>('');
+  const [paymentData, setPaymentData] = useState<any>(null);
+
+  // Get user information for payment
+  const getUserInfo = () => {
+    const email = user?.emailAddresses?.[0]?.emailAddress || 'customer@example.com';
+    const phone = user?.phoneNumbers?.[0]?.phoneNumber || '+919876543210';
+    const name = user?.fullName || 'Customer Name';
+    
+    return { email, phone, name };
+  };
 
   // Validate and ensure minimum amount
-  const validatedAmount = Math.max(amount || 0, 100); // Minimum 1 INR (100 paise)
   console.log('💰 PaymentScreen - Original amount:', amount);
-  console.log('💰 PaymentScreen - Validated amount:', validatedAmount);
-  console.log('💰 PaymentScreen - Amount in INR:', validatedAmount / 100);
+  debugAmountConversion(amount || 0, true); // Amount from RideInProgressScreen is already in paise
+  // Amount from RideInProgressScreen is already in paise, so don't convert again
+  const validatedAmount = Math.max(ensureAmountInPaise(amount || 0, true), 100); // Minimum 1 INR (100 paise)
+  console.log('💰 PaymentScreen - Final validated amount in paise:', validatedAmount);
+  console.log('💰 PaymentScreen - Final amount in INR:', convertPaiseToRupees(validatedAmount));
 
   const driverInfo = driver || {
     name: 'Alex Robin',
@@ -51,93 +69,196 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
     photo: undefined,
   };
 
-  // Handle payment processing
-  const handlePayment = async () => {
+  // Handle direct payment processing
+  const handleDirectPayment = async () => {
     if (isLoading) return;
+
+    // Show warning for live payments
+    if (isUsingLiveKeys()) {
+      const userInfo = getUserInfo();
+      const warningResult = await new Promise<boolean>((resolve) => {
+        Alert.alert(
+          '⚠️ Real Payment Warning',
+          `${getPaymentWarningMessage()}\n\nAmount: ₹${convertPaiseToRupees(validatedAmount).toFixed(2)}\n\nAre you sure you want to proceed?`,
+          [
+            {
+              text: 'Cancel',
+              style: 'cancel',
+              onPress: () => resolve(false),
+            },
+            {
+              text: 'Proceed',
+              style: 'destructive',
+              onPress: () => resolve(true),
+            },
+          ]
+        );
+      });
+
+      if (!warningResult) {
+        return;
+      }
+    }
 
     setIsLoading(true);
     setPaymentStatus('processing');
     setErrorMessage('');
 
     try {
-      // Get user token
+      console.log('💳 PaymentScreen - Direct payment initiated');
+      console.log('💰 Amount for payment:', validatedAmount);
+      console.log('🚗 Ride ID:', rideId);
+
       const token = await getToken();
       if (!token) {
-        throw new Error('Authentication required');
+        throw new Error('Authentication token not found');
       }
 
-      // Prepare payment options
-      const paymentOptions: PaymentOptions = {
+      const userInfo = getUserInfo();
+
+      // Create a payment order for direct payment
+      // Convert validatedAmount (in paise) back to rupees for backend
+      const amountInRupees = convertPaiseToRupees(validatedAmount);
+      console.log('💰 Amount in paise for Razorpay:', validatedAmount);
+      console.log('💰 Amount in rupees for backend:', amountInRupees);
+      
+      const orderResponse = await paymentService.createDirectPaymentOrder(
         rideId,
-        amount: validatedAmount, // Use validated amount
+        amountInRupees,
+        userInfo,
+        getToken
+      );
+
+      if (!orderResponse.success) {
+        throw new Error(orderResponse.error || 'Failed to create payment order');
+      }
+
+      console.log('✅ Payment order created:', orderResponse.data);
+
+      // Initialize Razorpay payment
+      const paymentOptions: PaymentOptions = {
+        key: orderResponse.data?.keyId || 'rzp_live_AEcWKhM01jAKqu',
+        amount: validatedAmount,
         currency: 'INR',
-        description: `Payment for ride from ${estimate?.pickup || 'Pickup'} to ${destination?.name || 'Destination'}`,
-        userEmail: 'user@example.com', // Replace with actual user email
-        userPhone: '+919876543210', // Replace with actual user phone
-        userName: 'User Name', // Replace with actual user name
-        getToken: () => getToken(),
+        name: 'Roqet Bike Taxi',
+        description: `Payment for ride ${rideId}`,
+        order_id: orderResponse.data?.orderId || '',
+        prefill: userInfo,
+        theme: {
+          color: '#007AFF',
+        },
+        handler: async (response: any) => {
+          console.log('✅ Payment successful:', response);
+          await handlePaymentSuccess(response, orderResponse.data?.orderId || '');
+        },
+        modal: {
+          ondismiss: () => {
+            console.log('Payment modal dismissed');
+            setPaymentStatus('pending');
+            setIsLoading(false);
+          },
+        },
       };
 
-      console.log('💰 PaymentScreen - Payment options:', paymentOptions);
+      console.log('🔧 Razorpay options:', paymentOptions);
 
-      // Initialize payment
-      const result: PaymentResult = await initializePayment(paymentOptions);
-
+      const result = await initializePayment(paymentOptions);
+      
       if (result.success) {
-        setPaymentStatus('completed');
-        Alert.alert(
-          'Payment Successful!',
-          'Your payment has been processed successfully.',
-          [
-            {
-              text: 'Continue',
-              onPress: () => {
-                // Navigate to ride summary with payment info
-                navigation.navigate('RideSummary', {
-                  destination,
-                  driver: driverInfo,
-                  rideId,
-                  estimate,
-                  paymentInfo: {
-                    paymentId: result.paymentId,
-                    orderId: result.orderId,
-                    amount: formatAmount(amount),
-                    status: 'completed',
-                  },
-                });
-              },
-            },
-          ]
-        );
+        console.log('✅ Direct payment completed successfully');
+        // The handler function will handle the success case
       } else {
-        setPaymentStatus('failed');
-        const errorMsg = result.error || 'Payment failed';
-        setErrorMessage(errorMsg);
-        Alert.alert('Payment Failed', errorMsg);
+        throw new Error(result.error || 'Payment failed');
       }
-    } catch (error: any) {
+
+    } catch (error) {
+      console.error('❌ Direct payment error:', error);
       setPaymentStatus('failed');
-      let errorMsg = error.message || 'An unexpected error occurred';
+      setErrorMessage(error instanceof Error ? error.message : 'Payment failed');
+      setIsLoading(false);
+    }
+  };
+
+  // Handle payment success
+  const handlePaymentSuccess = async (paymentResponse: any, orderId: string) => {
+    try {
+      console.log('🎉 Payment success, verifying payment...');
       
-      // Provide more user-friendly error messages
-      if (errorMsg.includes('Cannot read property \'open\' of null')) {
-        errorMsg = 'Payment gateway is not available. Please try again or contact support.';
-      } else if (errorMsg.includes('Razorpay')) {
-        errorMsg = 'Payment service temporarily unavailable. Please try again.';
+      const token = await getToken();
+      if (!token) {
+        throw new Error('Authentication token not found');
       }
-      
-      setErrorMessage(errorMsg);
-      Alert.alert('Payment Error', errorMsg);
+
+      // Verify payment with backend
+      const verificationData = {
+        rideId: rideId,
+        paymentId: paymentResponse.razorpay_payment_id,
+        signature: paymentResponse.razorpay_signature,
+        orderId: orderId,
+      };
+
+      const verificationResponse = await paymentService.verifyPayment(verificationData, getToken);
+
+      if (verificationResponse.success) {
+        console.log('✅ Payment verified successfully');
+        
+        // Emit payment completed event
+        emitEvent('payment_completed', {
+          rideId: rideId,
+          orderId: orderId,
+          paymentId: paymentResponse.razorpay_payment_id,
+          amount: validatedAmount / 100,
+          currency: 'INR',
+          timestamp: Date.now()
+        });
+
+        setPaymentStatus('completed');
+        setPaymentData({
+          paymentId: paymentResponse.razorpay_payment_id,
+          orderId: orderId,
+          amount: formatAmountForDisplay(validatedAmount),
+          status: 'completed',
+          paymentMethod: 'RAZORPAY'
+        });
+
+        // Navigate to ride summary after a short delay
+        setTimeout(() => {
+          navigation.navigate('RideSummary', {
+            destination,
+            driver: driverInfo,
+            rideId,
+            estimate,
+            paymentInfo: {
+              paymentId: paymentResponse.razorpay_payment_id,
+              orderId: orderId,
+              amount: formatAmountForDisplay(validatedAmount),
+              status: 'completed',
+              paymentMethod: 'RAZORPAY'
+            }
+          });
+        }, 2000);
+
+      } else {
+        throw new Error(verificationResponse.error || 'Payment verification failed');
+      }
+
+    } catch (error) {
+      console.error('❌ Payment verification error:', error);
+      setPaymentStatus('failed');
+      setErrorMessage(error instanceof Error ? error.message : 'Payment verification failed');
     } finally {
       setIsLoading(false);
     }
   };
 
+  // Handle QR scanner payment
+
+
   // Handle payment retry
   const handleRetry = () => {
     setPaymentStatus('pending');
     setErrorMessage('');
-    handlePayment();
+    handleDirectPayment();
   };
 
   // Handle skip payment (for testing or if payment is not required)
@@ -191,7 +312,7 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
               <Ionicons name="card-outline" size={48} color={Colors.primary} />
               <Text style={styles.statusTitle}>Complete Payment</Text>
               <Text style={styles.statusSubtitle}>
-                Pay for your ride to complete the journey
+                Choose your preferred payment method
               </Text>
             </View>
           )}
@@ -255,17 +376,18 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
             </View>
           </View>
 
+          {/* Trip Stats */}
           <View style={styles.tripStats}>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{estimate?.distance || '--'}</Text>
+              <Text style={styles.statValue}>{estimate?.distance || '5 km'}</Text>
               <Text style={styles.statLabel}>Distance</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>{estimate?.duration || '--'}</Text>
+              <Text style={styles.statValue}>{estimate?.duration || '15 min'}</Text>
               <Text style={styles.statLabel}>Duration</Text>
             </View>
             <View style={styles.statItem}>
-              <Text style={styles.statValue}>₹{estimate?.fare ?? '--'}</Text>
+              <Text style={styles.statValue}>{formatAmountForDisplay(validatedAmount)}</Text>
               <Text style={styles.statLabel}>Fare</Text>
             </View>
           </View>
@@ -276,32 +398,31 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
           <Text style={styles.cardTitle}>Payment Details</Text>
           
           <View style={styles.paymentItem}>
-            <Text style={styles.paymentLabel}>Ride Fare</Text>
-            <Text style={styles.paymentValue}>₹{estimate?.fare ?? '--'}</Text>
+            <Text style={styles.paymentLabel}>Base Fare</Text>
+            <Text style={styles.paymentValue}>{formatAmountForDisplay(validatedAmount * 0.8)}</Text>
           </View>
           
           <View style={styles.paymentItem}>
-            <Text style={styles.paymentLabel}>Platform Fee</Text>
-            <Text style={styles.paymentValue}>₹0</Text>
+            <Text style={styles.paymentLabel}>Distance Charge</Text>
+            <Text style={styles.paymentValue}>{formatAmountForDisplay(validatedAmount * 0.15)}</Text>
           </View>
           
           <View style={styles.paymentItem}>
-            <Text style={styles.paymentLabel}>Taxes</Text>
-            <Text style={styles.paymentValue}>₹0</Text>
+            <Text style={styles.paymentLabel}>Service Fee</Text>
+            <Text style={styles.paymentValue}>{formatAmountForDisplay(validatedAmount * 0.05)}</Text>
           </View>
           
           <View style={styles.paymentDivider} />
           
           <View style={styles.paymentTotal}>
             <Text style={styles.paymentTotalLabel}>Total Amount</Text>
-            <Text style={styles.paymentTotalValue}>₹{estimate?.fare ?? '--'}</Text>
+            <Text style={styles.paymentTotalValue}>{formatAmountForDisplay(validatedAmount)}</Text>
           </View>
         </View>
 
         {/* Driver Info */}
         <View style={styles.driverCard}>
           <Text style={styles.cardTitle}>Your Driver</Text>
-          
           <View style={styles.driverInfo}>
             {driverInfo.photo ? (
               <Image source={{ uri: driverInfo.photo }} style={styles.driverPhoto} />
@@ -310,7 +431,6 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
                 <Ionicons name="person" size={24} color={Colors.white} />
               </View>
             )}
-            
             <View style={styles.driverDetails}>
               <Text style={styles.driverName}>{driverInfo.name}</Text>
               <Text style={styles.vehicleInfo}>
@@ -326,19 +446,41 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
         {paymentStatus === 'pending' && (
           <>
             <Button
-              title={`Pay ₹${(validatedAmount / 100).toFixed(2)}`}
-              onPress={handlePayment}
+              title={`Pay ${formatAmountForDisplay(validatedAmount)}`}
+              onPress={handleDirectPayment}
               style={styles.payButton}
               disabled={isLoading}
             />
+
             {__DEV__ && (
-              <TouchableOpacity
-                style={styles.skipButton}
-                onPress={handleSkipPayment}
-                disabled={isLoading}
-              >
-                <Text style={styles.skipButtonText}>Skip Payment (Dev)</Text>
-              </TouchableOpacity>
+              <>
+                <RazorpayTestButton
+                  onSuccess={(paymentData) => {
+                    console.log('✅ Test payment successful:', paymentData);
+                    Alert.alert('Test Success', 'Razorpay integration is working!');
+                  }}
+                  onError={(error) => {
+                    console.error('❌ Test payment failed:', error);
+                  }}
+                />
+                
+                {/* Amount conversion test buttons */}
+                <Text style={styles.debugTitle}>Amount Conversion Tests:</Text>
+                <AmountTestButton testAmount={50} label="Test ₹50 (rupees)" />
+                <AmountTestButton testAmount={5000} label="Test 5000 (paise)" />
+                <AmountTestButton testAmount={100} label="Test ₹100 (rupees)" />
+                <AmountTestButton testAmount={10000} label="Test 10000 (paise)" />
+                <AmountTestButton testAmount={7300} label="Test 7300 (paise) - ₹73" />
+                <AmountTestButton testAmount={73} label="Test ₹73 (rupees)" />
+                
+                <TouchableOpacity
+                  style={styles.skipButton}
+                  onPress={handleSkipPayment}
+                  disabled={isLoading}
+                >
+                  <Text style={styles.skipButtonText}>Skip Payment (Dev)</Text>
+                </TouchableOpacity>
+              </>
             )}
           </>
         )}
@@ -421,11 +563,12 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: Colors.text,
     marginTop: Layout.spacing.md,
-    marginBottom: Layout.spacing.sm,
+    textAlign: 'center',
   },
   statusSubtitle: {
     fontSize: Layout.fontSize.md,
     color: Colors.textSecondary,
+    marginTop: Layout.spacing.sm,
     textAlign: 'center',
   },
   summaryCard: {
@@ -451,7 +594,8 @@ const styles = StyleSheet.create({
   },
   routePoint: {
     flexDirection: 'row',
-    alignItems: 'center',
+    alignItems: 'flex-start',
+    marginBottom: Layout.spacing.sm,
   },
   pickupDot: {
     width: 12,
@@ -610,6 +754,9 @@ const styles = StyleSheet.create({
   payButton: {
     marginBottom: Layout.spacing.sm,
   },
+  qrButton: {
+    marginBottom: Layout.spacing.sm,
+  },
   retryButton: {
     marginBottom: Layout.spacing.sm,
   },
@@ -641,5 +788,13 @@ const styles = StyleSheet.create({
     fontSize: Layout.fontSize.md,
     color: Colors.white,
     marginLeft: Layout.spacing.sm,
+  },
+  debugTitle: {
+    fontSize: Layout.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: Layout.spacing.md,
+    marginBottom: Layout.spacing.sm,
   },
 }); 

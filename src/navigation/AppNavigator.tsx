@@ -32,7 +32,7 @@ import MpinEntryScreen from '../screens/ride/MpinEntryScreen';
 import RideInProgressScreen from '../screens/ride/RideInProgressScreen';
 import ChatScreen from '../screens/ride/ChatScreen';
 import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
-import QRScannerScreen from '../screens/ride/QRScannerScreen';
+
 
 // Profile Screens
 import ProfileScreen from '../screens/profile/ProfileScreen';
@@ -46,6 +46,7 @@ import AboutScreen from '../screens/profile/AboutScreen';
 import PaymentScreen from '../screens/profile/PaymentScreen';
 import RidePaymentScreen from '../screens/ride/PaymentScreen';
 import WebViewPaymentScreen from '../screens/ride/WebViewPaymentScreen';
+import PostRidePaymentScreen from '../screens/ride/PostRidePaymentScreen';
 import PrivacySecurityScreen from '../screens/profile/PrivacySecurityScreen';
 
 // Support Screens
@@ -194,9 +195,10 @@ function MainNavigator() {
       <Stack.Screen name="MpinEntry" component={MpinEntryScreen} />
       <Stack.Screen name="RideInProgress" component={RideInProgressScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
-      <Stack.Screen name="RidePayment" component={RidePaymentScreen} />
-      <Stack.Screen name="WebViewPayment" component={WebViewPaymentScreen} />
-      <Stack.Screen name="QRScanner" component={QRScannerScreen} />
+      <Stack.Screen name="RidePayment" component={RidePaymentScreen as any} />
+      <Stack.Screen name="WebViewPayment" component={WebViewPaymentScreen as any} />
+      <Stack.Screen name="PostRidePayment" component={PostRidePaymentScreen as any} />
+
       <Stack.Screen name="RideSummary" component={RideSummaryScreen} />
       <Stack.Screen name="RateDriver" component={require('../screens/ride/RateDriverScreen').default} />
       
@@ -211,6 +213,7 @@ function MainNavigator() {
       
       {/* Debug Flow */}
       <Stack.Screen name="ConnectionTest" component={require('../screens/debug/ConnectionTestScreen').default} />
+      <Stack.Screen name="LivePaymentTest" component={require('../screens/debug/LivePaymentTestScreen').default} />
     </Stack.Navigator>
   );
 }

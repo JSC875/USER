@@ -57,17 +57,7 @@ export default function RideSummaryScreen({ navigation, route }: any) {
     navigation.navigate('TabNavigator', { screen: 'Home' });
   };
 
-  const handleQRScanPayment = () => {
-    console.log('🔍 QR Payment button pressed');
-    // Navigate to QR scanner for payment
-    const amount = parseInt(estimate?.fare || '100') * 100; // Convert to paise
-    console.log('💰 Amount for QR payment:', amount);
-    console.log('🚗 Ride ID:', route.params?.rideId);
-    navigation.navigate('QRScanner', {
-      rideId: route.params?.rideId,
-      amount: amount
-    });
-  };
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -191,15 +181,7 @@ export default function RideSummaryScreen({ navigation, route }: any) {
             </>
           )}
           
-          {/* QR Payment Button - Always visible for testing */}
-          <TouchableOpacity
-            style={styles.qrPaymentButton}
-            onPress={handleQRScanPayment}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="qr-code" size={20} color={Colors.white} />
-            <Text style={styles.qrPaymentText}>Scan QR Code to Pay</Text>
-          </TouchableOpacity>
+
         </View>
       </ScrollView>
 
@@ -577,25 +559,5 @@ const styles = StyleSheet.create({
     color: Colors.textSecondary,
     fontFamily: 'monospace',
   },
-  qrPaymentButton: {
-    backgroundColor: Colors.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: Layout.spacing.md,
-    paddingHorizontal: Layout.spacing.lg,
-    borderRadius: Layout.borderRadius.md,
-    marginTop: Layout.spacing.md,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
-  qrPaymentText: {
-    color: Colors.white,
-    fontSize: Layout.fontSize.md,
-    fontWeight: '600',
-    marginLeft: Layout.spacing.sm,
-  },
+
 });

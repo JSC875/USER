@@ -1,7 +1,7 @@
 import { io, Socket } from "socket.io-client";
 import { getUserIdFromJWT, getUserTypeFromJWT } from "./jwtDecoder";
 import { Alert } from "react-native";
-import { socketConfig, isDevelopment, isProduction, isAPK } from "../config/environment";
+import { socketConfig, isDevelopment } from "../config/environment";
 
 // Configuration for socket connection
 const SOCKET_URL = socketConfig.url;
@@ -102,20 +102,7 @@ export type PaymentFailedCallback = (data: {
   message: string;
 }) => void;
 
-export type QRPaymentReadyCallback = (data: {
-  rideId: string;
-  orderId: string;
-  amount: number;
-  currency: string;
-  timestamp: number;
-}) => void;
 
-export type QRCodeScannedCallback = (data: {
-  rideId: string;
-  orderId: string;
-  amount: number;
-  timestamp: number;
-}) => void;
 
 export type PaymentCompletedCallback = (data: {
   rideId: string;
@@ -139,9 +126,7 @@ let onPaymentStatusCallback: PaymentStatusCallback | null = null;
 let onPaymentFailedCallback: PaymentFailedCallback | null = null;
 let onPaymentSuccessCallback: ((data: any) => void) | null = null;
 
-// QR Payment callbacks
-let onQRPaymentReadyCallback: QRPaymentReadyCallback | null = null;
-let onQRCodeScannedCallback: QRCodeScannedCallback | null = null;
+
 let onPaymentCompletedCallback: PaymentCompletedCallback | null = null;
 
 // Chat-related event callbacks
@@ -276,8 +261,7 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
       // Add chat event listeners
       addChatEventListeners();
       
-      // Add QR payment event listeners
-      addQRPaymentEventListeners();
+
       
       resolve(socket);
     });
@@ -784,20 +768,7 @@ export const onPaymentSuccess = (callback: (data: any) => void) => {
   };
 };
 
-// QR Payment event listeners
-export const onQRPaymentReady = (callback: QRPaymentReadyCallback) => {
-  onQRPaymentReadyCallback = callback;
-  return () => {
-    onQRPaymentReadyCallback = null;
-  };
-};
 
-export const onQRCodeScanned = (callback: QRCodeScannedCallback) => {
-  onQRCodeScannedCallback = callback;
-  return () => {
-    onQRCodeScannedCallback = null;
-  };
-};
 
 export const onPaymentCompleted = (callback: PaymentCompletedCallback) => {
   onPaymentCompletedCallback = callback;
@@ -888,21 +859,6 @@ const addChatEventListeners = () => {
     log("👁️ Messages read:", data);
     onMessagesReadCallback?.(data);
   });
-};
-
-// Add QR payment event listeners to the socket connection
-const addQRPaymentEventListeners = () => {
-  if (!socket) return;
-
-  socket.on("qr_payment_ready", (data) => {
-    log("📱 QR Payment ready:", data);
-    onQRPaymentReadyCallback?.(data);
-  });
-
-  socket.on("qr_code_scanned", (data) => {
-    log("📱 QR Code scanned:", data);
-    onQRCodeScannedCallback?.(data);
-  });
 
   socket.on("payment_completed", (data) => {
     log("✅ Payment completed:", data);
@@ -919,6 +875,8 @@ const addQRPaymentEventListeners = () => {
     onPaymentFailedCallback?.(data);
   });
 };
+
+
 
 // Clear all callbacks
 export const clearCallbacks = () => {

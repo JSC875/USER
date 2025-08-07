@@ -19,7 +19,7 @@ export default function AboutScreen({ navigation }: any) {
     }
   };
 
-  const handleDeveloperToolPress = async (toolType: 'apk' | 'connection') => {
+  const handleDeveloperToolPress = async (toolType: 'apk' | 'connection' | 'payment') => {
     if (toolType === 'apk') {
       try {
         console.log('🚀 Initializing APK connection...');
@@ -30,7 +30,7 @@ export default function AboutScreen({ navigation }: any) {
         console.error('❌ APK initialization failed:', error);
         Alert.alert('Error', 'Failed to initialize APK connection. Check logs for details.');
       }
-    } else if (toolType === 'connection') {
+            } else if (toolType === 'connection') {
       const { getDetailedConnectionStatus, forceReconnect, debugSocketConnection } = require('../../utils/socket');
       const { quickTest, quickTestAPK } = require('../../utils/socketTest');
       
@@ -96,6 +96,9 @@ export default function AboutScreen({ navigation }: any) {
         console.error('❌ Connection analysis failed:', error);
         Alert.alert('Error', 'Failed to analyze connection. Check logs for details.');
       }
+    } else if (toolType === 'payment') {
+      // Navigate to live payment test screen
+      navigation.navigate('LivePaymentTest');
     }
   };
 
@@ -163,6 +166,13 @@ export default function AboutScreen({ navigation }: any) {
               >
                 <Ionicons name="bug" size={16} color={Colors.white} />
                 <Text style={styles.developerButtonText}>Test Connection</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.developerButton, { backgroundColor: Colors.coral }]} 
+                onPress={() => handleDeveloperToolPress('payment')}
+              >
+                <Ionicons name="card" size={16} color={Colors.white} />
+                <Text style={styles.developerButtonText}>Live Payment</Text>
               </TouchableOpacity>
             </View>
           </View>

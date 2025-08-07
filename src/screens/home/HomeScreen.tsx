@@ -538,26 +538,6 @@ export default function HomeScreen({ navigation, route }: any) {
             <Text style={styles.userName}>{getUserName()}</Text>
           </View>
         </View>
-              <View style={styles.headerRight}>
-        {/* Test Payment Button - Remove in production */}
-        {__DEV__ && (
-          <TouchableOpacity 
-            style={styles.notificationButton}
-            onPress={() => {
-              console.log('🧪 Test: Direct payment screen navigation');
-                              navigation.navigate('WebViewPayment', {
-                rideId: 'test-ride-123',
-                amount: 7300, // 73 INR in paise
-                destination: { name: 'Test Destination' },
-                driver: { name: 'Test Driver', vehicleModel: 'Test Vehicle', vehicleNumber: 'TEST123' },
-                estimate: { fare: 73 }, // 73 INR
-              });
-            }}
-          >
-            <Ionicons name="card" size={24} color="#FF6B6B" />
-          </TouchableOpacity>
-        )}
-      </View>
       </View>
 
       <View style={styles.mapFullScreen}>
