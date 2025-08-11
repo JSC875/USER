@@ -33,6 +33,15 @@ type RootStackParamList = {
     currency?: string;
     fromQR?: boolean;
   };
+  RideSummary: {
+    rideId: string;
+    amount: number;
+    destination: any;
+    driver: any;
+    estimate: any;
+    paymentStatus?: string;
+    paymentId?: string;
+  };
 };
 
 type WebViewPaymentScreenProps = NativeStackScreenProps<RootStackParamList, 'WebViewPayment'>;

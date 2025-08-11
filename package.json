@@ -67,13 +67,15 @@
     "react-native-screens": "~4.11.1",
     "react-native-svg": "15.11.2",
     "react-native-web": "^0.20.0",
-    "react-native-webview": "^13.13.5",
+    "react-native-webview": "13.13.5",
     "socket.io-client": "^4.8.1",
     "uuid": "^11.1.0",
-    "zustand": "^5.0.6"
+    "zustand": "^5.0.6",
+    "expo-modules-core": "~2.5.0"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
+    "@react-native-community/cli": "^19.1.1",
     "@types/react": "~19.0.10",
     "@types/react-native": "^0.73.0",
     "babel-plugin-module-resolver": "^5.0.2",
@@ -83,7 +85,7 @@
     "expo-auth-session": "~6.2.1",
     "expo-secure-store": "~14.2.3",
     "react-native-dotenv": "^3.4.11",
-    "typescript": "^5.8.3"
+    "typescript": "~5.8.3"
   },
   "private": true,
   "engines": {

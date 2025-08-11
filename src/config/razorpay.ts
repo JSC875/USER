@@ -1,37 +1,31 @@
-import { isDevelopment, isProduction } from './environment';
+import Constants from 'expo-constants';
 
-// Razorpay Configuration
+// Get environment variables from Constants
+const getEnvVar = (key: string, fallback?: string): string => {
+  return Constants.expoConfig?.extra?.[key] || process.env[key] || fallback || '';
+};
+
+// Check if we're in development mode
+const isDevelopment = __DEV__;
+const isProduction = !__DEV__;
+
+// Razorpay Configuration - Always use live keys
 export const RAZORPAY_CONFIG = {
-  // Test keys - Replace with your actual test keys
-  test: {
-    key: 'rzp_test_JNLEoGZvX3AWac',
-    secret: 'qqp0kCPz1T1fdztNHz3FOtc5',
-  },
-  // Production keys - Live keys for production
-  production: {
-    key: 'rzp_live_AEcWKhM01jAKqu',
-    secret: 'N89cllTVPqHC6CzDCXHlZhxM',
+  // Live keys for production
+  live: {
+    key: getEnvVar('EXPO_PUBLIC_RAZORPAY_LIVE_KEY', 'rzp_live_AEcWKhM01jAKqu'),
+    secret: getEnvVar('EXPO_PUBLIC_RAZORPAY_LIVE_SECRET', 'N89cllTVPqHC6CzDCXHlZhxM'),
   },
 };
 
-// Get the appropriate configuration based on environment
+// Get the appropriate configuration - Always use live keys
 export const getRazorpayConfig = () => {
-  // For production builds, always use live keys
-  if (isProduction) {
-    return RAZORPAY_CONFIG.production;
-  }
+  console.log('🔧 Razorpay: Using LIVE keys for all environments');
+  console.log('🔧 Razorpay Live Key from Constants:', Constants.expoConfig?.extra?.EXPO_PUBLIC_RAZORPAY_LIVE_KEY);
+  console.log('🔧 Razorpay Live Key from process.env:', process.env.EXPO_PUBLIC_RAZORPAY_LIVE_KEY);
+  console.log('🔧 Final Razorpay Key:', RAZORPAY_CONFIG.live.key);
   
-  // For development, check if we want to test with live keys
-  const useLiveKeysInDev = process.env.EXPO_PUBLIC_USE_LIVE_KEYS === 'true';
-  
-  if (useLiveKeysInDev) {
-    console.log('🔧 Using LIVE keys in development mode');
-    return RAZORPAY_CONFIG.production;
-  }
-  
-  // Default to test keys in development
-  console.log('🔧 Using TEST keys in development mode');
-  return RAZORPAY_CONFIG.test;
+  return RAZORPAY_CONFIG.live;
 };
 
 // Get Razorpay key for client-side usage
@@ -85,7 +79,7 @@ export const PAYMENT_CONFIG = {
 
 // Validation functions
 export const validateRazorpayKey = (key: string): boolean => {
-  return key && key.startsWith('rzp_') && key.length > 10;
+  return Boolean(key && key.startsWith('rzp_') && key.length > 10);
 };
 
 export const validatePaymentAmount = (amount: number): boolean => {
@@ -119,26 +113,19 @@ export const isRazorpayConfigured = (): boolean => {
 
 export const logRazorpayConfig = () => {
   const config = getRazorpayConfig();
-  const isLive = isUsingLiveKeys();
   
   console.log('🔧 Razorpay Configuration:');
   console.log('Environment:', isProduction ? 'Production' : 'Development');
-  console.log('Using Live Keys:', isLive ? '✅ Yes' : '❌ No');
+  console.log('Using Live Keys: ✅ Yes (Always)');
   console.log('Key configured:', isRazorpayConfigured());
   console.log('Key prefix:', getRazorpayKey().substring(0, 10) + '...');
   console.log('Full Key:', getRazorpayKey());
-  
-  if (isLive) {
-    console.log('⚠️ WARNING: Using LIVE keys - Real money will be charged!');
-  } else {
-    console.log('✅ Using TEST keys - No real money will be charged');
-  }
+  console.log('⚠️ WARNING: Using LIVE keys - Real money will be charged!');
 };
 
-// Get payment warning message based on environment
+// Get payment warning message - Always live keys
 export const getPaymentWarningMessage = (): string => {
-  if (isUsingLiveKeys()) {
-    return '⚠️ This is a REAL payment that will charge your account. Use small amounts for testing.';
-  }
-  return '✅ This is a TEST payment. No real money will be charged.';
+  return '⚠️ This is a REAL payment that will charge your account. Use small amounts for testing.';
 }; 
+
+ 

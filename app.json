@@ -39,12 +39,7 @@
       "favicon": "./assets/images/roqetlogo.jpg"
     },
     "plugins": [
-      [
-        "expo-router",
-        {
-          "origin": "https://project-a9dff482.dev.kiki.dev"
-        }
-      ],
+      "expo-router",
       [
         "expo-splash-screen",
         {
@@ -72,7 +67,9 @@
       "EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY": "pk_test_dXNlZnVsLWZsYW1pbmdvLTQxLmNsZXJrLmFjY291bnRzLmRldiQ",
       "EXPO_PUBLIC_SOCKET_URL": "https://testsocketio-roqet.up.railway.app",
       "EXPO_PUBLIC_API_URL": "https://bike-taxi-production.up.railway.app",
-      "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU"
+      "EXPO_PUBLIC_GOOGLE_MAPS_API_KEY": "AIzaSyDHN3SH_ODlqnHcU9Blvv2pLpnDNkg03lU",
+      "EXPO_PUBLIC_RAZORPAY_LIVE_KEY": "rzp_live_AEcWKhM01jAKqu",
+      "EXPO_PUBLIC_RAZORPAY_LIVE_SECRET": "N89cllTVPqHC6CzDCXHlZhxM"
     }
   }
 }

@@ -23,29 +23,17 @@ class ConfigManager {
 
   // Get environment from various sources
   private getEnvironment(): Environment {
-    // 1. Check for explicit environment override
-    if (process.env.EXPO_PUBLIC_ENVIRONMENT) {
-      return process.env.EXPO_PUBLIC_ENVIRONMENT as Environment;
+    const env = process.env.EXPO_PUBLIC_ENVIRONMENT || process.env.NODE_ENV || 'development';
+    
+    switch (env.toLowerCase()) {
+      case 'production':
+        return 'production';
+      case 'staging':
+        return 'staging';
+      case 'development':
+      default:
+        return 'development';
     }
-
-    // 2. Check for build type in Constants
-    if (Constants.expoConfig?.extra?.environment) {
-      return Constants.expoConfig.extra.environment as Environment;
-    }
-
-    // 3. Check for EAS build profile
-    if (Constants.expoConfig?.extra?.eas?.projectId) {
-      const buildProfile = Constants.expoConfig.extra.eas.buildProfile;
-      if (buildProfile === 'production') return 'production';
-      if (buildProfile === 'staging') return 'staging';
-    }
-
-    // 4. Default based on NODE_ENV
-    const nodeEnv = process.env.NODE_ENV;
-    if (nodeEnv === 'production') return 'production';
-    if (nodeEnv === 'test') return 'staging';
-
-    return 'development';
   }
 
   // Load environment-specific configuration

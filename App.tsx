@@ -5,7 +5,17 @@ import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import * as SecureStore from 'expo-secure-store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
-import { clerkConfig, isDevelopment } from './src/config/environment';
+import Constants from 'expo-constants';
+import ConnectionDebugger from './src/components/common/ConnectionDebugger';
+import EnvironmentTest from './src/components/common/EnvironmentTest';
+
+// Get configuration from Constants
+const clerkConfig = {
+  publishableKey: Constants.expoConfig?.extra?.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY || process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY,
+  frontendApi: Constants.expoConfig?.extra?.EXPO_PUBLIC_CLERK_FRONTEND_API || process.env.EXPO_PUBLIC_CLERK_FRONTEND_API,
+};
+
+const isDevelopment = __DEV__;
 
 // Conditional logging function
 const log = (message: string, data?: any) => {
@@ -36,6 +46,13 @@ const tokenCache = {
 };
 
 const publishableKey = clerkConfig.publishableKey;
+
+// Debug logging for configuration
+console.log('🔧 Clerk Configuration Debug:');
+console.log('🔧 Constants.expoConfig?.extra?.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY:', Constants.expoConfig?.extra?.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY);
+console.log('🔧 process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY:', process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY);
+console.log('🔧 Final publishableKey:', publishableKey);
+console.log('🔧 Constants.expoConfig?.extra:', Constants.expoConfig?.extra);
 
 if (!publishableKey) {
   throw new Error(
@@ -114,6 +131,8 @@ export default function App() {
           <StatusBar style="dark" backgroundColor="#ffffff" />
           <SocketInitializer />
           <AppNavigator />
+          {isDevelopment && <ConnectionDebugger />}
+          {isDevelopment && <EnvironmentTest />}
         </SafeAreaProvider>
       </ClerkProvider>
     </GestureHandlerRootView>

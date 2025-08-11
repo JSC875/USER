@@ -10,13 +10,13 @@ export const productionConfig = {
   },
   
   socket: {
-    url: 'https://socketio-roqet-production.up.railway.app', // Production Socket.IO
-    timeout: 30000, // Increased timeout for APK builds
-    reconnectionAttempts: 30, // More reconnection attempts for APK
-    reconnectionDelay: 1000, // Faster initial reconnection
-    reconnectionDelayMax: 10000, // Longer max delay for stability
-    pingTimeout: 90000, // Longer ping timeout for APK
-    pingInterval: 20000, // More frequent pings for APK
+    url: 'https://testsocketio-roqet.up.railway.app', // Production Socket.IO
+    timeout: 45000, // Increased timeout for APK builds
+    reconnectionAttempts: 50, // More reconnection attempts for APK
+    reconnectionDelay: 2000, // Slower initial reconnection for stability
+    reconnectionDelayMax: 15000, // Longer max delay for stability
+    pingTimeout: 120000, // Longer ping timeout for APK
+    pingInterval: 15000, // More frequent pings for APK
   },
   
   clerk: {

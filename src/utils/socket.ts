@@ -1,10 +1,24 @@
 import { io, Socket } from "socket.io-client";
 import { getUserIdFromJWT, getUserTypeFromJWT } from "./jwtDecoder";
 import { Alert } from "react-native";
-import { socketConfig, isDevelopment } from "../config/environment";
+import Constants from 'expo-constants';
 
-// Configuration for socket connection
-const SOCKET_URL = socketConfig.url;
+// Get socket URL from Constants first, then fallback to process.env
+const SOCKET_URL = Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL || process.env.EXPO_PUBLIC_SOCKET_URL;
+
+// Get socket configuration from Constants or use defaults
+const socketConfig = {
+  url: SOCKET_URL,
+  timeout: parseInt(Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_TIMEOUT || process.env.EXPO_PUBLIC_SOCKET_TIMEOUT || '20000'),
+  reconnectionAttempts: parseInt(Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_RECONNECTION_ATTEMPTS || process.env.EXPO_PUBLIC_SOCKET_RECONNECTION_ATTEMPTS || '15'),
+  reconnectionDelay: parseInt(Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_RECONNECTION_DELAY || process.env.EXPO_PUBLIC_SOCKET_RECONNECTION_DELAY || '1000'),
+  reconnectionDelayMax: parseInt(Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_RECONNECTION_DELAY_MAX || process.env.EXPO_PUBLIC_SOCKET_RECONNECTION_DELAY_MAX || '5000'),
+  pingTimeout: parseInt(Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_PING_TIMEOUT || process.env.EXPO_PUBLIC_SOCKET_PING_TIMEOUT || '60000'),
+  pingInterval: parseInt(Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_PING_INTERVAL || process.env.EXPO_PUBLIC_SOCKET_PING_INTERVAL || '25000'),
+};
+
+// Check if we're in development mode
+const isDevelopment = __DEV__;
 
 // Conditional logging function
 const log = (message: string, data?: any) => {
@@ -17,10 +31,17 @@ const log = (message: string, data?: any) => {
   }
 };
 
-// Validate socket URL
+// Validate socket URL and log configuration
+console.log('🔧 Socket Configuration Debug:');
+console.log('🔧 Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL:', Constants.expoConfig?.extra?.EXPO_PUBLIC_SOCKET_URL);
+console.log('🔧 process.env.EXPO_PUBLIC_SOCKET_URL:', process.env.EXPO_PUBLIC_SOCKET_URL);
+console.log('🔧 Final SOCKET_URL:', SOCKET_URL);
+console.log('🔧 socketConfig:', socketConfig);
+
 if (!SOCKET_URL || SOCKET_URL === 'undefined') {
   console.error('❌ CRITICAL: Socket URL is not configured properly!');
   console.error('❌ Socket URL from config:', SOCKET_URL);
+  console.error('❌ Constants.expoConfig?.extra:', Constants.expoConfig?.extra);
 }
 
 let socket: Socket | null = null;
@@ -196,7 +217,7 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     
     // Enhanced socket configuration for better APK compatibility
     const socketOptions = {
-      transports: ["websocket"], // Force WebSocket only for better reliability
+      transports: isProduction ? ["polling", "websocket"] : ["websocket"], // Allow polling fallback for APK
       query: {
         type: userType,
         id: userId,
@@ -210,8 +231,8 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
       reconnectionDelayMax: isProduction ? socketConfig.reconnectionDelayMax * 1.6 : socketConfig.reconnectionDelayMax,
       timeout: isProduction ? socketConfig.timeout * 1.25 : socketConfig.timeout,
       forceNew: true,
-      upgrade: false, // Disable upgrade to prevent transport switching issues
-      rememberUpgrade: false,
+      upgrade: isProduction ? true : false, // Enable upgrade for APK builds
+      rememberUpgrade: isProduction ? true : false, // Remember upgrade for APK
       autoConnect: true,
       path: "/socket.io/",
       extraHeaders: {
@@ -233,7 +254,20 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
         reconnectionAttempts: socketConfig.reconnectionAttempts * 2,
         // Additional APK-specific options
         closeOnBeforeunload: false,
-        autoUnref: false
+        autoUnref: false,
+        // Network security settings for APK
+        secure: true,
+        rejectUnauthorized: false,
+        // Additional headers for APK
+        extraHeaders: {
+          "Access-Control-Allow-Origin": "*",
+          "User-Agent": userAgent,
+          "X-Platform": "Android",
+          "X-Environment": "production",
+          "X-App-Version": "1.0.0",
+          "X-Client-Type": "APK",
+          "X-APK-Build": "true"
+        }
       })
     };
 
@@ -309,7 +343,7 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
         // The server disconnected us, we need to manually reconnect
         setTimeout(() => {
           const currentSocket = getSocket();
-          if (!currentSocket?.connected) {
+          if (currentSocket && !currentSocket.connected) {
             log("🔄 Attempting manual reconnection after server disconnect...");
             connectSocket(userId, userType).catch(error => {
               console.error("❌ Manual reconnection failed:", error);
@@ -322,15 +356,15 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
         log("⏰ Ping timeout - connection may be unstable");
         // For APK builds, be more aggressive with reconnection
         if (!__DEV__) {
-          setTimeout(() => {
-            const currentSocket = getSocket();
-            if (!currentSocket?.connected) {
-              log("🔄 APK: Attempting reconnection after ping timeout...");
-              connectSocket(userId, userType).catch(error => {
-                console.error("❌ APK reconnection after ping timeout failed:", error);
-              });
-            }
-          }, 3000);
+                  setTimeout(() => {
+          const currentSocket = getSocket();
+          if (currentSocket && !currentSocket.connected) {
+            log("🔄 APK: Attempting reconnection after ping timeout...");
+            connectSocket(userId, userType).catch(error => {
+              console.error("❌ APK reconnection after ping timeout failed:", error);
+            });
+          }
+        }, 3000);
         }
       } else if (reason === 'transport close') {
         log("🔌 Transport closed - network issue detected");
@@ -964,7 +998,7 @@ export const testConnection = (userId: string, userType: string = "customer") =>
       resolve(true);
     });
 
-    testSocket.on("connect_error", (error) => {
+    testSocket.on("connect_error", (error: any) => {
       clearTimeout(timeout);
       log("❌ Test connection failed:", error);
       resolve(false);
@@ -1259,8 +1293,8 @@ export const debugAPKConnection = async (getToken: any) => {
           error: 'Connection timeout',
           details: {
             connected: testSocket.connected,
-            id: testSocket.id,
-            transport: testSocket.io?.engine?.transport?.name
+            id: testSocket.id || undefined,
+            transport: testSocket.io?.engine?.transport?.name || undefined
           }
         });
       }, 10000);
@@ -1271,8 +1305,8 @@ export const debugAPKConnection = async (getToken: any) => {
           success: true,
           details: {
             connected: testSocket.connected,
-            id: testSocket.id,
-            transport: testSocket.io?.engine?.transport?.name,
+            id: testSocket.id || undefined,
+            transport: testSocket.io?.engine?.transport?.name || undefined,
             url: SOCKET_URL
           }
         };
@@ -1284,12 +1318,12 @@ export const debugAPKConnection = async (getToken: any) => {
         clearTimeout(timeout);
         resolve({
           success: false,
-          error: error.message,
+          error: error.message || 'Connection error',
           details: {
-            type: error.type,
-            context: error.context,
+            type: error.type || 'unknown',
+            context: error.context || 'unknown',
             connected: testSocket.connected,
-            transport: testSocket.io?.engine?.transport?.name
+            transport: testSocket.io?.engine?.transport?.name || 'unknown'
           }
         });
       });

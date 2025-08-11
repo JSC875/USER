@@ -17,7 +17,7 @@ import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
 import RazorpayTestButton from '../../components/common/RazorpayTestButton';
 import AmountTestButton from '../../components/common/AmountTestButton';
-import { initializePayment, PaymentOptions, PaymentResult, formatAmount, ensureAmountInPaise, convertPaiseToRupees, debugAmountConversion } from '../../utils/razorpay';
+import { initializePayment, PaymentOptions, PaymentResult, formatAmount, ensureAmountInPaise, convertPaiseToRupees, debugAmountConversion, formatAmountForDisplay } from '../../utils/razorpay';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { paymentService } from '../../services/paymentService';
 import { emitEvent } from '../../utils/socket';
@@ -30,6 +30,15 @@ type RootStackParamList = {
     destination: any;
     driver: any;
     estimate: any;
+  };
+  RideSummary: {
+    rideId: string;
+    amount: number;
+    destination: any;
+    driver: any;
+    estimate: any;
+    paymentStatus?: string;
+    paymentId?: string;
   };
 };
 
