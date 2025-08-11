@@ -201,7 +201,8 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
         type: userType,
         id: userId,
         platform: isProduction ? 'android-apk' : 'react-native',
-        version: '1.0.0'
+        version: '1.0.0',
+        clientType: isProduction ? 'APK' : 'ReactNative'
       },
       reconnection: true,
       reconnectionAttempts: isProduction ? socketConfig.reconnectionAttempts * 2 : socketConfig.reconnectionAttempts,
@@ -218,17 +219,21 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
         "User-Agent": userAgent,
         "X-Platform": "Android",
         "X-Environment": isProduction ? "production" : "development",
-        "X-App-Version": "1.0.0"
+        "X-App-Version": "1.0.0",
+        "X-Client-Type": isProduction ? "APK" : "ReactNative"
       },
       // Additional options for better Android compatibility
       withCredentials: false,
       rejectUnauthorized: false,
       // APK-specific settings
       ...(isProduction && {
-        pingTimeout: socketConfig.pingTimeout,
-        pingInterval: socketConfig.pingInterval,
+        pingTimeout: socketConfig.pingTimeout * 1.5, // Increase ping timeout for APK
+        pingInterval: socketConfig.pingInterval * 0.8, // Decrease ping interval for more frequent pings
         maxReconnectionAttempts: socketConfig.reconnectionAttempts * 2,
-        reconnectionAttempts: socketConfig.reconnectionAttempts * 2
+        reconnectionAttempts: socketConfig.reconnectionAttempts * 2,
+        // Additional APK-specific options
+        closeOnBeforeunload: false,
+        autoUnref: false
       })
     };
 
@@ -285,27 +290,66 @@ export const connectSocket = (userId: string, userType: string = "customer") => 
     });
     
     socket.on("disconnect", (reason) => {
-      log("🔴 Socket.IO disconnected:", reason);
-      connectionState = 'disconnected';
-      isConnecting = false;
+      log("🔌 Socket.IO disconnected");
+      log("📋 Disconnect reason:", reason);
+      log("🔍 Socket ID:", socket?.id || 'None');
+      log("👤 User ID:", userId);
+      log("👤 User Type:", userType);
+      log("🏗️ Environment:", __DEV__ ? 'Development' : 'Production');
       
-      // Clear connection timeout
-      if (connectionTimeout) {
-        clearTimeout(connectionTimeout);
-        connectionTimeout = null;
-      }
-
+      isConnecting = false;
+      connectionState = 'disconnected';
+      
       // Clear connection promise
       connectionPromise = null;
       
-      // For APK builds, try to reconnect more aggressively
-      if (!__DEV__ && reason !== 'io client disconnect') {
-        log("🔄 APK disconnect detected, attempting reconnection...");
+      // Handle specific disconnect reasons
+      if (reason === 'io server disconnect') {
+        log("🔄 Server initiated disconnect - will attempt to reconnect");
+        // The server disconnected us, we need to manually reconnect
         setTimeout(() => {
-          if (lastConnectedUserId) {
-            connectSocket(lastConnectedUserId, userType);
+          const currentSocket = getSocket();
+          if (!currentSocket?.connected) {
+            log("🔄 Attempting manual reconnection after server disconnect...");
+            connectSocket(userId, userType).catch(error => {
+              console.error("❌ Manual reconnection failed:", error);
+            });
           }
         }, 2000);
+      } else if (reason === 'io client disconnect') {
+        log("🔄 Client initiated disconnect");
+      } else if (reason === 'ping timeout') {
+        log("⏰ Ping timeout - connection may be unstable");
+        // For APK builds, be more aggressive with reconnection
+        if (!__DEV__) {
+          setTimeout(() => {
+            const currentSocket = getSocket();
+            if (!currentSocket?.connected) {
+              log("🔄 APK: Attempting reconnection after ping timeout...");
+              connectSocket(userId, userType).catch(error => {
+                console.error("❌ APK reconnection after ping timeout failed:", error);
+              });
+            }
+          }, 3000);
+        }
+      } else if (reason === 'transport close') {
+        log("🔌 Transport closed - network issue detected");
+      } else if (reason === 'transport error') {
+        log("❌ Transport error - connection issue detected");
+      } else {
+        log("❓ Unknown disconnect reason:", reason);
+      }
+      
+      // Show user-friendly message for certain disconnect reasons
+      if (reason === 'ping timeout' || reason === 'transport close' || reason === 'transport error') {
+        if (!__DEV__) {
+          // Only show alert in production for network-related issues
+          Alert.alert(
+            'Connection Lost', 
+            'Your connection to the server was lost. We\'re trying to reconnect automatically.',
+            [{ text: 'OK' }]
+          );
+        }
       }
     });
 
@@ -1069,17 +1113,29 @@ export const initializeAPKConnection = async (getToken: any) => {
     connectionState = 'disconnected';
     
     // Initial delay for APK
-    await new Promise(resolve => setTimeout(resolve, 3000));
+    await new Promise(resolve => setTimeout(resolve, 2000));
     
     try {
-      // First connection attempt
+      // Get user info first
+      const userId = await getUserIdFromJWT(getToken);
+      const userType = await getUserTypeFromJWT(getToken);
+      
+      log(`🔍 APK: User ID: ${userId}, Type: ${userType}`);
+      
+      // First connection attempt with simplified configuration
       log("🔄 APK: First connection attempt...");
-      const firstSocket = await connectSocketWithJWT(getToken);
-      await new Promise(resolve => setTimeout(resolve, 5000));
+      const firstSocket = await connectSocket(userId, userType);
+      
+      // Wait for connection to stabilize
+      await new Promise(resolve => setTimeout(resolve, 3000));
       
       let currentSocket = getSocket();
       if (currentSocket && currentSocket.connected) {
         log("✅ APK: First connection successful");
+        
+        // Start background retry mechanism for APK builds
+        startBackgroundRetry(getToken);
+        
         return firstSocket;
       }
       
@@ -1092,12 +1148,18 @@ export const initializeAPKConnection = async (getToken: any) => {
       }
       
       await new Promise(resolve => setTimeout(resolve, 2000));
-      const secondSocket = await connectSocketWithJWT(getToken);
+      
+      // Try with different configuration
+      const secondSocket = await connectSocket(userId, userType);
       await new Promise(resolve => setTimeout(resolve, 4000));
       
       currentSocket = getSocket();
       if (currentSocket && currentSocket.connected) {
         log("✅ APK: Second connection successful");
+        
+        // Start background retry mechanism for APK builds
+        startBackgroundRetry(getToken);
+        
         return secondSocket;
       }
       
@@ -1112,10 +1174,161 @@ export const initializeAPKConnection = async (getToken: any) => {
       
     } catch (error) {
       console.error("❌ APK initialization failed:", error);
-      throw error;
+      
+      // Try one more time with a simpler approach
+      try {
+        log("🔄 APK: Emergency fallback connection attempt...");
+        const userId = await getUserIdFromJWT(getToken);
+        const userType = await getUserTypeFromJWT(getToken);
+        
+        const fallbackSocket = await connectSocket(userId, userType);
+        
+        // Start background retry mechanism for APK builds
+        startBackgroundRetry(getToken);
+        
+        return fallbackSocket;
+      } catch (fallbackError) {
+        console.error("❌ APK: Emergency fallback also failed:", fallbackError);
+        throw error; // Throw the original error
+      }
     }
   } else {
     // For development, use normal connection
     return await ensureSocketConnected(getToken);
+  }
+}; 
+
+// Comprehensive APK debugging function
+export const debugAPKConnection = async (getToken: any) => {
+  log("🔍 === APK Connection Debug ===");
+  
+  try {
+    // Get user info
+    const userId = await getUserIdFromJWT(getToken);
+    const userType = await getUserTypeFromJWT(getToken);
+    
+    log("👤 User Info:");
+    log("- User ID:", userId);
+    log("- User Type:", userType);
+    
+    // Get current socket status
+    const currentStatus = getDetailedConnectionStatus();
+    log("📊 Current Socket Status:", currentStatus);
+    
+    // Check environment
+    log("🏗️ Environment Info:");
+    log("- Is Production:", !__DEV__);
+    log("- Socket URL:", SOCKET_URL);
+    log("- Socket Config:", socketConfig);
+    
+    // Test basic connection
+    log("🔄 Testing basic connection...");
+    const testSocket = io(SOCKET_URL, {
+      transports: ["websocket"],
+      timeout: 10000,
+      forceNew: true,
+      query: {
+        type: userType,
+        id: userId,
+        platform: 'android-apk',
+        debug: 'true'
+      },
+      extraHeaders: {
+        "User-Agent": "ReactNative-APK-Debug",
+        "X-Platform": "Android",
+        "X-Environment": "production"
+      }
+    });
+    
+    const connectionResult = await new Promise<{
+      success: boolean;
+      error?: string;
+      details: {
+        connected: boolean;
+        id?: string;
+        transport?: string;
+        url?: string;
+        type?: string;
+        context?: string;
+      };
+    }>((resolve) => {
+      const timeout = setTimeout(() => {
+        testSocket.disconnect();
+        resolve({
+          success: false,
+          error: 'Connection timeout',
+          details: {
+            connected: testSocket.connected,
+            id: testSocket.id,
+            transport: testSocket.io?.engine?.transport?.name
+          }
+        });
+      }, 10000);
+      
+      testSocket.on("connect", () => {
+        clearTimeout(timeout);
+        const result = {
+          success: true,
+          details: {
+            connected: testSocket.connected,
+            id: testSocket.id,
+            transport: testSocket.io?.engine?.transport?.name,
+            url: SOCKET_URL
+          }
+        };
+        testSocket.disconnect();
+        resolve(result);
+      });
+      
+      testSocket.on("connect_error", (error: any) => {
+        clearTimeout(timeout);
+        resolve({
+          success: false,
+          error: error.message,
+          details: {
+            type: error.type,
+            context: error.context,
+            connected: testSocket.connected,
+            transport: testSocket.io?.engine?.transport?.name
+          }
+        });
+      });
+    });
+    
+    log("📊 Basic Connection Test Result:", connectionResult);
+    
+    return {
+      success: true,
+      userInfo: { userId, userType },
+      currentStatus,
+      environment: {
+        isProduction: !__DEV__,
+        socketUrl: SOCKET_URL,
+        socketConfig
+      },
+      connectionTest: connectionResult,
+      recommendations: connectionResult.success ? [
+        'Connection test successful',
+        'Check if main socket connection is working',
+        'Verify JWT token is valid'
+      ] : [
+        'Connection test failed',
+        'Check network connectivity',
+        'Verify server is reachable',
+        'Check firewall/proxy settings'
+      ]
+    };
+    
+  } catch (error) {
+    console.error("❌ APK Debug failed:", error);
+    return {
+      success: false,
+      error: error.message,
+      recommendations: [
+        'Debug function failed',
+        'Check JWT token availability',
+        'Verify user authentication'
+      ]
+    };
   }
 }; 

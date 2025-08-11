@@ -23,14 +23,24 @@ export default function AboutScreen({ navigation }: any) {
     if (toolType === 'apk') {
       try {
         console.log('🚀 Initializing APK connection...');
-        const { initializeAPKConnection } = require('../../utils/socket');
-        await initializeAPKConnection();
-        Alert.alert('Success', 'APK connection initialized successfully!');
+        const { testAPKInitialization } = require('../../utils/socketTest');
+        
+        // Show loading alert
+        Alert.alert('APK Initialization', 'Initializing APK connection... Please wait.');
+        
+        const result = await testAPKInitialization();
+        
+        if (result.success) {
+          const message = `APK initialization successful!\n\nDuration: ${result.duration}ms\nInitial State: ${result.initialStatus.connectionState}\nFinal State: ${result.finalStatus.connectionState}\nStability: ${result.stabilityStatus.connected ? 'Connected' : 'Disconnected'}`;
+          Alert.alert('Success', message);
+        } else {
+          Alert.alert('Error', `Failed to initialize APK connection.\n\nError: ${result.error}\n\nCheck logs for details.`);
+        }
       } catch (error: any) {
         console.error('❌ APK initialization failed:', error);
-        Alert.alert('Error', 'Failed to initialize APK connection. Check logs for details.');
+        Alert.alert('Error', `Failed to initialize APK connection.\n\nError: ${error.message}\n\nCheck logs for details.`);
       }
-            } else if (toolType === 'connection') {
+    } else if (toolType === 'connection') {
       const { getDetailedConnectionStatus, forceReconnect, debugSocketConnection } = require('../../utils/socket');
       const { quickTest, quickTestAPK } = require('../../utils/socketTest');
       

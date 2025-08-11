@@ -11,12 +11,12 @@ export const productionConfig = {
   
   socket: {
     url: 'https://socketio-roqet-production.up.railway.app', // Production Socket.IO
-    timeout: 25000,
-    reconnectionAttempts: 25,
-    reconnectionDelay: 1500,
-    reconnectionDelayMax: 8000,
-    pingTimeout: 60000,
-    pingInterval: 25000,
+    timeout: 30000, // Increased timeout for APK builds
+    reconnectionAttempts: 30, // More reconnection attempts for APK
+    reconnectionDelay: 1000, // Faster initial reconnection
+    reconnectionDelayMax: 10000, // Longer max delay for stability
+    pingTimeout: 90000, // Longer ping timeout for APK
+    pingInterval: 20000, // More frequent pings for APK
   },
   
   clerk: {
