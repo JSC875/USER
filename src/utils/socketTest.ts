@@ -708,3 +708,53 @@ export const debugAPKConnection = async () => {
     };
   }
 }; 
+
+// Test APK initialization specifically
+export const testAPKInitialization = async (getToken: any) => {
+  console.log('🚀 Testing APK initialization...');
+  
+  try {
+    const { initializeAPKConnection, getDetailedConnectionStatus } = require('./socket');
+    
+    // Get initial status
+    const initialStatus = getDetailedConnectionStatus();
+    console.log('📊 Initial Status:', initialStatus);
+    
+    // Test APK initialization
+    console.log('🔄 Starting APK initialization...');
+    const startTime = Date.now();
+    
+    const socket = await initializeAPKConnection(getToken);
+    const endTime = Date.now();
+    
+    console.log('⏱️ APK initialization took:', endTime - startTime, 'ms');
+    
+    // Get final status
+    const finalStatus = getDetailedConnectionStatus();
+    console.log('📊 Final Status:', finalStatus);
+    
+    // Wait a bit to see if connection stays stable
+    await new Promise(resolve => setTimeout(resolve, 5000));
+    
+    const stabilityStatus = getDetailedConnectionStatus();
+    console.log('📊 Stability Check Status:', stabilityStatus);
+    
+    return {
+      success: true,
+      socket: socket,
+      initialStatus,
+      finalStatus,
+      stabilityStatus,
+      duration: endTime - startTime,
+      message: 'APK initialization completed successfully'
+    };
+    
+  } catch (error) {
+    console.error('❌ APK initialization test failed:', error);
+    return {
+      success: false,
+      error: error.message,
+      message: 'APK initialization failed'
+    };
+  }
+}; 

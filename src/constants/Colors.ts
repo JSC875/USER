@@ -33,12 +33,14 @@ export const Colors = {
 
   // Status Colors
   success: '#2ecc71', // Emerald Green
+  successLight: '#a8e6cf', // Light success color
   warning: '#f59e0b', // Keeping as is
   error: '#ef4444', // Keeping as is
+  errorLight: '#fecaca', // Light error color
   info: '#3b82f6', // Keeping as is
 
   // Background Colors
-  background: '#ecf0f1', // Light Slate
+  background: '#f4f6f8', // Light Slate
   surface: '#a8e6cf', // Mint Green
   card: '#FFF',
 

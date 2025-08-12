@@ -1,11 +1,10 @@
 import { getDefaultConfig } from 'expo/metro-config';
-import { withNativeWind } from 'nativewind/metro';
 import path from 'path';
 
 const config = getDefaultConfig(__dirname);
 
 // Performance optimizations for Metro
-config.resolver = {
+const resolver = {
   ...config.resolver,
   // Enable symlinks for better module resolution
   enableSymlinks: true,
@@ -14,19 +13,21 @@ config.resolver = {
   // Add platform extensions
   platforms: ['ios', 'android', 'native', 'web'],
   // Optimize asset extensions
-  assetExts: config.resolver.assetExts.filter((ext: string) => ext !== 'svg'),
+  assetExts: (config.resolver?.assetExts || []).filter((ext: string) => ext !== 'svg'),
   // Add source extensions
-  sourceExts: [...config.resolver.sourceExts, 'mjs', 'cjs'],
+  sourceExts: [...(config.resolver?.sourceExts || []), 'mjs', 'cjs'],
   // Add alias resolution
   alias: {
     '@': path.resolve(__dirname, 'src'),
     '@/images': path.resolve(__dirname, 'assets/images'),
     '@/fonts': path.resolve(__dirname, 'assets/fonts'),
   },
+  // Add node_modules resolution
+  nodeModulesPaths: [path.resolve(__dirname, 'node_modules')],
 };
 
 // Transformer optimizations
-config.transformer = {
+const transformer = {
   ...config.transformer,
   // Enable minification for production
   minifierConfig: {
@@ -40,7 +41,7 @@ config.transformer = {
 };
 
 // Server optimizations
-config.server = {
+const server = {
   ...config.server,
   // Enable compression
   compress: true,
@@ -54,14 +55,15 @@ config.server = {
 };
 
 // Watchman optimizations
-config.watchFolders = [
+const watchFolders = [
   // Add your project root
   __dirname,
 ];
 
 // Performance monitoring
+let reporter = config.reporter;
 if (process.env.NODE_ENV === 'development') {
-  config.reporter = {
+  reporter = {
     ...config.reporter,
     // Add performance reporting
     update: (event: any) => {
@@ -74,6 +76,13 @@ if (process.env.NODE_ENV === 'development') {
 
 // Apply reanimated configuration
 const { wrapWithReanimatedMetroConfig } = require('react-native-reanimated/metro-config');
-const reanimatedConfig = wrapWithReanimatedMetroConfig(config);
+const reanimatedConfig = wrapWithReanimatedMetroConfig({
+  ...config,
+  resolver,
+  transformer,
+  server,
+  watchFolders,
+  reporter,
+});
 
-export default withNativeWind(reanimatedConfig, { input: './global.css' });
+export default reanimatedConfig;

@@ -19,6 +19,7 @@ export const Layout = {
     sm: 6,
     md: 10,
     lg: 16,
+    full: 9999,
   },
   fontSize: {
     xs: 12,

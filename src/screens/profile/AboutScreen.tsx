@@ -19,16 +19,26 @@ export default function AboutScreen({ navigation }: any) {
     }
   };
 
-  const handleDeveloperToolPress = async (toolType: 'apk' | 'connection') => {
+  const handleDeveloperToolPress = async (toolType: 'apk' | 'connection' | 'payment') => {
     if (toolType === 'apk') {
       try {
         console.log('🚀 Initializing APK connection...');
-        const { initializeAPKConnection } = require('../../utils/socket');
-        await initializeAPKConnection();
-        Alert.alert('Success', 'APK connection initialized successfully!');
+        const { testAPKInitialization } = require('../../utils/socketTest');
+        
+        // Show loading alert
+        Alert.alert('APK Initialization', 'Initializing APK connection... Please wait.');
+        
+        const result = await testAPKInitialization();
+        
+        if (result.success) {
+          const message = `APK initialization successful!\n\nDuration: ${result.duration}ms\nInitial State: ${result.initialStatus.connectionState}\nFinal State: ${result.finalStatus.connectionState}\nStability: ${result.stabilityStatus.connected ? 'Connected' : 'Disconnected'}`;
+          Alert.alert('Success', message);
+        } else {
+          Alert.alert('Error', `Failed to initialize APK connection.\n\nError: ${result.error}\n\nCheck logs for details.`);
+        }
       } catch (error: any) {
         console.error('❌ APK initialization failed:', error);
-        Alert.alert('Error', 'Failed to initialize APK connection. Check logs for details.');
+        Alert.alert('Error', `Failed to initialize APK connection.\n\nError: ${error.message}\n\nCheck logs for details.`);
       }
     } else if (toolType === 'connection') {
       const { getDetailedConnectionStatus, forceReconnect, debugSocketConnection } = require('../../utils/socket');
@@ -96,6 +106,9 @@ export default function AboutScreen({ navigation }: any) {
         console.error('❌ Connection analysis failed:', error);
         Alert.alert('Error', 'Failed to analyze connection. Check logs for details.');
       }
+    } else if (toolType === 'payment') {
+      // Navigate to live payment test screen
+      navigation.navigate('LivePaymentTest');
     }
   };
 
@@ -163,6 +176,13 @@ export default function AboutScreen({ navigation }: any) {
               >
                 <Ionicons name="bug" size={16} color={Colors.white} />
                 <Text style={styles.developerButtonText}>Test Connection</Text>
+              </TouchableOpacity>
+              <TouchableOpacity 
+                style={[styles.developerButton, { backgroundColor: Colors.coral }]} 
+                onPress={() => handleDeveloperToolPress('payment')}
+              >
+                <Ionicons name="card" size={16} color={Colors.white} />
+                <Text style={styles.developerButtonText}>Live Payment</Text>
               </TouchableOpacity>
             </View>
           </View>

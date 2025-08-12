@@ -45,8 +45,8 @@ export default function RideInProgressScreen({ navigation, route }: any) {
           console.log('💰 Fare in INR:', fareInINR);
           console.log('💰 Payment amount in paise:', paymentAmount);
           
-          // Navigate to payment screen first
-          navigation.navigate('WebViewPayment', {
+          // Navigate to post-ride payment screen
+          navigation.navigate('PostRidePayment', {
             rideId,
             amount: paymentAmount,
             destination,
@@ -73,8 +73,8 @@ export default function RideInProgressScreen({ navigation, route }: any) {
         console.log('💰 Fare in INR from completed event:', fareInINR);
         console.log('💰 Payment amount in paise from completed event:', paymentAmount);
         
-        // Navigate to payment screen instead of directly to summary
-        navigation.navigate('WebViewPayment', {
+        // Navigate to post-ride payment screen
+        navigation.navigate('PostRidePayment', {
           rideId,
           amount: paymentAmount,
           destination,

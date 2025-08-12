@@ -97,7 +97,7 @@ class RideService {
           'Content-Type': 'application/json',
           'X-App-Version': '1.0.0',
           'X-Platform': 'ReactNative',
-          'X-Environment': 'development',
+          'X-Environment': 'production',
         },
         body: JSON.stringify(rideData),
       });
@@ -165,7 +165,7 @@ class RideService {
           'Content-Type': 'application/json',
           'X-App-Version': '1.0.0',
           'X-Platform': 'ReactNative',
-          'X-Environment': 'development',
+          'X-Environment': 'production',
         },
       });
 
@@ -209,7 +209,7 @@ class RideService {
           'Content-Type': 'application/json',
           'X-App-Version': '1.0.0',
           'X-Platform': 'ReactNative',
-          'X-Environment': 'development',
+          'X-Environment': 'production',
         },
       });
 
@@ -252,7 +252,7 @@ class RideService {
           'Content-Type': 'application/json',
           'X-App-Version': '1.0.0',
           'X-Platform': 'ReactNative',
-          'X-Environment': 'development',
+          'X-Environment': 'production',
         },
       });
 
@@ -298,7 +298,7 @@ class RideService {
           'Content-Type': 'application/json',
           'X-App-Version': '1.0.0',
           'X-Platform': 'ReactNative',
-          'X-Environment': 'development',
+          'X-Environment': 'production',
         },
       });
 
@@ -353,7 +353,7 @@ class RideService {
           'Content-Type': 'application/json',
           'X-App-Version': '1.0.0',
           'X-Platform': 'ReactNative',
-          'X-Environment': 'development',
+          'X-Environment': 'production',
         },
       });
 

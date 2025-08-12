@@ -1,35 +1,48 @@
-import { isDevelopment, isProduction } from './environment';
+import Constants from 'expo-constants';
 
-// Razorpay Configuration
+// Get environment variables from Constants
+const getEnvVar = (key: string, fallback?: string): string => {
+  return Constants.expoConfig?.extra?.[key] || process.env[key] || fallback || '';
+};
+
+// Check if we're in development mode
+const isDevelopment = __DEV__;
+const isProduction = !__DEV__;
+
+// Razorpay Configuration - Always use live keys
 export const RAZORPAY_CONFIG = {
-  // Test keys - Replace with your actual test keys
-  test: {
-    key: 'rzp_test_JNLEoGZvX3AWac',
-    secret: 'qqp0kCPz1T1fdztNHz3FOtc5',
-  },
-  // Production keys - Replace with your actual live keys
-  production: {
-    key: 'rzp_live_YOUR_LIVE_KEY_HERE',
-    secret: 'YOUR_LIVE_SECRET_HERE',
+  // Live keys for production
+  live: {
+    key: getEnvVar('EXPO_PUBLIC_RAZORPAY_LIVE_KEY', 'rzp_live_AEcWKhM01jAKqu'),
+    secret: getEnvVar('EXPO_PUBLIC_RAZORPAY_LIVE_SECRET', 'N89cllTVPqHC6CzDCXHlZhxM'),
   },
 };
 
-// Get the appropriate configuration based on environment
+// Get the appropriate configuration - Always use live keys
 export const getRazorpayConfig = () => {
-  if (isProduction) {
-    return RAZORPAY_CONFIG.production;
-  }
-  return RAZORPAY_CONFIG.test;
+  console.log('🔧 Razorpay: Using LIVE keys for all environments');
+  console.log('🔧 Razorpay Live Key from Constants:', Constants.expoConfig?.extra?.EXPO_PUBLIC_RAZORPAY_LIVE_KEY);
+  console.log('🔧 Razorpay Live Key from process.env:', process.env.EXPO_PUBLIC_RAZORPAY_LIVE_KEY);
+  console.log('🔧 Final Razorpay Key:', RAZORPAY_CONFIG.live.key);
+  
+  return RAZORPAY_CONFIG.live;
 };
 
 // Get Razorpay key for client-side usage
 export const getRazorpayKey = (): string => {
-  return getRazorpayConfig().key;
+  const config = getRazorpayConfig();
+  return config.key;
 };
 
 // Get Razorpay secret for server-side usage (should not be exposed to client)
 export const getRazorpaySecret = (): string => {
-  return getRazorpayConfig().secret;
+  const config = getRazorpayConfig();
+  return config.secret;
+};
+
+// Check if we're using live keys
+export const isUsingLiveKeys = (): boolean => {
+  return getRazorpayKey().startsWith('rzp_live_');
 };
 
 // Payment configuration
@@ -66,7 +79,7 @@ export const PAYMENT_CONFIG = {
 
 // Validation functions
 export const validateRazorpayKey = (key: string): boolean => {
-  return key && key.startsWith('rzp_') && key.length > 10;
+  return Boolean(key && key.startsWith('rzp_') && key.length > 10);
 };
 
 export const validatePaymentAmount = (amount: number): boolean => {
@@ -82,6 +95,7 @@ export const RAZORPAY_ERROR_MESSAGES = {
   PAYMENT_FAILED: 'Payment failed. Please try again',
   VERIFICATION_FAILED: 'Payment verification failed',
   ORDER_CREATION_FAILED: 'Failed to create payment order',
+  LIVE_PAYMENT_WARNING: '⚠️ This is a REAL payment that will charge your account',
 };
 
 // Success messages
@@ -98,10 +112,20 @@ export const isRazorpayConfigured = (): boolean => {
 };
 
 export const logRazorpayConfig = () => {
-  if (isDevelopment) {
-    console.log('🔧 Razorpay Configuration:');
-    console.log('Environment:', isProduction ? 'Production' : 'Development');
-    console.log('Key configured:', isRazorpayConfigured());
-    console.log('Key prefix:', getRazorpayKey().substring(0, 10) + '...');
-  }
+  const config = getRazorpayConfig();
+  
+  console.log('🔧 Razorpay Configuration:');
+  console.log('Environment:', isProduction ? 'Production' : 'Development');
+  console.log('Using Live Keys: ✅ Yes (Always)');
+  console.log('Key configured:', isRazorpayConfigured());
+  console.log('Key prefix:', getRazorpayKey().substring(0, 10) + '...');
+  console.log('Full Key:', getRazorpayKey());
+  console.log('⚠️ WARNING: Using LIVE keys - Real money will be charged!');
+};
+
+// Get payment warning message - Always live keys
+export const getPaymentWarningMessage = (): string => {
+  return '⚠️ This is a REAL payment that will charge your account. Use small amounts for testing.';
 }; 
+
+ 

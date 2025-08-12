@@ -14,10 +14,11 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks } from '../../utils/socket';
+import { onRideStatus, onDriverLocation, onRideCompleted, onQRPaymentReady, clearCallbacks } from '../../utils/socket';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Images } from '../../constants/Images';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
+
 
 export default function LiveTrackingScreen({ navigation, route }: any) {
   const { destination, estimate, driver, rideId, origin } = route.params;
@@ -31,10 +32,10 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   });
   
   const [rideStatus, setRideStatus] = useState('arriving');
-  const [currentETA, setCurrentETA] = useState(driver?.eta || estimate?.eta || 'N/A');
   const [callModalVisible, setCallModalVisible] = useState(false);
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [driverPath, setDriverPath] = useState<{latitude: number, longitude: number}[]>([]);
+
   // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
   const transformDriverName = (name: string) => {
     if (name && name.includes('Driver')) {
@@ -50,7 +51,6 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   
   console.log('🚀 LiveTrackingScreen: Initial state:', {
     rideStatus,
-    currentETA,
     driverInfo
   });
 
@@ -71,12 +71,8 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         // Only handle completion and cancellation here
         // Driver arrival and ride start are handled by direct socket listeners
         if (data.status === 'completed') {
-          console.log('✅ Ride completed, navigating to RideSummary');
-          navigation.navigate('RideSummary', {
-            destination,
-            estimate,
-            driver: driverInfo,
-          });
+          console.log('✅ Ride completed, waiting for QR payment modal from driver');
+          // Don't navigate immediately - wait for QR payment flow
         }
         if (data.status === 'cancelled') {
           console.log('❌ Ride cancelled');
@@ -94,16 +90,14 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       console.log('✅ Checking if rideId matches:', data.rideId, '===', rideId);
       
       if (data.rideId === rideId) {
-        console.log('✅ Ride completed event matches current ride, navigating to RideSummary');
-        navigation.navigate('RideSummary', {
-          destination,
-          estimate,
-          driver: driverInfo,
-        });
+        console.log('✅ Ride completed event matches current ride, waiting for QR payment');
+        // Don't navigate immediately - wait for QR payment flow
       } else {
         console.log('🚫 Ignoring ride completed event for different ride:', data.rideId, 'expected:', rideId);
       }
     });
+
+
     
     onDriverLocation((data: { driverId: string; latitude: number; longitude: number; }) => {
       console.log('📍 LiveTrackingScreen received driver location:', data);
@@ -142,7 +136,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       
       if (data.rideId === rideId) {
         console.log('🚗 Driver arrived at pickup location, navigating to MpinEntry');
-        console.log('🚗 Current screen state before navigation:', { rideStatus, currentETA });
+        console.log('🚗 Current screen state before navigation:', { rideStatus });
         
         // Navigate to MPIN entry screen
         navigation.navigate('MpinEntry', {
@@ -163,7 +157,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       
       if (data.rideId === rideId) {
         console.log('🚀 Ride started, navigating to RideInProgress');
-        console.log('🚀 Current screen state before navigation:', { rideStatus, currentETA });
+        console.log('🚀 Current screen state before navigation:', { rideStatus });
         
         navigation.replace('RideInProgress', {
           driver: driverInfo,
@@ -247,11 +241,11 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   const getStatusText = () => {
     switch (rideStatus) {
       case 'arriving':
-        return `${driverInfo.name || 'Pilot'} is arriving in ${currentETA} mins`;
+        return `${driverInfo.name || 'Pilot'} is arriving in ${driver?.eta || estimate?.eta || 'N/A'} mins`;
       case 'picked_up':
         return 'Ride started - Heading to destination';
       case 'in_progress':
-        return `${currentETA} mins to destination`;
+        return `${driver?.eta || estimate?.eta || 'N/A'} mins to destination`;
       default:
         return 'Tracking your ride...';
     }
@@ -279,6 +273,8 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       alert('Error sharing: ' + (error?.message || error?.toString() || 'Unknown error'));
     }
   };
+
+
 
   return (
     <SafeAreaView style={styles.container}>
@@ -419,7 +415,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
             </Text>
           </View>
           <View style={styles.etaContainer}>
-            <Text style={styles.etaText}>{currentETA} min</Text>
+            <Text style={styles.etaText}>{driver?.eta || estimate?.eta || 'N/A'} min</Text>
             <Text style={styles.etaLabel}>ETA</Text>
           </View>
         </View>
@@ -460,6 +456,8 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           )}
         </View>
       </View>
+
+
     </SafeAreaView>
   );
 }
