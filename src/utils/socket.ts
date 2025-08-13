@@ -244,7 +244,7 @@ export const connectSocket = (userId: string, userType: string = "customer"): Pr
     
     // Enhanced socket configuration for better APK compatibility
     const socketOptions = {
-      transports: isProduction ? ["polling", "websocket"] : ["websocket"], // Allow polling fallback for APK
+      transports: isProduction ? ["websocket", "polling"] : ["websocket"], // WebSocket first for APK (server recommendation)
       query: {
         type: userType,
         id: userId,
@@ -253,18 +253,17 @@ export const connectSocket = (userId: string, userType: string = "customer"): Pr
         clientType: isProduction ? 'APK' : 'ReactNative'
       },
       reconnection: true,
-      reconnectionAttempts: isProduction ? socketConfig.reconnectionAttempts * 2 : socketConfig.reconnectionAttempts,
-      reconnectionDelay: isProduction ? socketConfig.reconnectionDelay * 1.5 : socketConfig.reconnectionDelay,
-      reconnectionDelayMax: isProduction ? socketConfig.reconnectionDelayMax * 1.6 : socketConfig.reconnectionDelayMax,
-      timeout: isProduction ? socketConfig.timeout * 1.25 : socketConfig.timeout,
-      forceNew: true,
-      upgrade: isProduction ? true : false, // Enable upgrade for APK builds
-      rememberUpgrade: isProduction ? true : false, // Remember upgrade for APK
+      reconnectionAttempts: isProduction ? 25 : socketConfig.reconnectionAttempts, // Server recommends 25 for APK
+      reconnectionDelay: isProduction ? 500 : socketConfig.reconnectionDelay, // Faster reconnection for quick connection
+      reconnectionDelayMax: isProduction ? 2000 : socketConfig.reconnectionDelayMax, // Shorter max delay for speed
+      timeout: isProduction ? 10000 : socketConfig.timeout, // Faster timeout for quicker failure detection
+      forceNew: false, // Don't force new connection unnecessarily
+      upgrade: isProduction ? false : true, // Server recommends upgrade: false for APK
+      rememberUpgrade: isProduction ? false : true, // Server recommends rememberUpgrade: false for APK
       autoConnect: true,
       path: "/socket.io/",
       extraHeaders: {
-        "Access-Control-Allow-Origin": "*",
-        "User-Agent": userAgent,
+        "User-Agent": isProduction ? "ReactNative-APK" : "ReactNative", // Server specifically looks for "ReactNative-APK"
         "X-Platform": "Android",
         "X-Environment": isProduction ? "production" : "development",
         "X-App-Version": "1.0.0",
@@ -273,12 +272,13 @@ export const connectSocket = (userId: string, userType: string = "customer"): Pr
       // Additional options for better Android compatibility
       withCredentials: false,
       rejectUnauthorized: false,
-      // APK-specific settings
+      // APK-specific settings for FAST connection (< 5 seconds)
       ...(isProduction && {
-        pingTimeout: socketConfig.pingTimeout * 1.5, // Increase ping timeout for APK
-        pingInterval: socketConfig.pingInterval * 0.8, // Decrease ping interval for more frequent pings
-        maxReconnectionAttempts: socketConfig.reconnectionAttempts * 2,
-        reconnectionAttempts: socketConfig.reconnectionAttempts * 2,
+        pingTimeout: 15000, // Shorter ping timeout for faster failure detection
+        pingInterval: 5000, // More frequent pings for quick status updates
+        connectTimeout: 8000, // Faster connection timeout
+        maxReconnectionAttempts: 10, // Fewer attempts but faster cycles
+        reconnectionAttempts: 10,
         // Additional APK-specific options
         closeOnBeforeunload: false,
         autoUnref: false,
@@ -299,6 +299,17 @@ export const connectSocket = (userId: string, userType: string = "customer"): Pr
     };
 
     log('🔧 Socket configuration:', socketOptions);
+    
+    // APK-specific debugging
+    if (isProduction) {
+      console.log('📦 APK Socket Configuration Details:');
+      console.log('🔗 URL:', SOCKET_URL);
+      console.log('🚚 Transports:', socketOptions.transports);
+      console.log('🔄 Reconnection attempts:', socketOptions.reconnectionAttempts);
+      console.log('⏱️ Timeout:', socketOptions.timeout);
+      console.log('🎛️ Upgrade:', socketOptions.upgrade);
+      console.log('📋 User-Agent:', socketOptions.extraHeaders["User-Agent"]);
+    }
     
     socket = io(SOCKET_URL, socketOptions);
 
@@ -704,7 +715,7 @@ export const ensureSocketConnected = async (getToken: any) => {
       log('⚠️ Socket connection not stable, attempting retry...');
       // Try one more time
       const retrySocket = await connectSocketWithJWT(getToken);
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 300));
       return retrySocket;
     }
   } catch (error) {
@@ -759,9 +770,9 @@ export const forceReconnect = async (getToken: any) => {
       // For APK builds, try one more time
       if (!__DEV__) {
         log('🔄 APK: Attempting one more reconnection...');
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 300));
         const retrySocket = await connectSocketWithJWT(getToken);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         const finalSocket = getSocket();
         if (finalSocket && finalSocket.connected) {
@@ -1102,9 +1113,9 @@ export const handleAPKConnection = async (getToken: any) => {
         return connectedSocket;
       } else {
         log("⚠️ APK connection not verified, attempting one more time...");
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        await new Promise(resolve => setTimeout(resolve, 300));
         const retrySocket = await connectSocketWithJWT(getToken);
-        await new Promise(resolve => setTimeout(resolve, 3000));
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         const finalSocket = getSocket();
         if (finalSocket && finalSocket.connected) {
@@ -1200,8 +1211,8 @@ export const initializeAPKConnection = async (getToken: any) => {
     lastConnectedUserId = null;
     connectionState = 'disconnected';
     
-    // Initial delay for APK
-    await new Promise(resolve => setTimeout(resolve, 2000));
+    // Minimal delay for APK - optimized for speed
+    await new Promise(resolve => setTimeout(resolve, 100));
     
     try {
       // Enhanced APK initialization with better error handling
@@ -1241,8 +1252,8 @@ export const initializeAPKConnection = async (getToken: any) => {
       log("🔄 APK: First connection attempt...");
       const firstSocket = await connectSocket(userId, userType);
       
-      // Wait for connection to stabilize
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      // Minimal wait for connection to stabilize - optimized for speed
+      await new Promise(resolve => setTimeout(resolve, 500));
       
       let currentSocket = getSocket();
       if (currentSocket && currentSocket.connected) {
@@ -1262,7 +1273,7 @@ export const initializeAPKConnection = async (getToken: any) => {
         socket = null;
       }
       
-      await new Promise(resolve => setTimeout(resolve, 2000));
+      await new Promise(resolve => setTimeout(resolve, 300));
       
       // Try with different configuration
       const secondSocket = await connectSocket(userId, userType);

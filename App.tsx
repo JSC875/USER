@@ -79,14 +79,15 @@ function SocketInitializer() {
         console.log('🔍 App: Platform:', Platform.OS);
         console.log('🔍 App: __DEV__:', __DEV__);
         
-        // Wait for auth to be loaded and give app time to fully initialize
+        // Optimized for FAST connection (< 5 seconds)
         if (!isLoaded) {
           console.log('⏳ App: Waiting for authentication to load...');
-          await new Promise(resolve => setTimeout(resolve, 5000));
+          // Reduced wait time for faster connection
+          await new Promise(resolve => setTimeout(resolve, 1000));
         }
         
-        // Additional wait for the app to fully load
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Minimal wait for app to initialize - prioritize speed
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // Check if component is still mounted
         if (!isMounted) {

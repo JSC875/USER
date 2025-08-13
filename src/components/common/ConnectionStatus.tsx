@@ -81,7 +81,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       if (mountedRef.current) {
         updateSocketStatus();
       }
-    }, __DEV__ ? 2000 : 1000); // Faster check for APK builds
+    }, __DEV__ ? 1000 : 200); // Much faster check for APK builds (< 5 sec target)
 
     // Set up socket event listeners
     const socket = getSocket();
@@ -126,7 +126,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       };
     } else {
       // If no socket exists yet, check more frequently for APK builds
-      const checkInterval = __DEV__ ? 1000 : 500; // More frequent checks for APK
+      const checkInterval = __DEV__ ? 500 : 100; // Very frequent checks for fast APK connection
       checkSocketRef.current = setInterval(() => {
         if (!mountedRef.current) return;
         
@@ -189,8 +189,8 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       }
     }, connectionInterval);
 
-    // Check socket status every 2 seconds for APK, 5 for dev
-    const socketInterval = __DEV__ ? 5000 : 2000;
+    // Check socket status very frequently for fast APK connection
+    const socketInterval = __DEV__ ? 2000 : 500;
     socketIntervalRef.current = setInterval(() => {
       if (mountedRef.current) {
         updateSocketStatus();
