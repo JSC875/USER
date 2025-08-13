@@ -311,28 +311,7 @@ export default function RideInProgressScreen({ navigation, route }: any) {
             <Ionicons name="share" size={16} color={Colors.primary} />
             <Text style={styles.shareText}>Share Trip</Text>
           </TouchableOpacity>
-          
-          {/* Test Payment Button - Remove this in production */}
-          <TouchableOpacity 
-            style={[styles.shareButton, { marginLeft: 12, backgroundColor: '#FFE4E1' }]} 
-            onPress={() => {
-              console.log('🧪 Test: Manually navigating to payment screen');
-              const fareInINR = estimate?.fare || 73; // Use estimate or default to 73 INR
-              const testAmount = Math.round(fareInINR * 100); // Convert to paise
-              console.log('🧪 Test fare in INR:', fareInINR);
-              console.log('🧪 Test payment amount in paise:', testAmount);
-              navigation.navigate('WebViewPayment', {
-                rideId,
-                amount: testAmount,
-                destination,
-                driver: driverInfo,
-                estimate: estimate || { fare: fareInINR },
-              });
-            }}
-          >
-            <Ionicons name="card" size={16} color="#FF6B6B" />
-            <Text style={[styles.shareText, { color: '#FF6B6B' }]}>Test Payment</Text>
-          </TouchableOpacity>
+
         </View>
       </View>
     </SafeAreaView>

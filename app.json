@@ -25,7 +25,13 @@
       "permissions": [
         "ACCESS_FINE_LOCATION",
         "ACCESS_COARSE_LOCATION",
-        "CAMERA"
+        "ACCESS_NETWORK_STATE",
+        "ACCESS_WIFI_STATE",
+        "CHANGE_NETWORK_STATE",
+        "CAMERA",
+        "INTERNET",
+        "FOREGROUND_SERVICE",
+        "WAKE_LOCK"
       ],
       "config": {
         "googleMaps": {
