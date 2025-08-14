@@ -61,9 +61,22 @@ export default function RideHistoryScreen({ navigation }: any) {
       
       const rides = await userApi.getUserRideHistory(getToken, filters);
       
-      console.log('✅ Ride history loaded:', rides.length, 'rides');
-      
-      setRideHistory(rides);
+             console.log('✅ Ride history loaded:', rides.length, 'rides');
+       
+       // Sort rides by requestedAt (most recent first), fallback to createdAt if requestedAt is not available
+       const sortedRides = rides.sort((a, b) => {
+         const dateA = new Date(a.requestedAt || a.createdAt);
+         const dateB = new Date(b.requestedAt || b.createdAt);
+         return dateB.getTime() - dateA.getTime(); // Most recent first
+       });
+       
+       // Debug: Log the timestamps to understand the data
+       console.log('🔍 Ride timestamps for sorting:');
+       sortedRides.forEach((ride, index) => {
+         console.log(`Ride ${index + 1}: createdAt=${ride.createdAt}, requestedAt=${ride.requestedAt}, status=${ride.status}`);
+       });
+       
+       setRideHistory(sortedRides);
       
     } catch (error) {
       console.error('❌ Error loading ride history:', error);
@@ -88,18 +101,21 @@ export default function RideHistoryScreen({ navigation }: any) {
     loadRideHistory(); // Reload with new filter
   };
 
-  const renderRideItem = ({ item }: { item: RideHistory }) => {
-    // Format date and time
-    const rideDate = new Date(item.createdAt);
-    const dateText = rideDate.toLocaleDateString('en-IN', { 
-      day: 'numeric', 
-      month: 'short', 
-      year: 'numeric' 
-    });
-    const timeText = rideDate.toLocaleTimeString('en-IN', { 
-      hour: '2-digit', 
-      minute: '2-digit' 
-    });
+     const renderRideItem = ({ item }: { item: RideHistory }) => {
+     // Format date and time - use requestedAt for display to match sorting
+     const rideDate = new Date(item.requestedAt || item.createdAt);
+     const dateText = rideDate.toLocaleDateString('en-IN', { 
+       day: 'numeric', 
+       month: 'short', 
+       year: 'numeric' 
+     });
+     const timeText = rideDate.toLocaleTimeString('en-IN', { 
+       hour: '2-digit', 
+       minute: '2-digit' 
+     });
+     
+     // Debug: Log what timestamp is being used for display
+     console.log(`🎯 Ride ${item.id}: createdAt=${item.createdAt}, requestedAt=${item.requestedAt}, displayTime=${timeText}`);
 
     // Get status color
     const getStatusColor = (status: string) => {
