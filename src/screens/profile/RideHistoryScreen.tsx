@@ -126,7 +126,7 @@ export default function RideHistoryScreen({ navigation }: any) {
             </View>
           </View>
           <View style={styles.fareContainer}>
-            <Text style={styles.fareText}>₹{item.fare}</Text>
+            <Text style={styles.fareText}>₹{Math.round(item.fare)}</Text>
           </View>
         </View>
 
