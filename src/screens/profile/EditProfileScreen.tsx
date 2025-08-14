@@ -113,31 +113,49 @@ export default function EditProfileScreen({ navigation, route }: any) {
     }
   };
 
-  const validate = () => {
-    const newErrors: { [key: string]: string } = {};
-    
-    if (!firstName.trim()) newErrors.firstName = 'First name is required';
-    else if (/\d/.test(firstName)) newErrors.firstName = 'First name cannot contain numbers';
-    
-    if (!lastName.trim()) newErrors.lastName = 'Last name is required';
-    else if (/\d/.test(lastName)) newErrors.lastName = 'Last name cannot contain numbers';
-    
-    if (!email.trim()) newErrors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email format';
-    
-    // Phone validation removed since the field is disabled
-    
-    if (!gender) newErrors.gender = 'Gender is required';
-    
-    if (!emergencyName.trim()) newErrors.emergencyName = 'Emergency contact name is required';
-    else if (/\d/.test(emergencyName)) newErrors.emergencyName = 'Emergency contact name cannot contain numbers';
-    
-    if (!emergencyPhone.trim()) newErrors.emergencyPhone = 'Emergency phone is required';
-    else if (!/^[0-9]{10}$/.test(emergencyPhone.replace(/\D/g, ''))) newErrors.emergencyPhone = 'Emergency phone must be 10 digits';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+     const validate = () => {
+     const newErrors: { [key: string]: string } = {};
+     
+     if (!firstName.trim()) newErrors.firstName = 'First name is required';
+     else if (/\d/.test(firstName)) newErrors.firstName = 'First name cannot contain numbers';
+     
+     if (!lastName.trim()) newErrors.lastName = 'Last name is required';
+     else if (/\d/.test(lastName)) newErrors.lastName = 'Last name cannot contain numbers';
+     
+     if (!email.trim()) newErrors.email = 'Email is required';
+     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email format';
+     
+     // Phone validation removed since the field is disabled
+     
+     if (!gender) newErrors.gender = 'Gender is required';
+     
+     // Date of Birth validation
+     if (dateOfBirth.trim()) {
+       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+       if (!dateRegex.test(dateOfBirth)) {
+         newErrors.dateOfBirth = 'Date must be in YYYY-MM-DD format';
+       } else {
+         const date = new Date(dateOfBirth);
+         const currentDate = new Date();
+         if (isNaN(date.getTime())) {
+           newErrors.dateOfBirth = 'Invalid date';
+         } else if (date > currentDate) {
+           newErrors.dateOfBirth = 'Date cannot be in the future';
+         } else if (date.getFullYear() < 1900) {
+           newErrors.dateOfBirth = 'Date cannot be before 1900';
+         }
+       }
+     }
+     
+     if (!emergencyName.trim()) newErrors.emergencyName = 'Emergency contact name is required';
+     else if (/\d/.test(emergencyName)) newErrors.emergencyName = 'Emergency contact name cannot contain numbers';
+     
+     if (!emergencyPhone.trim()) newErrors.emergencyPhone = 'Emergency phone is required';
+     else if (!/^[0-9]{10}$/.test(emergencyPhone.replace(/\D/g, ''))) newErrors.emergencyPhone = 'Emergency phone must be 10 digits';
+     
+     setErrors(newErrors);
+     return Object.keys(newErrors).length === 0;
+   };
 
   const handleSave = async () => {
     if (!validate()) {
@@ -199,12 +217,30 @@ export default function EditProfileScreen({ navigation, route }: any) {
         ]
       );
       
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
+         } catch (error) {
+       console.error('Error updating profile:', error);
+       
+       // Provide more specific error messages
+       let errorMessage = 'Failed to update profile. Please try again.';
+       
+       if (error instanceof Error) {
+         if (error.message.includes('500')) {
+           errorMessage = 'Server error. Please check your data and try again.';
+         } else if (error.message.includes('400')) {
+           errorMessage = 'Invalid data. Please check your information and try again.';
+         } else if (error.message.includes('401')) {
+           errorMessage = 'Authentication error. Please log in again.';
+         } else if (error.message.includes('403')) {
+           errorMessage = 'Access denied. Please check your permissions.';
+         } else if (error.message.includes('404')) {
+           errorMessage = 'Profile not found. Please contact support.';
+         }
+       }
+       
+       Alert.alert('Error', errorMessage);
+     } finally {
+       setIsSaving(false);
+     }
   };
 
   return (
@@ -276,17 +312,23 @@ export default function EditProfileScreen({ navigation, route }: any) {
             editable={false}
           />
           
-                     {/* Date of Birth */}
-           <Text style={styles.label}>Date of Birth</Text>
-           <TextInput
-             style={styles.input}
-             placeholder="YYYY-MM-DD"
-             value={dateOfBirth}
-             onChangeText={(value) => handleFieldChange('dateOfBirth', value)}
-           />
+                                 {/* Date of Birth */}
+            <Text style={styles.label}>Date of Birth</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="YYYY-MM-DD"
+              value={dateOfBirth}
+              onChangeText={(value) => handleFieldChange('dateOfBirth', value)}
+            />
+            {errors.dateOfBirth && <Text style={{ color: Colors.error }}>{errors.dateOfBirth}</Text>}
            
                        {/* Gender */}
-            <Text style={styles.label}>Gender <Text style={{ color: Colors.gray500, fontSize: 12 }}>(Not Editable)</Text></Text>
+            <Text style={styles.label}>
+              Gender 
+              {gender && gender.trim() !== '' && (
+                <Text style={{ color: Colors.gray500, fontSize: 12 }}> (Not Editable)</Text>
+              )}
+            </Text>
             <View style={styles.genderRow}>
               {['Male', 'Female', 'Other'].map((g) => (
                 <TouchableOpacity
@@ -294,18 +336,23 @@ export default function EditProfileScreen({ navigation, route }: any) {
                   style={[
                     styles.genderButton, 
                     gender === g && styles.genderButtonSelected,
-                    gender !== g && styles.genderButtonDisabled
+                    gender && gender.trim() !== '' && gender !== g && styles.genderButtonDisabled
                   ]}
                   onPress={() => {
-                    // Gender field is permanently disabled
-                    console.log('Gender field is not editable');
+                    if (!gender || gender.trim() === '') {
+                      // Allow editing if gender is not set
+                      setGender(g);
+                    } else {
+                      // Gender field is disabled if already set
+                      console.log('Gender field is not editable - already set');
+                    }
                   }}
-                  disabled={true}
+                                     disabled={Boolean(gender && gender.trim() !== '')}
                 >
                   <Text style={[
                     styles.genderText, 
                     gender === g && styles.genderTextSelected,
-                    gender !== g && styles.genderTextDisabled
+                    gender && gender.trim() !== '' && gender !== g && styles.genderTextDisabled
                   ]}>{g}</Text>
                 </TouchableOpacity>
               ))}
