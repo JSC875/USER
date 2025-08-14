@@ -232,11 +232,12 @@ export default function EditProfileScreen({ navigation, route }: any) {
           {/* Phone */}
           <Text style={styles.label}>Phone</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, styles.disabledInput]}
             placeholder="Enter your phone number"
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
+            editable={false}
           />
           {errors.phone && <Text style={{ color: Colors.error }}>{errors.phone}</Text>}
           
@@ -362,6 +363,11 @@ const styles = StyleSheet.create({
     marginBottom: Layout.spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
+  },
+  disabledInput: {
+    backgroundColor: Colors.gray100,
+    color: Colors.textSecondary,
+    borderColor: Colors.gray300,
   },
   genderRow: {
     flexDirection: 'row',
