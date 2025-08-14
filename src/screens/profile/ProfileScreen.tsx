@@ -15,6 +15,7 @@ import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/native';
+import { userApi } from '../../services/userService';
 
 const profileOptions = [
   {
@@ -50,7 +51,7 @@ const profileOptions = [
 ];
 
 export default function ProfileScreen({ navigation, route }: any) {
-  const { signOut } = useAuth();
+  const { signOut, getToken } = useAuth();
   const { user } = useUser();
   
   const getUserPhoto = () => {
@@ -61,17 +62,45 @@ export default function ProfileScreen({ navigation, route }: any) {
   const [activeTab, setActiveTab] = useState<'methods' | 'history'>(
     route.params?.initialTab === 'history' ? 'history' : 'methods'
   );
+  const [userProfile, setUserProfile] = useState<any>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
   useFocusEffect(
     useCallback(() => {
+      // Fetch user profile data when screen comes into focus
+      const fetchUserProfile = async () => {
+        // Prevent multiple simultaneous calls
+        if (isLoadingProfile) {
+          console.log('⏳ Profile loading already in progress, skipping...');
+          return;
+        }
+
+        try {
+          setIsLoadingProfile(true);
+          console.log('🔄 Loading user profile for Profile tab...');
+          
+          const profile = await userApi.getCurrentUser(getToken);
+          setUserProfile(profile);
+          
+          console.log('✅ User profile loaded for Profile tab:', profile);
+        } catch (error) {
+          console.error('❌ Error loading user profile for Profile tab:', error);
+        } finally {
+          setIsLoadingProfile(false);
+        }
+      };
+
+      fetchUserProfile();
+
       if (route?.params?.updatedPhoto) {
         setProfilePhoto(route.params.updatedPhoto);
       }
       if (route?.params?.updatedProfile) {
         // Refresh profile data if updated
         console.log('Profile updated:', route.params.updatedProfile);
+        setUserProfile(route.params.updatedProfile);
       }
-    }, [route])
+    }, [route?.params?.updatedPhoto, route?.params?.updatedProfile])
   );
 
   const handleOptionPress = (screen: string) => {
@@ -124,7 +153,12 @@ export default function ProfileScreen({ navigation, route }: any) {
   };
 
   const getUserName = () => {
-    if (user?.firstName && user?.lastName) {
+    // Use backend data if available, fallback to Clerk user data
+    if (userProfile?.firstName && userProfile?.lastName) {
+      return `${userProfile.firstName} ${userProfile.lastName}`;
+    } else if (userProfile?.firstName) {
+      return userProfile.firstName;
+    } else if (user?.firstName && user?.lastName) {
       return `${user.firstName} ${user.lastName}`;
     } else if (user?.firstName) {
       return user.firstName;
@@ -180,22 +214,22 @@ export default function ProfileScreen({ navigation, route }: any) {
             </TouchableOpacity>
           </View>
 
-          <View style={styles.statsContainer}>
-            <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('History')}>
-              <Text style={styles.statValue}>47</Text>
-              <Text style={styles.statLabel}>Total Rides</Text>
-            </TouchableOpacity>
-            <View style={styles.statDivider} />
-            <View style={styles.statItem}>
-              <Text style={styles.statValue}>4.8</Text>
-              <Text style={styles.statLabel}>Rating</Text>
-            </View>
-            <View style={styles.statDivider} />
-            <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Payment', { initialTab: 'history' })}>
-              <Text style={styles.statValue}>₹2,340</Text>
-              <Text style={styles.statLabel}>Total Spent</Text>
-            </TouchableOpacity>
-          </View>
+                     <View style={styles.statsContainer}>
+             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('History')}>
+               <Text style={styles.statValue}>{userProfile?.totalRides || 0}</Text>
+               <Text style={styles.statLabel}>Total Rides</Text>
+             </TouchableOpacity>
+             <View style={styles.statDivider} />
+             <View style={styles.statItem}>
+               <Text style={styles.statValue}>{userProfile?.rating ? userProfile.rating.toFixed(1) : '0.0'}</Text>
+               <Text style={styles.statLabel}>Rating</Text>
+             </View>
+             <View style={styles.statDivider} />
+             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Payment', { initialTab: 'history' })}>
+               <Text style={styles.statValue}>₹{userProfile?.walletBalance || 0}</Text>
+               <Text style={styles.statLabel}>Wallet Balance</Text>
+             </TouchableOpacity>
+           </View>
         </View>
 
         {/* Quick Actions */}
