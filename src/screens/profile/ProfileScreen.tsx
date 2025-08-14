@@ -236,7 +236,7 @@ export default function ProfileScreen({ navigation, route }: any) {
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>Quick Actions</Text>
           <View style={styles.actionGridRow}>
-            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('ScheduleRide')}>
+            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('ComingSoon')}>
               <View style={styles.actionIcon}>
                 <Ionicons name="time" size={24} color={Colors.primary} />
               </View>

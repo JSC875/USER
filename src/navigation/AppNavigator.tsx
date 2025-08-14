@@ -20,6 +20,7 @@ import LocationSearchScreen from '../screens/home/LocationSearchScreen';
 import RideEstimateScreen from '../screens/home/RideEstimateScreen';
 import ConfirmRideScreen from '../screens/home/ConfirmRideScreen';
 import ScheduleRideScreen from '../screens/home/ScheduleRideScreen';
+import ComingSoonScreen from '../screens/home/ComingSoonScreen';
 import OffersScreen from '../screens/home/OffersScreen';
 import DropLocationSelectorScreen from '../screens/home/DropLocationSelectorScreen';
 import DropPinLocationScreen from '../screens/home/DropPinLocationScreen';
@@ -170,6 +171,7 @@ function MainNavigator() {
       <Stack.Screen name="RideEstimate" component={RideEstimateScreen} />
       <Stack.Screen name="ConfirmRide" component={ConfirmRideScreen} />
       <Stack.Screen name="ScheduleRide" component={ScheduleRideScreen} />
+      <Stack.Screen name="ComingSoon" component={ComingSoonScreen} />
       <Stack.Screen name="Offers" component={OffersScreen} />
       <Stack.Screen name="DropLocationSelector" component={DropLocationSelectorScreen} />
       <Stack.Screen name="DropPinLocation" component={DropPinLocationScreen} />
