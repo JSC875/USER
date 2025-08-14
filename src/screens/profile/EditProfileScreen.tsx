@@ -8,7 +8,16 @@ import { useUser, useAuth } from '@clerk/clerk-expo';
 import { userApi, UserProfileUpdate } from '../../services/userService';
 
 export default function EditProfileScreen({ navigation, route }: any) {
-  const { name: initialName = '', email: initialEmail = '', phone: initialPhone = '', gender: initialGender = '', emergencyName: initialEmergencyName = '', emergencyPhone: initialEmergencyPhone = '', photo: initialPhoto = '' } = route?.params || {};
+  const params = route?.params || {};
+  const { 
+    name: initialName = '', 
+    email: initialEmail = '', 
+    phone: initialPhone = '', 
+    gender: initialGender = '', 
+    emergencyName: initialEmergencyName = '', 
+    emergencyPhone: initialEmergencyPhone = '', 
+    photo: initialPhoto = '' 
+  } = params;
   
   // State for form fields
   const [firstName, setFirstName] = useState('');
@@ -40,11 +49,37 @@ export default function EditProfileScreen({ navigation, route }: any) {
       });
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setPhoto(result.assets[0].uri);
+        const asset = result.assets[0];
+        if (asset && asset.uri) {
+          setPhoto(asset.uri);
+        }
       }
     } catch (error) {
       console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const handleFieldChange = (field: string, value: string) => {
+    switch (field) {
+      case 'firstName':
+        setFirstName(value);
+        break;
+      case 'lastName':
+        setLastName(value);
+        break;
+      case 'email':
+        setEmail(value);
+        break;
+      case 'dateOfBirth':
+        setDateOfBirth(value);
+        break;
+      case 'emergencyName':
+        setEmergencyName(value);
+        break;
+      case 'emergencyPhone':
+        setEmergencyPhone(value);
+        break;
     }
   };
 
@@ -90,8 +125,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
     if (!email.trim()) newErrors.email = 'Email is required';
     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email format';
     
-    if (!phone.trim()) newErrors.phone = 'Phone is required';
-    else if (!/^[0-9]{10}$/.test(phone.replace(/\D/g, ''))) newErrors.phone = 'Phone must be 10 digits';
+    // Phone validation removed since the field is disabled
     
     if (!gender) newErrors.gender = 'Gender is required';
     
@@ -119,7 +153,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
         lastName: lastName.trim(),
         email: email.trim(),
         phoneNumber: phone.trim(),
-        dateOfBirth: dateOfBirth || undefined,
+        dateOfBirth: dateOfBirth || '',
         gender,
         profilePhoto: photo || undefined,
         emergencyContactName: emergencyName.trim(),
@@ -131,6 +165,8 @@ export default function EditProfileScreen({ navigation, route }: any) {
       const updatedProfile = await userApi.updateUserProfile(updateData, getToken);
       
       console.log('✅ Profile updated successfully:', updatedProfile);
+      
+
       
       Alert.alert(
         'Success! 🎉',
@@ -200,35 +236,35 @@ export default function EditProfileScreen({ navigation, route }: any) {
             )}
             <Text style={styles.uploadText}>Upload Photo</Text>
           </TouchableOpacity>
-          {/* First Name */}
-          <Text style={styles.label}>First Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your first name"
-            value={firstName}
-            onChangeText={setFirstName}
-          />
-          {errors.firstName && <Text style={{ color: Colors.error }}>{errors.firstName}</Text>}
-          
-          {/* Last Name */}
-          <Text style={styles.label}>Last Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your last name"
-            value={lastName}
-            onChangeText={setLastName}
-          />
-          {errors.lastName && <Text style={{ color: Colors.error }}>{errors.lastName}</Text>}
-          {/* Email */}
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-          />
-          {errors.email && <Text style={{ color: Colors.error }}>{errors.email}</Text>}
+                     {/* First Name */}
+           <Text style={styles.label}>First Name</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter your first name"
+             value={firstName}
+             onChangeText={(value) => handleFieldChange('firstName', value)}
+           />
+           {errors.firstName && <Text style={{ color: Colors.error }}>{errors.firstName}</Text>}
+           
+           {/* Last Name */}
+           <Text style={styles.label}>Last Name</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter your last name"
+             value={lastName}
+             onChangeText={(value) => handleFieldChange('lastName', value)}
+           />
+           {errors.lastName && <Text style={{ color: Colors.error }}>{errors.lastName}</Text>}
+           {/* Email */}
+           <Text style={styles.label}>Email</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter your email"
+             value={email}
+             onChangeText={(value) => handleFieldChange('email', value)}
+             keyboardType="email-address"
+           />
+           {errors.email && <Text style={{ color: Colors.error }}>{errors.email}</Text>}
           {/* Phone */}
           <Text style={styles.label}>Phone</Text>
           <TextInput
@@ -239,50 +275,61 @@ export default function EditProfileScreen({ navigation, route }: any) {
             keyboardType="phone-pad"
             editable={false}
           />
-          {errors.phone && <Text style={{ color: Colors.error }}>{errors.phone}</Text>}
           
-          {/* Date of Birth */}
-          <Text style={styles.label}>Date of Birth</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="YYYY-MM-DD"
-            value={dateOfBirth}
-            onChangeText={setDateOfBirth}
-          />
-          
-          {/* Gender */}
-          <Text style={styles.label}>Gender</Text>
-          <View style={styles.genderRow}>
-            {['Male', 'Female', 'Other'].map((g) => (
-              <TouchableOpacity
-                key={g}
-                style={[styles.genderButton, gender === g && styles.genderButtonSelected]}
-                onPress={() => setGender(g)}
-              >
-                <Text style={[styles.genderText, gender === g && styles.genderTextSelected]}>{g}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {errors.gender && <Text style={{ color: Colors.error }}>{errors.gender}</Text>}
-          {/* Emergency Contact Name */}
-          <Text style={styles.label}>Emergency Contact Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter emergency contact name"
-            value={emergencyName}
-            onChangeText={setEmergencyName}
-          />
-          {errors.emergencyName && <Text style={{ color: Colors.error }}>{errors.emergencyName}</Text>}
-          {/* Emergency Contact Phone */}
-          <Text style={styles.label}>Emergency Contact Phone</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter emergency contact phone"
-            value={emergencyPhone}
-            onChangeText={setEmergencyPhone}
-            keyboardType="phone-pad"
-          />
-          {errors.emergencyPhone && <Text style={{ color: Colors.error }}>{errors.emergencyPhone}</Text>}
+                     {/* Date of Birth */}
+           <Text style={styles.label}>Date of Birth</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="YYYY-MM-DD"
+             value={dateOfBirth}
+             onChangeText={(value) => handleFieldChange('dateOfBirth', value)}
+           />
+           
+                       {/* Gender */}
+            <Text style={styles.label}>Gender <Text style={{ color: Colors.gray500, fontSize: 12 }}>(Not Editable)</Text></Text>
+            <View style={styles.genderRow}>
+              {['Male', 'Female', 'Other'].map((g) => (
+                <TouchableOpacity
+                  key={g}
+                  style={[
+                    styles.genderButton, 
+                    gender === g && styles.genderButtonSelected,
+                    gender !== g && styles.genderButtonDisabled
+                  ]}
+                  onPress={() => {
+                    // Gender field is permanently disabled
+                    console.log('Gender field is not editable');
+                  }}
+                  disabled={true}
+                >
+                  <Text style={[
+                    styles.genderText, 
+                    gender === g && styles.genderTextSelected,
+                    gender !== g && styles.genderTextDisabled
+                  ]}>{g}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+           {errors.gender && <Text style={{ color: Colors.error }}>{errors.gender}</Text>}
+           {/* Emergency Contact Name */}
+           <Text style={styles.label}>Emergency Contact Name</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter emergency contact name"
+             value={emergencyName}
+             onChangeText={(value) => handleFieldChange('emergencyName', value)}
+           />
+           {errors.emergencyName && <Text style={{ color: Colors.error }}>{errors.emergencyName}</Text>}
+           {/* Emergency Contact Phone */}
+           <Text style={styles.label}>Emergency Contact Phone</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter emergency contact phone"
+             value={emergencyPhone}
+             onChangeText={(value) => handleFieldChange('emergencyPhone', value)}
+             keyboardType="phone-pad"
+           />
+           {errors.emergencyPhone && <Text style={{ color: Colors.error }}>{errors.emergencyPhone}</Text>}
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={Colors.primary} />
@@ -391,6 +438,13 @@ const styles = StyleSheet.create({
   genderTextSelected: {
     color: Colors.white,
     fontWeight: 'bold',
+  },
+  genderButtonDisabled: {
+    backgroundColor: Colors.gray200,
+    opacity: 0.6,
+  },
+  genderTextDisabled: {
+    color: Colors.gray500,
   },
   saveButton: {
     backgroundColor: Colors.primary,
