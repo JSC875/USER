@@ -382,21 +382,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           <TouchableOpacity style={[styles.actionButton, styles.sosButton]} onPress={handleSOS}>
             <Ionicons name="warning" size={20} color={Colors.white} />
           </TouchableOpacity>
-          {/* Debug button for testing */}
-          <TouchableOpacity 
-            style={[styles.actionButton, { backgroundColor: '#FF6B6B' }]} 
-            onPress={() => {
-              console.log('🔧 DEBUG: Manual navigation to MpinEntry');
-              navigation.navigate('MpinEntry', {
-                driver: driverInfo,
-                rideId,
-                destination,
-                origin,
-              });
-            }}
-          >
-            <Ionicons name="bug" size={20} color={Colors.white} />
-          </TouchableOpacity>
+
         </View>
       </View>
 

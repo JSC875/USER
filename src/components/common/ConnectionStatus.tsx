@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
-import { getSocket, getDetailedConnectionStatus } from '../../utils/socket';
+import { getSocket, getDetailedConnectionStatus, testSocketConfiguration } from '../../utils/socket';
 
 interface ConnectionStatusProps {
   isVisible?: boolean;
@@ -13,6 +13,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
   const [isConnecting, setIsConnecting] = useState(false);
   const [socketStatus, setSocketStatus] = useState('disconnected');
   const [isSocketConnecting, setIsSocketConnecting] = useState(false);
+  const [tapCount, setTapCount] = useState(0);
   
   // Use refs to prevent memory leaks and excessive re-renders
   const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -80,7 +81,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       if (mountedRef.current) {
         updateSocketStatus();
       }
-    }, __DEV__ ? 2000 : 1000); // Faster check for APK builds
+    }, __DEV__ ? 1000 : 200); // Much faster check for APK builds (< 5 sec target)
 
     // Set up socket event listeners
     const socket = getSocket();
@@ -125,7 +126,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       };
     } else {
       // If no socket exists yet, check more frequently for APK builds
-      const checkInterval = __DEV__ ? 1000 : 500; // More frequent checks for APK
+      const checkInterval = __DEV__ ? 500 : 100; // Very frequent checks for fast APK connection
       checkSocketRef.current = setInterval(() => {
         if (!mountedRef.current) return;
         
@@ -188,8 +189,8 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       }
     }, connectionInterval);
 
-    // Check socket status every 2 seconds for APK, 5 for dev
-    const socketInterval = __DEV__ ? 5000 : 2000;
+    // Check socket status very frequently for fast APK connection
+    const socketInterval = __DEV__ ? 2000 : 500;
     socketIntervalRef.current = setInterval(() => {
       if (mountedRef.current) {
         updateSocketStatus();
@@ -236,24 +237,48 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
 
   if (isOnline && socketStatus === 'connected') {
     statusColor = Colors.success;
-    statusText = 'Connected';
+    statusText = __DEV__ ? 'Connected' : '🟢 Online';
     iconName = 'wifi';
   } else if (isOnline && socketStatus === 'connecting') {
     statusColor = Colors.warning || '#FFA500';
-    statusText = 'Connecting...';
+    statusText = __DEV__ ? 'Connecting...' : '🟡 Connecting';
     iconName = 'sync';
   } else if (isOnline && socketStatus === 'disconnected') {
     statusColor = Colors.warning || '#FFA500';
-    statusText = 'No Server';
+    statusText = __DEV__ ? 'No Server' : '🟡 No Server';
     iconName = 'cloud-offline';
   } else if (!isOnline) {
     statusColor = Colors.error;
-    statusText = 'Offline';
+    statusText = __DEV__ ? 'Offline' : '🔴 Offline';
     iconName = 'wifi-outline';
   }
 
+  // Handle tap for debugging in APK builds
+  const handleTap = () => {
+    const newTapCount = tapCount + 1;
+    setTapCount(newTapCount);
+    
+    if (newTapCount >= 5) {
+      setTapCount(0);
+      // Show detailed connection info for APK debugging
+      const socket = getSocket();
+      const detailedStatus = getDetailedConnectionStatus();
+      const configTest = testSocketConfiguration();
+      
+      Alert.alert(
+        'Socket Debug Info',
+        `Socket Exists: ${!!socket}\nSocket Connected: ${socket?.connected || false}\nConnection State: ${detailedStatus.connectionState}\nConfig Valid: ${configTest}\nEnvironment: ${__DEV__ ? 'Dev' : 'APK'}\nSocket URL: ${detailedStatus.socketUrl || 'Not set'}`,
+        [{ text: 'OK' }]
+      );
+    }
+  };
+
   return (
-    <View style={[styles.container, { backgroundColor: statusColor }]}>
+    <TouchableOpacity 
+      style={[styles.container, { backgroundColor: statusColor }]}
+      onPress={handleTap}
+      activeOpacity={0.8}
+    >
       <Ionicons 
         name={(isConnecting || isSocketConnecting) ? "sync" : iconName} 
         size={16} 
@@ -263,7 +288,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       <Text style={styles.text}>
         {isConnecting ? 'Checking...' : (isSocketConnecting ? 'Connecting...' : statusText)}
       </Text>
-    </View>
+    </TouchableOpacity>
   );
 }
 
@@ -274,10 +299,18 @@ const styles = StyleSheet.create({
     right: 16,
     flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 15,
     zIndex: 1000,
+    elevation: 5, // Android shadow
+    shadowColor: '#000', // iOS shadow
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.25,
+    shadowRadius: 3.84,
   },
   text: {
     color: 'white',

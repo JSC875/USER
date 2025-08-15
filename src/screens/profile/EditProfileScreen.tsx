@@ -8,7 +8,16 @@ import { useUser, useAuth } from '@clerk/clerk-expo';
 import { userApi, UserProfileUpdate } from '../../services/userService';
 
 export default function EditProfileScreen({ navigation, route }: any) {
-  const { name: initialName = '', email: initialEmail = '', phone: initialPhone = '', gender: initialGender = '', emergencyName: initialEmergencyName = '', emergencyPhone: initialEmergencyPhone = '', photo: initialPhoto = '' } = route?.params || {};
+  const params = route?.params || {};
+  const { 
+    name: initialName = '', 
+    email: initialEmail = '', 
+    phone: initialPhone = '', 
+    gender: initialGender = '', 
+    emergencyName: initialEmergencyName = '', 
+    emergencyPhone: initialEmergencyPhone = '', 
+    photo: initialPhoto = '' 
+  } = params;
   
   // State for form fields
   const [firstName, setFirstName] = useState('');
@@ -40,11 +49,37 @@ export default function EditProfileScreen({ navigation, route }: any) {
       });
       
       if (!result.canceled && result.assets && result.assets.length > 0) {
-        setPhoto(result.assets[0].uri);
+        const asset = result.assets[0];
+        if (asset && asset.uri) {
+          setPhoto(asset.uri);
+        }
       }
     } catch (error) {
       console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
+    }
+  };
+
+  const handleFieldChange = (field: string, value: string) => {
+    switch (field) {
+      case 'firstName':
+        setFirstName(value);
+        break;
+      case 'lastName':
+        setLastName(value);
+        break;
+      case 'email':
+        setEmail(value);
+        break;
+      case 'dateOfBirth':
+        setDateOfBirth(value);
+        break;
+      case 'emergencyName':
+        setEmergencyName(value);
+        break;
+      case 'emergencyPhone':
+        setEmergencyPhone(value);
+        break;
     }
   };
 
@@ -78,32 +113,49 @@ export default function EditProfileScreen({ navigation, route }: any) {
     }
   };
 
-  const validate = () => {
-    const newErrors: { [key: string]: string } = {};
-    
-    if (!firstName.trim()) newErrors.firstName = 'First name is required';
-    else if (/\d/.test(firstName)) newErrors.firstName = 'First name cannot contain numbers';
-    
-    if (!lastName.trim()) newErrors.lastName = 'Last name is required';
-    else if (/\d/.test(lastName)) newErrors.lastName = 'Last name cannot contain numbers';
-    
-    if (!email.trim()) newErrors.email = 'Email is required';
-    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email format';
-    
-    if (!phone.trim()) newErrors.phone = 'Phone is required';
-    else if (!/^[0-9]{10}$/.test(phone.replace(/\D/g, ''))) newErrors.phone = 'Phone must be 10 digits';
-    
-    if (!gender) newErrors.gender = 'Gender is required';
-    
-    if (!emergencyName.trim()) newErrors.emergencyName = 'Emergency contact name is required';
-    else if (/\d/.test(emergencyName)) newErrors.emergencyName = 'Emergency contact name cannot contain numbers';
-    
-    if (!emergencyPhone.trim()) newErrors.emergencyPhone = 'Emergency phone is required';
-    else if (!/^[0-9]{10}$/.test(emergencyPhone.replace(/\D/g, ''))) newErrors.emergencyPhone = 'Emergency phone must be 10 digits';
-    
-    setErrors(newErrors);
-    return Object.keys(newErrors).length === 0;
-  };
+     const validate = () => {
+     const newErrors: { [key: string]: string } = {};
+     
+     if (!firstName.trim()) newErrors.firstName = 'First name is required';
+     else if (/\d/.test(firstName)) newErrors.firstName = 'First name cannot contain numbers';
+     
+     if (!lastName.trim()) newErrors.lastName = 'Last name is required';
+     else if (/\d/.test(lastName)) newErrors.lastName = 'Last name cannot contain numbers';
+     
+     if (!email.trim()) newErrors.email = 'Email is required';
+     else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) newErrors.email = 'Invalid email format';
+     
+     // Phone validation removed since the field is disabled
+     
+     if (!gender) newErrors.gender = 'Gender is required';
+     
+     // Date of Birth validation
+     if (dateOfBirth.trim()) {
+       const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+       if (!dateRegex.test(dateOfBirth)) {
+         newErrors.dateOfBirth = 'Date must be in YYYY-MM-DD format';
+       } else {
+         const date = new Date(dateOfBirth);
+         const currentDate = new Date();
+         if (isNaN(date.getTime())) {
+           newErrors.dateOfBirth = 'Invalid date';
+         } else if (date > currentDate) {
+           newErrors.dateOfBirth = 'Date cannot be in the future';
+         } else if (date.getFullYear() < 1900) {
+           newErrors.dateOfBirth = 'Date cannot be before 1900';
+         }
+       }
+     }
+     
+     if (!emergencyName.trim()) newErrors.emergencyName = 'Emergency contact name is required';
+     else if (/\d/.test(emergencyName)) newErrors.emergencyName = 'Emergency contact name cannot contain numbers';
+     
+     if (!emergencyPhone.trim()) newErrors.emergencyPhone = 'Emergency phone is required';
+     else if (!/^[0-9]{10}$/.test(emergencyPhone.replace(/\D/g, ''))) newErrors.emergencyPhone = 'Emergency phone must be 10 digits';
+     
+     setErrors(newErrors);
+     return Object.keys(newErrors).length === 0;
+   };
 
   const handleSave = async () => {
     if (!validate()) {
@@ -119,7 +171,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
         lastName: lastName.trim(),
         email: email.trim(),
         phoneNumber: phone.trim(),
-        dateOfBirth: dateOfBirth || undefined,
+        dateOfBirth: dateOfBirth || '',
         gender,
         profilePhoto: photo || undefined,
         emergencyContactName: emergencyName.trim(),
@@ -131,6 +183,8 @@ export default function EditProfileScreen({ navigation, route }: any) {
       const updatedProfile = await userApi.updateUserProfile(updateData, getToken);
       
       console.log('✅ Profile updated successfully:', updatedProfile);
+      
+
       
       Alert.alert(
         'Success! 🎉',
@@ -163,12 +217,30 @@ export default function EditProfileScreen({ navigation, route }: any) {
         ]
       );
       
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      Alert.alert('Error', 'Failed to update profile. Please try again.');
-    } finally {
-      setIsSaving(false);
-    }
+         } catch (error) {
+       console.error('Error updating profile:', error);
+       
+       // Provide more specific error messages
+       let errorMessage = 'Failed to update profile. Please try again.';
+       
+       if (error instanceof Error) {
+         if (error.message.includes('500')) {
+           errorMessage = 'Server error. Please check your data and try again.';
+         } else if (error.message.includes('400')) {
+           errorMessage = 'Invalid data. Please check your information and try again.';
+         } else if (error.message.includes('401')) {
+           errorMessage = 'Authentication error. Please log in again.';
+         } else if (error.message.includes('403')) {
+           errorMessage = 'Access denied. Please check your permissions.';
+         } else if (error.message.includes('404')) {
+           errorMessage = 'Profile not found. Please contact support.';
+         }
+       }
+       
+       Alert.alert('Error', errorMessage);
+     } finally {
+       setIsSaving(false);
+     }
   };
 
   return (
@@ -200,88 +272,111 @@ export default function EditProfileScreen({ navigation, route }: any) {
             )}
             <Text style={styles.uploadText}>Upload Photo</Text>
           </TouchableOpacity>
-          {/* First Name */}
-          <Text style={styles.label}>First Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your first name"
-            value={firstName}
-            onChangeText={setFirstName}
-          />
-          {errors.firstName && <Text style={{ color: Colors.error }}>{errors.firstName}</Text>}
-          
-          {/* Last Name */}
-          <Text style={styles.label}>Last Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your last name"
-            value={lastName}
-            onChangeText={setLastName}
-          />
-          {errors.lastName && <Text style={{ color: Colors.error }}>{errors.lastName}</Text>}
-          {/* Email */}
-          <Text style={styles.label}>Email</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter your email"
-            value={email}
-            onChangeText={setEmail}
-            keyboardType="email-address"
-          />
-          {errors.email && <Text style={{ color: Colors.error }}>{errors.email}</Text>}
+                     {/* First Name */}
+           <Text style={styles.label}>First Name</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter your first name"
+             value={firstName}
+             onChangeText={(value) => handleFieldChange('firstName', value)}
+           />
+           {errors.firstName && <Text style={{ color: Colors.error }}>{errors.firstName}</Text>}
+           
+           {/* Last Name */}
+           <Text style={styles.label}>Last Name</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter your last name"
+             value={lastName}
+             onChangeText={(value) => handleFieldChange('lastName', value)}
+           />
+           {errors.lastName && <Text style={{ color: Colors.error }}>{errors.lastName}</Text>}
+           {/* Email */}
+           <Text style={styles.label}>Email</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter your email"
+             value={email}
+             onChangeText={(value) => handleFieldChange('email', value)}
+             keyboardType="email-address"
+           />
+           {errors.email && <Text style={{ color: Colors.error }}>{errors.email}</Text>}
           {/* Phone */}
           <Text style={styles.label}>Phone</Text>
           <TextInput
-            style={styles.input}
+            style={[styles.input, styles.disabledInput]}
             placeholder="Enter your phone number"
             value={phone}
             onChangeText={setPhone}
             keyboardType="phone-pad"
-          />
-          {errors.phone && <Text style={{ color: Colors.error }}>{errors.phone}</Text>}
-          
-          {/* Date of Birth */}
-          <Text style={styles.label}>Date of Birth</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="YYYY-MM-DD"
-            value={dateOfBirth}
-            onChangeText={setDateOfBirth}
+            editable={false}
           />
           
-          {/* Gender */}
-          <Text style={styles.label}>Gender</Text>
-          <View style={styles.genderRow}>
-            {['Male', 'Female', 'Other'].map((g) => (
-              <TouchableOpacity
-                key={g}
-                style={[styles.genderButton, gender === g && styles.genderButtonSelected]}
-                onPress={() => setGender(g)}
-              >
-                <Text style={[styles.genderText, gender === g && styles.genderTextSelected]}>{g}</Text>
-              </TouchableOpacity>
-            ))}
-          </View>
-          {errors.gender && <Text style={{ color: Colors.error }}>{errors.gender}</Text>}
-          {/* Emergency Contact Name */}
-          <Text style={styles.label}>Emergency Contact Name</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter emergency contact name"
-            value={emergencyName}
-            onChangeText={setEmergencyName}
-          />
-          {errors.emergencyName && <Text style={{ color: Colors.error }}>{errors.emergencyName}</Text>}
-          {/* Emergency Contact Phone */}
-          <Text style={styles.label}>Emergency Contact Phone</Text>
-          <TextInput
-            style={styles.input}
-            placeholder="Enter emergency contact phone"
-            value={emergencyPhone}
-            onChangeText={setEmergencyPhone}
-            keyboardType="phone-pad"
-          />
-          {errors.emergencyPhone && <Text style={{ color: Colors.error }}>{errors.emergencyPhone}</Text>}
+                                 {/* Date of Birth */}
+            <Text style={styles.label}>Date of Birth</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="YYYY-MM-DD"
+              value={dateOfBirth}
+              onChangeText={(value) => handleFieldChange('dateOfBirth', value)}
+            />
+            {errors.dateOfBirth && <Text style={{ color: Colors.error }}>{errors.dateOfBirth}</Text>}
+           
+                       {/* Gender */}
+            <Text style={styles.label}>
+              Gender 
+              {gender && gender.trim() !== '' && (
+                <Text style={{ color: Colors.gray500, fontSize: 12 }}> (Not Editable)</Text>
+              )}
+            </Text>
+            <View style={styles.genderRow}>
+              {['Male', 'Female', 'Other'].map((g) => (
+                <TouchableOpacity
+                  key={g}
+                  style={[
+                    styles.genderButton, 
+                    gender === g && styles.genderButtonSelected,
+                    gender && gender.trim() !== '' && gender !== g && styles.genderButtonDisabled
+                  ]}
+                  onPress={() => {
+                    if (!gender || gender.trim() === '') {
+                      // Allow editing if gender is not set
+                      setGender(g);
+                    } else {
+                      // Gender field is disabled if already set
+                      console.log('Gender field is not editable - already set');
+                    }
+                  }}
+                                     disabled={Boolean(gender && gender.trim() !== '')}
+                >
+                  <Text style={[
+                    styles.genderText, 
+                    gender === g && styles.genderTextSelected,
+                    gender && gender.trim() !== '' && gender !== g && styles.genderTextDisabled
+                  ]}>{g}</Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+           {errors.gender && <Text style={{ color: Colors.error }}>{errors.gender}</Text>}
+           {/* Emergency Contact Name */}
+           <Text style={styles.label}>Emergency Contact Name</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter emergency contact name"
+             value={emergencyName}
+             onChangeText={(value) => handleFieldChange('emergencyName', value)}
+           />
+           {errors.emergencyName && <Text style={{ color: Colors.error }}>{errors.emergencyName}</Text>}
+           {/* Emergency Contact Phone */}
+           <Text style={styles.label}>Emergency Contact Phone</Text>
+           <TextInput
+             style={styles.input}
+             placeholder="Enter emergency contact phone"
+             value={emergencyPhone}
+             onChangeText={(value) => handleFieldChange('emergencyPhone', value)}
+             keyboardType="phone-pad"
+           />
+           {errors.emergencyPhone && <Text style={{ color: Colors.error }}>{errors.emergencyPhone}</Text>}
           {isLoading ? (
             <View style={styles.loadingContainer}>
               <ActivityIndicator size="large" color={Colors.primary} />
@@ -363,6 +458,11 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
   },
+  disabledInput: {
+    backgroundColor: Colors.gray100,
+    color: Colors.textSecondary,
+    borderColor: Colors.gray300,
+  },
   genderRow: {
     flexDirection: 'row',
     marginBottom: Layout.spacing.md,
@@ -385,6 +485,13 @@ const styles = StyleSheet.create({
   genderTextSelected: {
     color: Colors.white,
     fontWeight: 'bold',
+  },
+  genderButtonDisabled: {
+    backgroundColor: Colors.gray200,
+    opacity: 0.6,
+  },
+  genderTextDisabled: {
+    color: Colors.gray500,
   },
   saveButton: {
     backgroundColor: Colors.primary,

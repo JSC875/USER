@@ -1,13 +1,13 @@
 import React, { useEffect } from 'react';
 import { StatusBar } from 'expo-status-bar';
+import { Platform } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import * as SecureStore from 'expo-secure-store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Constants from 'expo-constants';
-import ConnectionDebugger from './src/components/common/ConnectionDebugger';
-import EnvironmentTest from './src/components/common/EnvironmentTest';
+
 
 // Get configuration from Constants
 const clerkConfig = {
@@ -62,7 +62,7 @@ if (!publishableKey) {
 
 // Component to handle socket initialization
 function SocketInitializer() {
-  const { getToken } = useAuth();
+  const { getToken, isLoaded } = useAuth();
 
   useEffect(() => {
     let isMounted = true;
@@ -72,12 +72,45 @@ function SocketInitializer() {
       try {
         log('🚀 App: Initializing socket connection on startup...');
         
-        // Wait a bit for the app to fully load
-        await new Promise(resolve => setTimeout(resolve, 2000));
+        // Enhanced APK compatibility checks
+        console.log('🔍 App: Checking authentication state...');
+        console.log('🔍 App: isLoaded:', isLoaded);
+        console.log('🔍 App: getToken type:', typeof getToken);
+        console.log('🔍 App: Platform:', Platform.OS);
+        console.log('🔍 App: __DEV__:', __DEV__);
+        
+        // Optimized for FAST connection (< 5 seconds)
+        if (!isLoaded) {
+          console.log('⏳ App: Waiting for authentication to load...');
+          // Reduced wait time for faster connection
+          await new Promise(resolve => setTimeout(resolve, 1000));
+        }
+        
+        // Minimal wait for app to initialize - prioritize speed
+        await new Promise(resolve => setTimeout(resolve, 500));
         
         // Check if component is still mounted
         if (!isMounted) {
           log('🚫 App: Component unmounted, skipping socket initialization');
+          return;
+        }
+        
+        // Validate getToken function before using it
+        if (!getToken || typeof getToken !== 'function') {
+          console.error('❌ App: getToken is not available or not a function');
+          console.error('❌ App: This is common in APK builds - attempting fallback initialization');
+          
+          // For APK builds, we might need a different approach
+          // Try to initialize socket without authentication initially
+          const { testSocketConfiguration } = require('./src/utils/socket');
+          const configTest = testSocketConfiguration();
+          
+          if (configTest) {
+            console.log('✅ App: Socket configuration is valid, but authentication is not available');
+            console.log('⚠️ App: Socket will be initialized when user logs in');
+          } else {
+            console.error('❌ App: Socket configuration is invalid');
+          }
           return;
         }
         
@@ -131,8 +164,7 @@ export default function App() {
           <StatusBar style="dark" backgroundColor="#ffffff" />
           <SocketInitializer />
           <AppNavigator />
-          {isDevelopment && <ConnectionDebugger />}
-          {isDevelopment && <EnvironmentTest />}
+
         </SafeAreaProvider>
       </ClerkProvider>
     </GestureHandlerRootView>

@@ -15,8 +15,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
-import RazorpayTestButton from '../../components/common/RazorpayTestButton';
-import AmountTestButton from '../../components/common/AmountTestButton';
+
 import { initializePayment, PaymentOptions, PaymentResult, formatAmount, ensureAmountInPaise, convertPaiseToRupees, debugAmountConversion, formatAmountForDisplay } from '../../utils/razorpay';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { paymentService } from '../../services/paymentService';
@@ -461,36 +460,7 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
               disabled={isLoading}
             />
 
-            {__DEV__ && (
-              <>
-                <RazorpayTestButton
-                  onSuccess={(paymentData) => {
-                    console.log('✅ Test payment successful:', paymentData);
-                    Alert.alert('Test Success', 'Razorpay integration is working!');
-                  }}
-                  onError={(error) => {
-                    console.error('❌ Test payment failed:', error);
-                  }}
-                />
-                
-                {/* Amount conversion test buttons */}
-                <Text style={styles.debugTitle}>Amount Conversion Tests:</Text>
-                <AmountTestButton testAmount={50} label="Test ₹50 (rupees)" />
-                <AmountTestButton testAmount={5000} label="Test 5000 (paise)" />
-                <AmountTestButton testAmount={100} label="Test ₹100 (rupees)" />
-                <AmountTestButton testAmount={10000} label="Test 10000 (paise)" />
-                <AmountTestButton testAmount={7300} label="Test 7300 (paise) - ₹73" />
-                <AmountTestButton testAmount={73} label="Test ₹73 (rupees)" />
-                
-                <TouchableOpacity
-                  style={styles.skipButton}
-                  onPress={handleSkipPayment}
-                  disabled={isLoading}
-                >
-                  <Text style={styles.skipButtonText}>Skip Payment (Dev)</Text>
-                </TouchableOpacity>
-              </>
-            )}
+
           </>
         )}
 
