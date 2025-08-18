@@ -29,8 +29,20 @@ export default function RideHistoryScreen({ navigation }: any) {
 
   // Filter ride history based on selected filter
   const filteredHistory = React.useMemo(() => {
-    if (filter === 'all') return rideHistory;
-    return rideHistory.filter((item) => item.status === filter);
+    if (filter === 'all') {
+      // Show only completed and cancelled rides when 'all' is selected
+      return rideHistory.filter((item) => 
+        item.status === 'COMPLETED' || 
+        item.status === 'CANCELLED'
+      );
+    }
+    // Map filter values to actual backend status values
+    const statusMap: Record<string, string> = {
+      'completed': 'COMPLETED',
+      'cancelled': 'CANCELLED'
+    };
+    const targetStatus = statusMap[filter];
+    return rideHistory.filter((item) => item.status === targetStatus);
   }, [rideHistory, filter]);
 
   // Load ride history on component mount
@@ -54,7 +66,15 @@ export default function RideHistoryScreen({ navigation }: any) {
 
       // Add status filter if not 'all'
       if (filter !== 'all') {
-        filters.status = filter;
+        // Map filter values to actual backend status values
+        const statusMap: Record<string, string> = {
+          'completed': 'COMPLETED',
+          'cancelled': 'CANCELLED'
+        };
+        filters.status = statusMap[filter];
+      } else {
+        // When 'all' is selected, we'll filter on the frontend to show only completed and cancelled
+        // No need to add backend filter as we want to fetch all rides and filter them
       }
 
       console.log('🔄 Loading ride history with filters:', filters);
@@ -120,10 +140,10 @@ export default function RideHistoryScreen({ navigation }: any) {
     // Get status color
     const getStatusColor = (status: string) => {
       switch (status) {
-        case 'completed': return Colors.success;
-        case 'cancelled': return Colors.error;
-        case 'in_progress': return Colors.accent;
-        case 'pending': return Colors.warning;
+        case 'COMPLETED': return Colors.success;
+        case 'CANCELLED': return Colors.error;
+        case 'STARTED': return Colors.accent;
+        case 'REQUESTED': return Colors.warning;
         default: return Colors.gray400;
       }
     };
@@ -138,7 +158,7 @@ export default function RideHistoryScreen({ navigation }: any) {
             <Text style={styles.dateText}>{dateText}</Text>
             <Text style={styles.timeText}>{timeText}</Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-              <Text style={styles.statusText}>{item.status.replace('_', ' ').toUpperCase()}</Text>
+              <Text style={styles.statusText}>{item.status.replace('_', ' ')}</Text>
             </View>
           </View>
           <View style={styles.fareContainer}>
@@ -183,7 +203,7 @@ export default function RideHistoryScreen({ navigation }: any) {
                 <Text style={styles.ratingText}>{item.rating}</Text>
               </View>
             )}
-            {item.status === 'completed' && (
+            {item.status === 'COMPLETED' && (
               <TouchableOpacity
                 style={styles.rebookButton}
                 onPress={() => handleRebook(item)}
@@ -279,7 +299,7 @@ export default function RideHistoryScreen({ navigation }: any) {
           <Text style={styles.emptyText}>No rides found</Text>
           <Text style={styles.emptySubtext}>
             {filter === 'all' 
-              ? 'Your ride history will appear here' 
+              ? 'Your completed and cancelled rides will appear here' 
               : `No ${filter} rides found`
             }
           </Text>
@@ -336,6 +356,7 @@ const styles = StyleSheet.create({
   },
   listContent: {
     padding: Layout.spacing.lg,
+    paddingBottom: Layout.spacing.xl * 2, // Add extra bottom padding for better spacing
   },
   rideCard: {
     backgroundColor: Colors.white,
