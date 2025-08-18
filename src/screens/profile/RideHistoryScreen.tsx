@@ -151,7 +151,7 @@ export default function RideHistoryScreen({ navigation }: any) {
     return (
       <TouchableOpacity 
         style={styles.rideCard} 
-        onPress={() => navigation.navigate('HistoryDetail', { ride: item })}
+        onPress={() => navigation.navigate('RideDetails', { ride: item })}
       >
         <View style={styles.rideHeader}>
           <View style={styles.rideDate}>

@@ -47,6 +47,7 @@ import LiveTrackingScreen from '../screens/ride/LiveTrackingScreen';
 import RideInProgressScreen from '../screens/ride/RideInProgressScreen';
 import ChatScreen from '../screens/ride/ChatScreen';
 import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
+import RideDetailsScreen from '../screens/ride/RideDetailsScreen';
 
 // Profile Screens
 import ProfileScreen from '../screens/profile/ProfileScreen';
@@ -197,6 +198,7 @@ function MainNavigator() {
       <Stack.Screen name="PostRidePayment" component={PostRidePaymentScreen as any} />
 
       <Stack.Screen name="RideSummary" component={RideSummaryScreen} />
+      <Stack.Screen name="RideDetails" component={RideDetailsScreen} />
       <Stack.Screen name="RateDriver" component={require('../screens/ride/RateDriverScreen').default} />
       
       {/* Profile Flow */}
