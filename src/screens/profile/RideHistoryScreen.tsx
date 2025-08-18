@@ -218,20 +218,43 @@ export default function RideHistoryScreen({ navigation }: any) {
   };
 
   const handleRebook = (item: RideHistory) => {
+    // Check if we have valid pickup and drop locations
+    if (!item.pickupLocation || !item.dropLocation) {
+      Alert.alert(
+        'Cannot Rebook',
+        'Previous ride location information is incomplete. Please book a new ride.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Validate that locations have proper coordinates
+    if (!item.pickupLocation.latitude || !item.pickupLocation.longitude ||
+        !item.dropLocation.latitude || !item.dropLocation.longitude) {
+      Alert.alert(
+        'Cannot Rebook',
+        'Previous ride location coordinates are missing. Please book a new ride.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+
+    // Navigate to DropLocationSelector with the previous ride's locations
     navigation.navigate('DropLocationSelector', {
       destination: {
-        address: item.dropLocation?.address || 'Destination',
-        name: item.dropLocation?.address || 'Destination',
-        latitude: item.dropLocation?.latitude || 0,
-        longitude: item.dropLocation?.longitude || 0,
+        address: item.dropLocation.address || 'Destination',
+        name: item.dropLocation.address || 'Destination',
+        latitude: item.dropLocation.latitude,
+        longitude: item.dropLocation.longitude,
       },
       pickup: {
-        address: item.pickupLocation?.address || 'Pickup Location',
-        name: item.pickupLocation?.address || 'Pickup Location',
-        latitude: item.pickupLocation?.latitude || 0,
-        longitude: item.pickupLocation?.longitude || 0,
+        address: item.pickupLocation.address || 'Pickup Location',
+        name: item.pickupLocation.address || 'Pickup Location',
+        latitude: item.pickupLocation.latitude,
+        longitude: item.pickupLocation.longitude,
       },
-      autoProceed: true
+      autoProceed: true,
+      isRebook: true // Add flag to indicate this is a rebook
     });
   };
 

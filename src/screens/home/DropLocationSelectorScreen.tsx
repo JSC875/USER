@@ -67,6 +67,23 @@ function isValidLocation(loc: any) {
   );
 }
 
+// Enhanced location validation with detailed error messages
+function validateLocationForRebook(location: any, locationType: 'pickup' | 'dropoff'): { isValid: boolean; error?: string } {
+  if (!location) {
+    return { isValid: false, error: `${locationType === 'pickup' ? 'Pickup' : 'Dropoff'} location is missing.` };
+  }
+  
+  if (typeof location.latitude !== 'number' || typeof location.longitude !== 'number') {
+    return { isValid: false, error: `${locationType === 'pickup' ? 'Pickup' : 'Dropoff'} location coordinates are invalid.` };
+  }
+  
+  if (location.latitude === 0 && location.longitude === 0) {
+    return { isValid: false, error: `${locationType === 'pickup' ? 'Pickup' : 'Dropoff'} location coordinates are not set.` };
+  }
+  
+  return { isValid: true };
+}
+
 // Helper: Default location (Hyderabad)
 // const DEFAULT_LOCATION = {
 //   latitude: 17.4448,
@@ -93,6 +110,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [showForWhomModal, setShowForWhomModal] = useState(false);
   const [friendName, setFriendName] = useState('');
   const [friendPhone, setFriendPhone] = useState('');
+  const [isGettingLocation, setIsGettingLocation] = useState(false);
 
   // Fetch actual current location on component mount
   useEffect(() => {
@@ -104,29 +122,69 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           return;
         }
         
-        let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-        const dynamicLocation = {
+        let loc = await Location.getCurrentPositionAsync({
+          accuracy: Location.Accuracy.Balanced,
+          timeInterval: 5000,
+          distanceInterval: 10,
+        });
+        
+        const coords = {
           latitude: loc.coords.latitude,
           longitude: loc.coords.longitude,
           address: 'Current Location',
           name: 'Current Location',
         };
-        console.log('📍 Dynamic current location fetched:', dynamicLocation);
-        setCurrentLocation(dynamicLocation);
+        
+        setCurrentLocation(coords);
+        console.log('Current location fetched:', coords);
       } catch (error) {
-        console.error('Error fetching current location:', error);
+        console.log('Error fetching current location:', error);
+        // Don't set current location if there's an error
       }
     };
-    
+
     fetchCurrentLocation();
   }, []);
+
+  // Function to get current location reliably
+  const getCurrentLocationReliably = async (): Promise<any> => {
+    setIsGettingLocation(true);
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        throw new Error('Location permission denied');
+      }
+      
+      let loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+        timeInterval: 5000,
+        distanceInterval: 10,
+      });
+      
+      return {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        address: 'Current Location',
+        name: 'Current Location',
+      };
+    } catch (error) {
+      console.log('Error getting current location:', error);
+      // Return fallback location
+      return {
+        latitude: 17.4448, // Fallback to static Hyderabad
+        longitude: 78.3498,
+        address: 'Current Location',
+        name: 'Current Location',
+      };
+    } finally {
+      setIsGettingLocation(false);
+    }
+  };
 
   useEffect(() => {
     if (route.params?.pickup) {
       setCurrentLocation(route.params.pickup);
-      setEditing(null);
-      setSearchQuery(route.params.pickup.address || route.params.pickup.name || '');
-      // Do not auto-proceed for pickup
+      if (editing === 'current') setSearchQuery(route.params.pickup.address || route.params.pickup.name || '');
     }
     if (route.params?.destination) {
       setDropLocation(route.params.destination);
@@ -134,18 +192,70 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       // Always auto-proceed to RideOptions if destination is set from map
       if (!autoProceedHandled.current) {
         autoProceedHandled.current = true;
-        setTimeout(() => {
-          // Use currentLocation if available, otherwise show error
-          if (!currentLocation) {
-            Alert.alert('Error', 'Current location is not available. Please try again.');
+        setTimeout(async () => {
+          // For rebook scenarios, use the provided pickup location instead of current location
+          let pickupLocation = route.params?.isRebook && route.params?.pickup 
+            ? route.params.pickup 
+            : (isValidLocation(currentLocation) ? currentLocation : null);
+          
+          // If we don't have a valid pickup location and it's not a rebook, try to get current location
+          if (!pickupLocation && !route.params?.isRebook) {
+            pickupLocation = await getCurrentLocationReliably();
+          }
+          
+          // If still no pickup location, use fallback
+          if (!pickupLocation) {
+            pickupLocation = {
+              latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
+              longitude: 78.3498,
+              address: 'Current Location',
+              name: 'Current Location',
+            };
+          }
+          
+          // Enhanced validation for rebook scenarios
+          const pickupValidation = validateLocationForRebook(pickupLocation, 'pickup');
+          const dropoffValidation = validateLocationForRebook(route.params.destination, 'dropoff');
+          
+          if (!pickupValidation.isValid) {
+            Alert.alert(
+              'Location Error', 
+              pickupValidation.error || 'Pickup location is not available. Please try again.',
+              [
+                { text: 'Cancel', style: 'cancel' },
+                { 
+                  text: 'Retry', 
+                  onPress: async () => {
+                    const newLocation = await getCurrentLocationReliably();
+                    if (newLocation && validateLocationForRebook(newLocation, 'pickup').isValid) {
+                      navigation.replace('RideOptions', {
+                        pickup: newLocation,
+                        drop: route.params.destination,
+                        forWhom,
+                        friendName,
+                        friendPhone,
+                      });
+                    } else {
+                      Alert.alert('Error', 'Still unable to get your location. Please try again later.');
+                    }
+                  }
+                }
+              ]
+            );
             return;
           }
-          if (!isValidLocation(currentLocation) || !isValidLocation(route.params.destination)) {
-            Alert.alert('Error', 'Current location or drop location is missing or invalid.');
+          
+          if (!dropoffValidation.isValid) {
+            Alert.alert(
+              'Location Error', 
+              dropoffValidation.error || 'Dropoff location is not available. Please try again.',
+              [{ text: 'OK' }]
+            );
             return;
           }
+          
           navigation.replace('RideOptions', {
-            pickup: currentLocation,
+            pickup: pickupLocation,
             drop: route.params.destination,
             forWhom,
             friendName,
@@ -427,24 +537,65 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       setSearchResults([]);
       setNoResults(false);
       Keyboard.dismiss();
-      // Defensive: fallback to default if currentLocation is null
-      const pickup = isValidLocation(currentLocation) ? currentLocation : {
-        latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
-        longitude: 78.3498,
-        address: 'Current Location',
-        name: 'Current Location',
-      };
-      if (isValidLocation(pickup) && isValidLocation(location)) {
-        navigation.replace('RideOptions', {
-          pickup,
-          drop: location,
-          forWhom,
-          friendName,
-          friendPhone,
-        });
-      } else {
-        Alert.alert('Error', 'Current location or drop location is missing or invalid.');
+      
+      // For rebook scenarios, use the provided pickup location instead of current location
+      const pickupLocation = route.params?.isRebook && route.params?.pickup 
+        ? route.params.pickup 
+        : (isValidLocation(currentLocation) ? currentLocation : {
+            latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
+            longitude: 78.3498,
+            address: 'Current Location',
+            name: 'Current Location',
+          });
+          
+      // Enhanced validation
+      const pickupValidation = validateLocationForRebook(pickupLocation, 'pickup');
+      const dropoffValidation = validateLocationForRebook(location, 'dropoff');
+      
+      if (!pickupValidation.isValid) {
+        Alert.alert(
+          'Location Error', 
+          pickupValidation.error || 'Pickup location is not available. Please try again.',
+          [
+            { text: 'Cancel', style: 'cancel' },
+            { 
+              text: 'Retry', 
+              onPress: async () => {
+                const newLocation = await getCurrentLocationReliably();
+                if (newLocation && validateLocationForRebook(newLocation, 'pickup').isValid) {
+                  navigation.replace('RideOptions', {
+                    pickup: newLocation,
+                    drop: location,
+                    forWhom,
+                    friendName,
+                    friendPhone,
+                  });
+                } else {
+                  Alert.alert('Error', 'Still unable to get your location. Please try again later.');
+                }
+              }
+            }
+          ]
+        );
+        return;
       }
+      
+      if (!dropoffValidation.isValid) {
+        Alert.alert(
+          'Location Error', 
+          dropoffValidation.error || 'Dropoff location is not available. Please try again.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      navigation.replace('RideOptions', {
+        pickup: pickupLocation,
+        drop: location,
+        forWhom,
+        friendName,
+        friendPhone,
+      });
       return;
     } else if (editing === 'current') {
       setCurrentLocation(location);
@@ -460,25 +611,75 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     navigation.navigate('DropPinLocation');
   };
 
-  const handleConfirmDrop = () => {
-    // Defensive: fallback to default if currentLocation is null
-    const pickup = isValidLocation(currentLocation) ? currentLocation : {
-      latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
-      longitude: 78.3498,
-      address: 'Current Location',
-      name: 'Current Location',
-    };
-    if (isValidLocation(pickup) && isValidLocation(dropLocation)) {
-      navigation.replace('RideOptions', {
-        pickup,
-        drop: dropLocation,
-        forWhom,
-        friendName,
-        friendPhone,
-      });
-    } else {
-      Alert.alert('Error', 'Current location or drop location is missing or invalid.');
+  const handleConfirmDrop = async () => {
+    // For rebook scenarios, use the provided pickup location instead of current location
+    let pickupLocation = route.params?.isRebook && route.params?.pickup 
+      ? route.params.pickup 
+      : (isValidLocation(currentLocation) ? currentLocation : null);
+    
+    // If we don't have a valid pickup location and it's not a rebook, try to get current location
+    if (!pickupLocation && !route.params?.isRebook) {
+      pickupLocation = await getCurrentLocationReliably();
     }
+    
+    // If still no pickup location, use fallback
+    if (!pickupLocation) {
+      pickupLocation = {
+        latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
+        longitude: 78.3498,
+        address: 'Current Location',
+        name: 'Current Location',
+      };
+    }
+        
+    // Enhanced validation
+    const pickupValidation = validateLocationForRebook(pickupLocation, 'pickup');
+    const dropoffValidation = validateLocationForRebook(dropLocation, 'dropoff');
+    
+    if (!pickupValidation.isValid) {
+      Alert.alert(
+        'Location Error', 
+        pickupValidation.error || 'Pickup location is not available. Please try again.',
+        [
+          { text: 'Cancel', style: 'cancel' },
+          { 
+            text: 'Retry', 
+            onPress: async () => {
+              const newLocation = await getCurrentLocationReliably();
+              if (newLocation && validateLocationForRebook(newLocation, 'pickup').isValid) {
+                navigation.replace('RideOptions', {
+                  pickup: newLocation,
+                  drop: dropLocation,
+                  forWhom,
+                  friendName,
+                  friendPhone,
+                });
+              } else {
+                Alert.alert('Error', 'Still unable to get your location. Please try again later.');
+              }
+            }
+          }
+        ]
+      );
+      return;
+    }
+    
+    if (!dropoffValidation.isValid) {
+      Alert.alert(
+        'Location Error', 
+        dropoffValidation.error || 'Dropoff location is not available. Please try again.',
+        [{ text: 'OK' }]
+      );
+      return;
+    }
+    
+    navigation.replace('RideOptions', {
+      pickup: pickupLocation,
+      drop: dropLocation,
+      forWhom,
+      friendName,
+      friendPhone,
+    });
   };
 
   // Update renderSearchResult to match the desired UI
@@ -586,6 +787,33 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
+      {/* Loading overlay when getting location */}
+      {isGettingLocation && (
+        <View style={{
+          position: 'absolute',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0,0,0,0.5)',
+          justifyContent: 'center',
+          alignItems: 'center',
+          zIndex: 1000,
+        }}>
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: 12,
+            padding: 24,
+            alignItems: 'center',
+          }}>
+            <ActivityIndicator size="large" color={Colors.primary} />
+            <Text style={{ marginTop: 12, fontSize: 16, fontWeight: '600', color: Colors.text }}>
+              Getting your location...
+            </Text>
+          </View>
+        </View>
+      )}
+      
       {/* Back button at the top left */}
       <TouchableOpacity onPress={() => navigation.goBack()} style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
         <Ionicons name="arrow-back" size={28} color={Colors.text} />
@@ -661,10 +889,30 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         }}
         ListHeaderComponent={
           <>
+            {/* Rebook indicator */}
+            {route.params?.isRebook && (
+              <View style={{
+                marginHorizontal: 16,
+                marginTop: 24,
+                marginBottom: 8,
+                backgroundColor: Colors.primary + '15',
+                borderRadius: 12,
+                paddingHorizontal: 16,
+                paddingVertical: 12,
+                flexDirection: 'row',
+                alignItems: 'center',
+              }}>
+                <Ionicons name="refresh" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
+                <Text style={{ color: Colors.primary, fontWeight: '600', fontSize: 14 }}>
+                  Rebooking previous ride
+                </Text>
+              </View>
+            )}
+            
             {/* Top selectors and editing indicator */}
             <View style={{
               marginHorizontal: 16,
-              marginTop: 24,
+              marginTop: route.params?.isRebook ? 8 : 24,
               marginBottom: 18,
               borderRadius: 20,
               backgroundColor: '#fff',
