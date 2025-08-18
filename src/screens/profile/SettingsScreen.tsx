@@ -225,11 +225,8 @@ export default function SettingsScreen({ navigation }: any) {
           </View>
         ))}
 
-        {/* App Info */}
-        <View style={styles.appInfo}>
-          <Text style={styles.appVersion}>RideSwift v1.0.0</Text>
-          <Text style={styles.appBuild}>Build 2024.01.15</Text>
-        </View>
+        {/* Bottom Margin */}
+        <View style={styles.bottomMargin} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -335,5 +332,8 @@ const styles = StyleSheet.create({
     fontSize: Layout.fontSize.xs,
     color: Colors.textLight,
     marginTop: Layout.spacing.xs,
+  },
+  bottomMargin: {
+    height: Layout.spacing.xl,
   },
 });
