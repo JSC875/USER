@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
+import { useTranslation } from 'react-i18next';
 import { Colors } from '../../constants/Colors';
 import { getSocket, getDetailedConnectionStatus, testSocketConfiguration } from '../../utils/socket';
 
@@ -9,6 +10,7 @@ interface ConnectionStatusProps {
 }
 
 export default function ConnectionStatus({ isVisible = true }: ConnectionStatusProps) {
+  const { t } = useTranslation();
   const [isOnline, setIsOnline] = useState(true);
   const [isConnecting, setIsConnecting] = useState(false);
   const [socketStatus, setSocketStatus] = useState('disconnected');
@@ -232,24 +234,24 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
 
   // Determine status and color
   let statusColor = Colors.error;
-  let statusText = 'Offline';
+  let statusText = t('connection.offline');
   let iconName: keyof typeof Ionicons.glyphMap = 'wifi-outline';
 
   if (isOnline && socketStatus === 'connected') {
     statusColor = Colors.success;
-    statusText = __DEV__ ? 'Connected' : '🟢 Online';
+    statusText = __DEV__ ? t('connection.connected') : `🟢 ${t('connection.online')}`;
     iconName = 'wifi';
   } else if (isOnline && socketStatus === 'connecting') {
     statusColor = Colors.warning || '#FFA500';
-    statusText = __DEV__ ? 'Connecting...' : '🟡 Connecting';
+    statusText = __DEV__ ? t('connection.connecting') : `🟡 ${t('connection.connecting')}`;
     iconName = 'sync';
   } else if (isOnline && socketStatus === 'disconnected') {
     statusColor = Colors.warning || '#FFA500';
-    statusText = __DEV__ ? 'No Server' : '🟡 No Server';
+    statusText = __DEV__ ? t('connection.noServer') : `🟡 ${t('connection.noServer')}`;
     iconName = 'cloud-offline';
   } else if (!isOnline) {
     statusColor = Colors.error;
-    statusText = __DEV__ ? 'Offline' : '🔴 Offline';
+    statusText = __DEV__ ? t('connection.offline') : `🔴 ${t('connection.offline')}`;
     iconName = 'wifi-outline';
   }
 
@@ -266,9 +268,9 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
       const configTest = testSocketConfiguration();
       
       Alert.alert(
-        'Socket Debug Info',
+        t('connection.socketDebugInfo'),
         `Socket Exists: ${!!socket}\nSocket Connected: ${socket?.connected || false}\nConnection State: ${detailedStatus.connectionState}\nConfig Valid: ${configTest}\nEnvironment: ${__DEV__ ? 'Dev' : 'APK'}\nSocket URL: ${detailedStatus.socketUrl || 'Not set'}`,
-        [{ text: 'OK' }]
+        [{ text: t('common.ok') }]
       );
     }
   };
@@ -286,7 +288,7 @@ export default function ConnectionStatus({ isVisible = true }: ConnectionStatusP
         style={(isConnecting || isSocketConnecting) ? styles.rotating : undefined}
       />
       <Text style={styles.text}>
-        {isConnecting ? 'Checking...' : (isSocketConnecting ? 'Connecting...' : statusText)}
+        {isConnecting ? t('connection.checking') : (isSocketConnecting ? t('connection.connecting') : statusText)}
       </Text>
     </TouchableOpacity>
   );

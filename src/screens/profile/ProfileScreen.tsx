@@ -16,35 +16,36 @@ import { Layout } from '../../constants/Layout';
 import { useFocusEffect } from '@react-navigation/native';
 import { useRoute } from '@react-navigation/native';
 import { userApi } from '../../services/userService';
+import { useTranslation } from 'react-i18next';
 
-const profileOptions = [
+const getProfileOptions = (t: any) => [
   {
     id: '0',
-    title: 'Personal Details',
+    title: t('common.personalInformation'),
     icon: 'person-circle-outline',
     screen: 'PersonalDetails',
   },
   {
     id: '1',
-    title: 'Wallet & Payments',
+    title: t('payment.paymentMethods'),
     icon: 'wallet-outline',
     screen: 'Payment',
   },
   {
     id: '2',
-    title: 'Privacy & Security',
+    title: t('common.privacySecurity'),
     icon: 'shield-checkmark-outline',
     screen: 'PrivacySecurity',
   },
   {
     id: '3',
-    title: 'Settings',
+    title: t('common.settings'),
     icon: 'settings-outline',
     screen: 'Settings',
   },
   {
     id: '4',
-    title: 'About',
+    title: t('common.about'),
     icon: 'information-circle-outline',
     screen: 'About',
   },
@@ -53,6 +54,7 @@ const profileOptions = [
 export default function ProfileScreen({ navigation, route }: any) {
   const { signOut, getToken } = useAuth();
   const { user } = useUser();
+  const { t } = useTranslation();
   
   const getUserPhoto = () => {
     return user?.imageUrl || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face';
@@ -217,48 +219,48 @@ export default function ProfileScreen({ navigation, route }: any) {
                      <View style={styles.statsContainer}>
              <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('History')}>
                <Text style={styles.statValue}>{userProfile?.totalRides || 0}</Text>
-               <Text style={styles.statLabel}>Total Rides</Text>
+               <Text style={styles.statLabel}>{t('ride.rideHistory')}</Text>
              </TouchableOpacity>
              <View style={styles.statDivider} />
              <View style={styles.statItem}>
                <Text style={styles.statValue}>{userProfile?.rating ? userProfile.rating.toFixed(1) : '0.0'}</Text>
-               <Text style={styles.statLabel}>Rating</Text>
+               <Text style={styles.statLabel}>{t('common.rating')}</Text>
              </View>
              <View style={styles.statDivider} />
              <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Payment', { initialTab: 'history' })}>
                <Text style={styles.statValue}>₹{userProfile?.walletBalance || 0}</Text>
-               <Text style={styles.statLabel}>Wallet Balance</Text>
+               <Text style={styles.statLabel}>{t('payment.walletBalance')}</Text>
              </TouchableOpacity>
            </View>
         </View>
 
         {/* Quick Actions */}
         <View style={styles.quickActions}>
-          <Text style={styles.sectionTitle}>Quick Actions</Text>
+          <Text style={styles.sectionTitle}>{t('home.quickActions')}</Text>
           <View style={styles.actionGridRow}>
             <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('ComingSoon')}>
               <View style={styles.actionIcon}>
                 <Ionicons name="time" size={24} color={Colors.primary} />
               </View>
-              <Text style={styles.actionText}>{`Schedule\nRide`}</Text>
+              <Text style={styles.actionText}>{`${t('home.scheduleRide')}\n`}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('History')}>
               <View style={styles.actionIcon}>
                 <Ionicons name="receipt" size={24} color={Colors.accent} />
               </View>
-              <Text style={styles.actionText}>{`Ride\nHistory`}</Text>
+              <Text style={styles.actionText}>{`${t('ride.rideHistory')}\n`}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.getParent()?.navigate('Offers')}>
               <View style={styles.actionIcon}>
                 <Ionicons name="gift" size={24} color={Colors.coral} />
               </View>
-              <Text style={styles.actionText}>{`View\nOffers`}</Text>
+              <Text style={styles.actionText}>{`${t('home.viewOffers')}\n`}</Text>
             </TouchableOpacity>
             <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('HelpSupport')}>
               <View style={styles.actionIcon}>
                 <Ionicons name="help-circle" size={24} color={Colors.info} />
               </View>
-              <Text style={styles.actionText}>{`Get\nSupport`}</Text>
+              <Text style={styles.actionText}>{`${t('support.getSupport')}\n`}</Text>
             </TouchableOpacity>
           </View>
           
@@ -267,7 +269,7 @@ export default function ProfileScreen({ navigation, route }: any) {
 
         {/* Menu Options */}
         <View style={styles.menuContainer}>
-          {profileOptions.map((option) => (
+          {getProfileOptions(t).map((option) => (
             <TouchableOpacity
               key={option.id}
               style={styles.menuItem}
@@ -286,10 +288,12 @@ export default function ProfileScreen({ navigation, route }: any) {
           ))}
         </View>
 
+
+
         {/* Logout */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
           <Ionicons name="log-out-outline" size={24} color={Colors.error} />
-          <Text style={styles.logoutText}>Sign Out</Text>
+          <Text style={styles.logoutText}>{t('auth.logout')}</Text>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>

@@ -62,15 +62,18 @@ import RidePaymentScreen from '../screens/ride/PaymentScreen';
 import WebViewPaymentScreen from '../screens/ride/WebViewPaymentScreen';
 import PostRidePaymentScreen from '../screens/ride/PostRidePaymentScreen';
 import PrivacySecurityScreen from '../screens/profile/PrivacySecurityScreen';
+import LanguageSettingsScreen from '../screens/profile/LanguageSettingsScreen';
 
 import { Colors } from '../constants/Colors';
 import { Layout } from '../constants/Layout';
+import { useTranslation } from 'react-i18next';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function TabNavigator() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   
   return (
     <Tab.Navigator
@@ -122,9 +125,9 @@ function TabNavigator() {
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="History" component={RideHistoryScreen} />
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: t('common.home') }} />
+      <Tab.Screen name="History" component={RideHistoryScreen} options={{ title: t('common.history') }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: t('common.profile') }} />
     </Tab.Navigator>
   );
 }
@@ -203,6 +206,7 @@ function MainNavigator() {
       
       {/* Profile Flow */}
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="LanguageSettings" component={LanguageSettingsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="PersonalDetails" component={PersonalDetailsScreen} />
       <Stack.Screen name="About" component={AboutScreen} />
@@ -211,8 +215,8 @@ function MainNavigator() {
       <Stack.Screen name="HistoryDetail" component={HistoryDetailScreen} />
       
       {/* Debug Flow */}
-      <Stack.Screen name="ConnectionTest" component={require('../screens/debug/ConnectionTestScreen').default} />
-      <Stack.Screen name="LivePaymentTest" component={require('../screens/debug/LivePaymentTestScreen').default} />
+        <Stack.Screen name="ConnectionTest" component={require('../screens/debug/ConnectionTestScreen').default} />
+  <Stack.Screen name="LivePaymentTest" component={require('../screens/debug/LivePaymentTestScreen').default} />
     </Stack.Navigator>
   );
 }

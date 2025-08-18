@@ -37,6 +37,7 @@ import {
 import { getUserIdFromJWT, decodeJWT, logJWTDetails, logFullJWT } from "../../utils/jwtDecoder";
 import ConnectionStatus from "../../components/common/ConnectionStatus";
 import { rideApi, RideRequestResponse } from "../../services/rideService";
+import { useTranslation } from 'react-i18next';
 // JWTLoggingTest import - REMOVED
 
 const { width } = Dimensions.get('window');
@@ -44,6 +45,7 @@ const { width } = Dimensions.get('window');
 export default function HomeScreen({ navigation, route }: any) {
   const { user } = useUser();
   const { insets, getFloatingBottom } = useSafeAreaWithTabBar();
+  const { t } = useTranslation();
   const {
     pickupLocation,
     setPickupLocation,
@@ -85,7 +87,7 @@ export default function HomeScreen({ navigation, route }: any) {
       const coords = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
-        address: 'Current Location',
+        address: t('home.currentLocation'),
       };
       setCurrentLocation(coords);
       if (!pickupLocation) {
@@ -205,11 +207,11 @@ export default function HomeScreen({ navigation, route }: any) {
         });
         setIsBookingRide(true);
         Alert.alert(
-          'Ride Booked!', 
-          `Searching for pilots...\nRide ID: ${data.rideId}`,
+          t('home.rideBooked'), 
+          `${t('home.searchingForPilots')}\nRide ID: ${data.rideId}`,
           [
             {
-              text: 'OK',
+              text: t('common.ok'),
               onPress: () => {
                 console.log('🎯 Navigating to FindingDriver after ride booked');
                 // Navigate to FindingDriver screen with ride details
@@ -255,9 +257,9 @@ export default function HomeScreen({ navigation, route }: any) {
           estimatedArrival: data.estimatedArrival,
           status: 'accepted'
         }));
-        setRideStatus('Pilot accepted your ride!');
+        setRideStatus(t('home.pilotAcceptedRide'));
         setShowRideModal(true);
-        Alert.alert('Pilot Found!', `${transformedDriverName} will arrive in ${data.estimatedArrival}`);
+        Alert.alert(t('home.pilotFound'), `${transformedDriverName} ${t('home.willArriveIn')} ${data.estimatedArrival}`);
       });
 
       onDriverLocation((data) => {
@@ -287,7 +289,7 @@ export default function HomeScreen({ navigation, route }: any) {
 
       onDriverOffline((data) => {
         console.log('🔴 HomeScreen: Driver went offline:', data);
-        Alert.alert('Pilot Offline', 'Your pilot went offline. Finding a new pilot...');
+        Alert.alert(t('home.pilotOffline'), t('home.pilotWentOffline'));
       });
 
       // Cleanup callbacks on unmount
@@ -331,7 +333,7 @@ export default function HomeScreen({ navigation, route }: any) {
   // Enhanced ride booking function with API + Socket.IO integration
   const handleBookRide = async () => {
     if (!dropLocation) {
-      Alert.alert('Select Destination', 'Please select a destination first.');
+      Alert.alert(t('home.selectDestination'), t('home.pleaseSelectDestination'));
       return;
     }
 
@@ -350,7 +352,7 @@ export default function HomeScreen({ navigation, route }: any) {
       console.log('📍 Step 2: Fetching GPS location...');
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
-        Alert.alert('Location permission is required to book a ride.');
+        Alert.alert(t('home.locationPermissionRequired'));
         setIsBookingRide(false);
         return;
       }
@@ -361,8 +363,8 @@ export default function HomeScreen({ navigation, route }: any) {
       const pickup = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
-        address: 'Current Location',
-        name: 'Current Location',
+        address: t('home.currentLocation'),
+        name: t('home.currentLocation'),
       };
       
       console.log('📍 Pickup:', pickup);
@@ -553,7 +555,7 @@ export default function HomeScreen({ navigation, route }: any) {
                 latitude: pickupLocation.latitude,
                 longitude: pickupLocation.longitude,
               }}
-              title={pickupLocation?.address || 'Pickup Location'}
+              title={pickupLocation?.address || t('home.pickupLocation')}
               pinColor={'green'}
             />
           )}
@@ -563,14 +565,14 @@ export default function HomeScreen({ navigation, route }: any) {
                 latitude: dropoffLocation.latitude,
                 longitude: dropoffLocation.longitude,
               }}
-              title={dropoffLocation?.address || 'Destination'}
+              title={dropoffLocation?.address || t('home.dropLocation')}
               pinColor={'red'}
             />
           )}
           {driverLocation && (
             <Marker
               coordinate={driverLocation}
-              title="Driver Location"
+              title={t('home.driverLocation')}
               pinColor={'blue'}
             />
           )}
@@ -583,7 +585,7 @@ export default function HomeScreen({ navigation, route }: any) {
             const coords = {
               latitude: loc.coords.latitude,
               longitude: loc.coords.longitude,
-              address: 'Current Location',
+              address: t('home.currentLocation'),
             };
             setCurrentLocation(coords);
             setPickupLocation(coords);
@@ -599,10 +601,10 @@ export default function HomeScreen({ navigation, route }: any) {
         </TouchableOpacity>
         {/* Where to? Card Overlay */}
         <View style={[styles.whereToCard, { bottom: getFloatingBottom() }]}>
-          <Text style={styles.whereToTitle}>Where to?</Text>
+          <Text style={styles.whereToTitle}>{t('home.whereTo')}</Text>
           <TouchableOpacity style={styles.whereToRow} activeOpacity={0.7}>
             <View style={[styles.dot, { backgroundColor: 'green' }]} />
-            <Text style={styles.whereToText}>Current Location</Text>
+            <Text style={styles.whereToText}>{t('home.currentLocation')}</Text>
           </TouchableOpacity>
           <View style={styles.divider} />
           <TouchableOpacity
@@ -612,7 +614,7 @@ export default function HomeScreen({ navigation, route }: any) {
           >
             <View style={[styles.dot, { backgroundColor: 'red' }]} />
             <Text style={styles.whereToText}>
-              {dropLocation ? dropLocation.name : 'Where are you going?'}
+              {dropLocation ? dropLocation.name : t('home.whereAreYouGoing')}
             </Text>
             <Ionicons name="chevron-forward" size={20} color="#aaa" style={{ marginLeft: 'auto' }} />
           </TouchableOpacity>
@@ -629,18 +631,18 @@ export default function HomeScreen({ navigation, route }: any) {
       >
         <View style={styles.modalOverlay}>
           <View style={styles.modalContent}>
-            <Text style={styles.modalTitle}>Ride Accepted!</Text>
+            <Text style={styles.modalTitle}>{t('home.rideAccepted')}</Text>
             {currentRide?.driverName && (
-              <Text style={styles.modalText}>Pilot: {currentRide.driverName}</Text>
+              <Text style={styles.modalText}>{t('home.pilot')} {currentRide.driverName}</Text>
             )}
             {currentRide?.estimatedArrival && (
-              <Text style={styles.modalText}>ETA: {currentRide.estimatedArrival}</Text>
+              <Text style={styles.modalText}>{t('home.eta')} {currentRide.estimatedArrival}</Text>
             )}
             <TouchableOpacity
               style={styles.modalButton}
               onPress={() => setShowRideModal(false)}
             >
-              <Text style={styles.modalButtonText}>OK</Text>
+              <Text style={styles.modalButtonText}>{t('common.ok')}</Text>
             </TouchableOpacity>
           </View>
         </View>

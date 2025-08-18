@@ -16,8 +16,10 @@ import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useAuth } from '@clerk/clerk-expo';
 import { userApi, RideHistory, RideHistoryFilters } from '../../services/userService';
+import { useTranslation } from 'react-i18next';
 
 export default function RideHistoryScreen({ navigation }: any) {
+  const { t } = useTranslation();
   const [filterVisible, setFilterVisible] = useState(false);
   const [filter, setFilter] = useState<'all' | 'completed' | 'cancelled'>('all');
   const [rideHistory, setRideHistory] = useState<RideHistory[]>([]);
@@ -158,7 +160,11 @@ export default function RideHistoryScreen({ navigation }: any) {
             <Text style={styles.dateText}>{dateText}</Text>
             <Text style={styles.timeText}>{timeText}</Text>
             <View style={[styles.statusBadge, { backgroundColor: getStatusColor(item.status) }]}>
-              <Text style={styles.statusText}>{item.status.replace('_', ' ')}</Text>
+              <Text style={styles.statusText}>
+              {item.status === 'COMPLETED' ? t('common.completed') : 
+               item.status === 'CANCELLED' ? t('common.cancelled') : 
+               item.status.replace('_', ' ')}
+            </Text>
             </View>
           </View>
           <View style={styles.fareContainer}>
@@ -169,12 +175,12 @@ export default function RideHistoryScreen({ navigation }: any) {
         <View style={styles.rideRoute}>
           <View style={styles.routePoint}>
             <View style={styles.pickupDot} />
-            <Text style={styles.routeText} numberOfLines={2}>{item.pickupLocation?.address || 'Pickup Location'}</Text>
+            <Text style={styles.routeText} numberOfLines={2}>{item.pickupLocation?.address || t('home.pickupLocation')}</Text>
           </View>
           <View style={styles.routeLine} />
           <View style={styles.routePoint}>
             <View style={styles.destinationDot} />
-            <Text style={styles.routeText} numberOfLines={2}>{item.dropLocation?.address || 'Destination'}</Text>
+            <Text style={styles.routeText} numberOfLines={2}>{item.dropLocation?.address || t('home.dropLocation')}</Text>
           </View>
         </View>
 
@@ -208,7 +214,7 @@ export default function RideHistoryScreen({ navigation }: any) {
                 style={styles.rebookButton}
                 onPress={() => handleRebook(item)}
               >
-                <Text style={styles.rebookText}>Rebook</Text>
+                <Text style={styles.rebookText}>{t('ride.rebook')}</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -218,38 +224,38 @@ export default function RideHistoryScreen({ navigation }: any) {
   };
 
   const handleRebook = (item: RideHistory) => {
-    // Check if we have valid pickup and drop locations
-    if (!item.pickupLocation || !item.dropLocation) {
-      Alert.alert(
-        'Cannot Rebook',
-        'Previous ride location information is incomplete. Please book a new ride.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+          // Check if we have valid pickup and drop locations
+      if (!item.pickupLocation || !item.dropLocation) {
+        Alert.alert(
+          t('ride.cannotRebook'),
+          t('ride.incompleteLocationInfo'),
+          [{ text: t('common.ok') }]
+        );
+        return;
+      }
 
-    // Validate that locations have proper coordinates
-    if (!item.pickupLocation.latitude || !item.pickupLocation.longitude ||
-        !item.dropLocation.latitude || !item.dropLocation.longitude) {
-      Alert.alert(
-        'Cannot Rebook',
-        'Previous ride location coordinates are missing. Please book a new ride.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
+      // Validate that locations have proper coordinates
+      if (!item.pickupLocation.latitude || !item.pickupLocation.longitude ||
+          !item.dropLocation.latitude || !item.dropLocation.longitude) {
+        Alert.alert(
+          t('ride.cannotRebook'),
+          t('ride.missingLocationCoordinates'),
+          [{ text: t('common.ok') }]
+        );
+        return;
+      }
 
     // Navigate to DropLocationSelector with the previous ride's locations
     navigation.navigate('DropLocationSelector', {
       destination: {
-        address: item.dropLocation.address || 'Destination',
-        name: item.dropLocation.address || 'Destination',
+        address: item.dropLocation.address || t('home.dropLocation'),
+        name: item.dropLocation.address || t('home.dropLocation'),
         latitude: item.dropLocation.latitude,
         longitude: item.dropLocation.longitude,
       },
       pickup: {
-        address: item.pickupLocation.address || 'Pickup Location',
-        name: item.pickupLocation.address || 'Pickup Location',
+        address: item.pickupLocation.address || t('home.pickupLocation'),
+        name: item.pickupLocation.address || t('home.pickupLocation'),
         latitude: item.pickupLocation.latitude,
         longitude: item.pickupLocation.longitude,
       },
@@ -268,7 +274,7 @@ export default function RideHistoryScreen({ navigation }: any) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Ride History</Text>
+        <Text style={styles.headerTitle}>{t('ride.rideHistory')}</Text>
         <TouchableOpacity style={styles.filterButton} onPress={() => setFilterVisible(true)}>
           <Ionicons name="filter" size={24} color={Colors.text} />
         </TouchableOpacity>
@@ -284,13 +290,13 @@ export default function RideHistoryScreen({ navigation }: any) {
         <TouchableOpacity style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.3)' }} onPress={() => setFilterVisible(false)} activeOpacity={1}>
           <View style={{ position: 'absolute', top: 70, right: 20, backgroundColor: '#fff', borderRadius: 8, padding: 16, elevation: 8 }}>
             <TouchableOpacity onPress={() => handleFilterChange('all')} style={{ paddingVertical: 8 }}>
-              <Text style={{ color: filter === 'all' ? Colors.primary : Colors.text }}>All</Text>
+              <Text style={{ color: filter === 'all' ? Colors.primary : Colors.text }}>{t('common.all')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => handleFilterChange('completed')} style={{ paddingVertical: 8 }}>
-              <Text style={{ color: filter === 'completed' ? Colors.primary : Colors.text }}>Completed</Text>
+              <Text style={{ color: filter === 'completed' ? Colors.primary : Colors.text }}>{t('common.completed')}</Text>
             </TouchableOpacity>
             <TouchableOpacity onPress={() => handleFilterChange('cancelled')} style={{ paddingVertical: 8 }}>
-              <Text style={{ color: filter === 'cancelled' ? Colors.primary : Colors.text }}>Cancelled</Text>
+              <Text style={{ color: filter === 'cancelled' ? Colors.primary : Colors.text }}>{t('common.cancelled')}</Text>
             </TouchableOpacity>
           </View>
         </TouchableOpacity>
@@ -300,7 +306,7 @@ export default function RideHistoryScreen({ navigation }: any) {
       {isLoading && (
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading ride history...</Text>
+          <Text style={styles.loadingText}>{t('ride.loadingRideHistory')}</Text>
         </View>
       )}
 
@@ -310,7 +316,7 @@ export default function RideHistoryScreen({ navigation }: any) {
           <Ionicons name="alert-circle" size={48} color={Colors.error} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => loadRideHistory()}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       )}
@@ -319,11 +325,11 @@ export default function RideHistoryScreen({ navigation }: any) {
       {!isLoading && !error && filteredHistory.length === 0 && (
         <View style={styles.emptyContainer}>
           <Ionicons name="car-outline" size={48} color={Colors.gray400} />
-          <Text style={styles.emptyText}>No rides found</Text>
+          <Text style={styles.emptyText}>{t('ride.noRidesFound')}</Text>
           <Text style={styles.emptySubtext}>
             {filter === 'all' 
-              ? 'Your completed and cancelled rides will appear here' 
-              : `No ${filter} rides found`
+              ? t('ride.emptyStateAll') 
+              : t('ride.emptyStateFiltered', { filter: filter })
             }
           </Text>
         </View>
