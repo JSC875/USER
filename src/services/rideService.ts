@@ -16,6 +16,26 @@ export interface RideDetails {
     lastName: string;
     phoneNumber: string;
   };
+  driver?: {
+    id?: string;
+    firstName?: string;
+    name?: string;
+    phoneNumber?: string;
+    phone?: string;
+    rating?: number;
+    averageRating?: number;
+    driverRating?: number;
+  };
+  pilot?: {
+    id?: string;
+    firstName?: string;
+    name?: string;
+    phoneNumber?: string;
+    phone?: string;
+    rating?: number;
+    averageRating?: number;
+    driverRating?: number;
+  };
 }
 
 export interface RideDetailsResponse {

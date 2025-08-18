@@ -26,30 +26,6 @@ import DropLocationSelectorScreen from '../screens/home/DropLocationSelectorScre
 import DropPinLocationScreen from '../screens/home/DropPinLocationScreen';
 import RideOptionsScreen from '../screens/home/RideOptionsScreen';
 
-// Ride Screens
-import FindingDriverScreen from '../screens/ride/FindingDriverScreen';
-import LiveTrackingScreen from '../screens/ride/LiveTrackingScreen';
-import MpinEntryScreen from '../screens/ride/MpinEntryScreen';
-import RideInProgressScreen from '../screens/ride/RideInProgressScreen';
-import ChatScreen from '../screens/ride/ChatScreen';
-import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
-
-
-// Profile Screens
-import ProfileScreen from '../screens/profile/ProfileScreen';
-import RideHistoryScreen from '../screens/profile/RideHistoryScreen';
-import HistoryDetailScreen from '../screens/profile/HistoryDetailScreen';
-
-import SettingsScreen from '../screens/profile/SettingsScreen';
-import EditProfileScreen from '../screens/profile/EditProfileScreen';
-import PersonalDetailsScreen from '../screens/profile/PersonalDetailsScreen';
-import AboutScreen from '../screens/profile/AboutScreen';
-import PaymentScreen from '../screens/profile/PaymentScreen';
-import RidePaymentScreen from '../screens/ride/PaymentScreen';
-import WebViewPaymentScreen from '../screens/ride/WebViewPaymentScreen';
-import PostRidePaymentScreen from '../screens/ride/PostRidePaymentScreen';
-import PrivacySecurityScreen from '../screens/profile/PrivacySecurityScreen';
-
 // Support Screens
 import HelpSupportScreen from '../screens/support/HelpSupportScreen';
 import RideIssuesScreen from '../screens/support/RideIssuesScreen';
@@ -64,6 +40,27 @@ import AccountIssuesScreen from '../screens/support/AccountIssuesScreen';
 import PaymentsIssuesScreen from '../screens/support/PaymentsIssuesScreen';
 import OtherIssuesScreen from '../screens/support/OtherIssuesScreen';
 import TermsConditionScreen from '../screens/support/TermsConditionScreen';
+
+// Ride Screens
+import FindingDriverScreen from '../screens/ride/FindingDriverScreen';
+import LiveTrackingScreen from '../screens/ride/LiveTrackingScreen';
+import RideInProgressScreen from '../screens/ride/RideInProgressScreen';
+import ChatScreen from '../screens/ride/ChatScreen';
+import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
+
+// Profile Screens
+import ProfileScreen from '../screens/profile/ProfileScreen';
+import RideHistoryScreen from '../screens/profile/RideHistoryScreen';
+import HistoryDetailScreen from '../screens/profile/HistoryDetailScreen';
+import SettingsScreen from '../screens/profile/SettingsScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import PersonalDetailsScreen from '../screens/profile/PersonalDetailsScreen';
+import AboutScreen from '../screens/profile/AboutScreen';
+import PaymentScreen from '../screens/profile/PaymentScreen';
+import RidePaymentScreen from '../screens/ride/PaymentScreen';
+import WebViewPaymentScreen from '../screens/ride/WebViewPaymentScreen';
+import PostRidePaymentScreen from '../screens/ride/PostRidePaymentScreen';
+import PrivacySecurityScreen from '../screens/profile/PrivacySecurityScreen';
 
 import { Colors } from '../constants/Colors';
 import { Layout } from '../constants/Layout';
@@ -126,7 +123,6 @@ function TabNavigator() {
     >
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="History" component={RideHistoryScreen} />
-      
       <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
@@ -194,7 +190,6 @@ function MainNavigator() {
       {/* Ride Flow */}
       <Stack.Screen name="FindingDriver" component={FindingDriverScreen} />
       <Stack.Screen name="LiveTracking" component={LiveTrackingScreen} />
-      <Stack.Screen name="MpinEntry" component={MpinEntryScreen} />
       <Stack.Screen name="RideInProgress" component={RideInProgressScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="RidePayment" component={RidePaymentScreen as any} />

@@ -71,7 +71,8 @@
     "socket.io-client": "^4.8.1",
     "uuid": "^11.1.0",
     "zustand": "^5.0.6",
-    "expo-modules-core": "~2.5.0"
+    "expo-modules-core": "~2.5.0",
+    "expo-linear-gradient": "~14.1.5"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",

@@ -9,19 +9,23 @@ import {
   Alert,
   Modal,
   Share,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import { onRideStatus, onDriverLocation, onRideCompleted, onQRPaymentReady, clearCallbacks } from '../../utils/socket';
+import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks } from '../../utils/socket';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Images } from '../../constants/Images';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
-
+import PinDisplay from '../../components/common/PinDisplay';
+import { useAuth } from '@clerk/clerk-expo';
+import { rideService } from '../../services/rideService';
 
 export default function LiveTrackingScreen({ navigation, route }: any) {
   const { destination, estimate, driver, rideId, origin } = route.params;
+  const { getToken } = useAuth();
   
   console.log('🚀 LiveTrackingScreen: Component initialized with params:', {
     destination,
@@ -35,6 +39,26 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   const [callModalVisible, setCallModalVisible] = useState(false);
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [driverPath, setDriverPath] = useState<{latitude: number, longitude: number}[]>([]);
+  const [otpCode, setOtpCode] = useState('0824'); // Default fallback
+  const [pilotName, setPilotName] = useState('Anderson'); // Default fallback
+  const [driverRating, setDriverRating] = useState<number | null>(null); // Driver rating from backend
+  const [isNewDriver, setIsNewDriver] = useState(false); // Track if driver is new
+  const [driverPhoneNumber, setDriverPhoneNumber] = useState<string | null>(null); // Real phone number from backend
+  const [realDriverName, setRealDriverName] = useState<string | null>(null); // Real driver name from backend
+  const [isLoadingRideData, setIsLoadingRideData] = useState(true);
+
+  // Debug effect to log when driverRating changes
+  useEffect(() => {
+    console.log('⭐ LiveTrackingScreen: Driver rating state changed to:', driverRating);
+    console.log('⭐ LiveTrackingScreen: Is new driver:', isNewDriver);
+  }, [driverRating, isNewDriver]);
+
+  // Temporary test: Force rating for debugging
+  useEffect(() => {
+    console.log('🧪 LiveTrackingScreen: Setting test rating for debugging');
+    setDriverRating(0);
+    setIsNewDriver(true);
+  }, []);
 
   // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
   const transformDriverName = (name: string) => {
@@ -46,13 +70,174 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   
   const driverInfo = {
     ...driver,
-    name: driver?.name ? transformDriverName(driver.name) : undefined
+    name: driver?.name ? transformDriverName(driver.name) : pilotName
   };
   
   console.log('🚀 LiveTrackingScreen: Initial state:', {
     rideStatus,
-    driverInfo
+    driverInfo,
+    otpCode,
+    pilotName,
+    driverRating
   });
+
+  // Fetch ride details from backend to get real OTP and pilot name
+  useEffect(() => {
+    const fetchRideDetails = async () => {
+      if (!rideId || !getToken) {
+        console.log('⚠️ LiveTrackingScreen: Missing rideId or getToken, skipping API call');
+        setIsLoadingRideData(false);
+        return;
+      }
+
+      try {
+        console.log('🔍 LiveTrackingScreen: Fetching ride details from backend...');
+        console.log('🎯 Ride ID:', rideId);
+        
+        const token = await getToken();
+        const response = await rideService.getRideDetailsForOTP(rideId, token || undefined);
+        
+        if (response.success && response.data) {
+          console.log('✅ LiveTrackingScreen: Successfully fetched ride details:', response.data);
+          console.log('🔍 LiveTrackingScreen: Full response data structure:', JSON.stringify(response.data, null, 2));
+          
+          // Update OTP from backend
+          if (response.data.otp) {
+            console.log('🔐 LiveTrackingScreen: Setting OTP from backend:', response.data.otp);
+            setOtpCode(response.data.otp);
+          }
+          
+          // Update pilot name from backend - check multiple possible fields
+          let pilotNameFromBackend = null;
+          
+          if (response.data.driver?.firstName) {
+            pilotNameFromBackend = response.data.driver.firstName;
+            console.log('👨‍✈️ LiveTrackingScreen: Found pilot name in driver.firstName:', pilotNameFromBackend);
+          } else if (response.data.driver?.name) {
+            pilotNameFromBackend = response.data.driver.name;
+            console.log('👨‍✈️ LiveTrackingScreen: Found pilot name in driver.name:', pilotNameFromBackend);
+          } else if (response.data.pilot?.firstName) {
+            pilotNameFromBackend = response.data.pilot.firstName;
+            console.log('👨‍✈️ LiveTrackingScreen: Found pilot name in pilot.firstName:', pilotNameFromBackend);
+          } else if (response.data.pilot?.name) {
+            pilotNameFromBackend = response.data.pilot.name;
+            console.log('👨‍✈️ LiveTrackingScreen: Found pilot name in pilot.name:', pilotNameFromBackend);
+          }
+          
+          if (pilotNameFromBackend) {
+            // Don't transform the name, use it as is from backend
+            console.log('👨‍✈️ LiveTrackingScreen: Setting pilot name from backend:', pilotNameFromBackend);
+            setPilotName(pilotNameFromBackend);
+            setRealDriverName(pilotNameFromBackend); // Store in real driver name state
+          } else {
+            console.warn('⚠️ LiveTrackingScreen: No pilot name found in backend response');
+          }
+          
+          // Update driver rating from backend - check multiple possible fields
+          let ratingFromBackend = null;
+          
+          console.log('🔍 LiveTrackingScreen: Checking for driver rating in response data...');
+          console.log('🔍 LiveTrackingScreen: driver object:', response.data.driver);
+          console.log('🔍 LiveTrackingScreen: pilot object:', response.data.pilot);
+          
+          if (response.data.driver?.rating !== null && response.data.driver?.rating !== undefined) {
+            ratingFromBackend = response.data.driver.rating;
+            console.log('⭐ LiveTrackingScreen: Found driver rating in driver.rating:', ratingFromBackend);
+          } else if (response.data.pilot?.rating !== null && response.data.pilot?.rating !== undefined) {
+            ratingFromBackend = response.data.pilot.rating;
+            console.log('⭐ LiveTrackingScreen: Found driver rating in pilot.rating:', ratingFromBackend);
+          } else if (response.data.driver?.averageRating !== null && response.data.driver?.averageRating !== undefined) {
+            ratingFromBackend = response.data.driver.averageRating;
+            console.log('⭐ LiveTrackingScreen: Found driver rating in driver.averageRating:', ratingFromBackend);
+          } else if (response.data.pilot?.averageRating !== null && response.data.pilot?.averageRating !== undefined) {
+            ratingFromBackend = response.data.pilot.averageRating;
+            console.log('⭐ LiveTrackingScreen: Found driver rating in pilot.averageRating:', ratingFromBackend);
+          } else if (response.data.driver?.driverRating !== null && response.data.driver?.driverRating !== undefined) {
+            ratingFromBackend = response.data.driver.driverRating;
+            console.log('⭐ LiveTrackingScreen: Found driver rating in driver.driverRating:', ratingFromBackend);
+          } else if (response.data.pilot?.driverRating !== null && response.data.pilot?.driverRating !== undefined) {
+            ratingFromBackend = response.data.pilot.driverRating;
+            console.log('⭐ LiveTrackingScreen: Found driver rating in pilot.driverRating:', ratingFromBackend);
+          }
+          
+          console.log('🔍 LiveTrackingScreen: Final ratingFromBackend value:', ratingFromBackend);
+          
+          // Fix: Check if rating exists (including 0) instead of just truthy values
+          if (ratingFromBackend !== null && ratingFromBackend !== undefined) {
+            console.log('⭐ LiveTrackingScreen: Setting driver rating from backend:', ratingFromBackend);
+            const ratingValue = parseFloat(String(ratingFromBackend));
+            console.log('⭐ LiveTrackingScreen: Parsed rating value:', ratingValue);
+            // If rating is 0, it means no rating yet, so we can show a default or skip
+            if (ratingValue > 0) {
+              setDriverRating(ratingValue);
+              setIsNewDriver(false);
+              console.log('⭐ LiveTrackingScreen: Set as rated driver with rating:', ratingValue);
+            } else {
+              console.log('⭐ LiveTrackingScreen: Driver has no rating yet (rating: 0)');
+              // Show "New Driver" indicator for drivers with rating 0
+              setDriverRating(0);
+              setIsNewDriver(true);
+              console.log('⭐ LiveTrackingScreen: Set as new driver');
+            }
+          } else {
+            console.warn('⚠️ LiveTrackingScreen: No driver rating found in backend response');
+            // Don't set fallback rating - only show when real data is available
+          }
+          
+          // Update driver phone number from backend - check multiple possible fields
+          let phoneFromBackend = null;
+          
+          console.log('📞 LiveTrackingScreen: Checking for driver phone in response data...');
+          console.log('📞 LiveTrackingScreen: driver object:', response.data.driver);
+          console.log('📞 LiveTrackingScreen: pilot object:', response.data.pilot);
+          
+          if (response.data.driver?.phoneNumber) {
+            phoneFromBackend = response.data.driver.phoneNumber;
+            console.log('📞 LiveTrackingScreen: Found driver phone in driver.phoneNumber:', phoneFromBackend);
+          } else if (response.data.pilot?.phoneNumber) {
+            phoneFromBackend = response.data.pilot.phoneNumber;
+            console.log('📞 LiveTrackingScreen: Found driver phone in pilot.phoneNumber:', phoneFromBackend);
+          } else if (response.data.driver?.phone) {
+            phoneFromBackend = response.data.driver.phone;
+            console.log('📞 LiveTrackingScreen: Found driver phone in driver.phone:', phoneFromBackend);
+          } else if (response.data.pilot?.phone) {
+            phoneFromBackend = response.data.pilot.phone;
+            console.log('📞 LiveTrackingScreen: Found driver phone in pilot.phone:', phoneFromBackend);
+          }
+          
+          if (phoneFromBackend) {
+            console.log('📞 LiveTrackingScreen: Setting driver phone from backend:', phoneFromBackend);
+            setDriverPhoneNumber(phoneFromBackend);
+          } else {
+            console.warn('⚠️ LiveTrackingScreen: No driver phone found in backend response');
+          }
+          
+          // Update other ride details if available
+          if (response.data.status) {
+            console.log('📊 LiveTrackingScreen: Setting ride status from backend:', response.data.status);
+            setRideStatus(response.data.status);
+          }
+        } else {
+          console.warn('⚠️ LiveTrackingScreen: Failed to fetch ride details:', response.message);
+        }
+      } catch (error) {
+        console.error('❌ LiveTrackingScreen: Error fetching ride details:', error);
+      } finally {
+        setIsLoadingRideData(false);
+        
+        // Fallback: If no rating was set, use the rating from backend response
+        if (driverRating === null) {
+          console.log('🔄 LiveTrackingScreen: No rating set, using fallback logic');
+          // Set as new driver for testing
+          setDriverRating(0);
+          setIsNewDriver(true);
+          console.log('🔄 LiveTrackingScreen: Set fallback rating as new driver');
+        }
+      }
+    };
+
+    fetchRideDetails();
+  }, [rideId, getToken]);
 
   useEffect(() => {
     console.log('🔧 LiveTrackingScreen: Setting up ride status and driver location listeners');
@@ -97,8 +282,6 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       }
     });
 
-
-    
     onDriverLocation((data: { driverId: string; latitude: number; longitude: number; }) => {
       console.log('📍 LiveTrackingScreen received driver location:', data);
       console.log('📍 Expected driverId:', driverInfo?.id);
@@ -135,16 +318,11 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       console.log('🎯 Checking if rideId matches:', data.rideId, '===', rideId);
       
       if (data.rideId === rideId) {
-        console.log('🚗 Driver arrived at pickup location, navigating to MpinEntry');
-        console.log('🚗 Current screen state before navigation:', { rideStatus });
+        console.log('🚗 Driver arrived at pickup location, staying on LiveTrackingScreen');
+        console.log('🚗 OTP is already displayed on this screen for customer to share');
         
-        // Navigate to MPIN entry screen
-        navigation.navigate('MpinEntry', {
-          driver: driverInfo,
-          rideId,
-          destination,
-          origin,
-        });
+        // Stay on LiveTrackingScreen - OTP is already displayed here
+        // Customer can share the OTP with the driver directly from this screen
       } else {
         console.log('🚫 Ignoring driver_arrived event for different ride:', data.rideId, 'expected:', rideId);
       }
@@ -210,8 +388,10 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
 
   const handleCallNow = () => {
     setCallModalVisible(false);
-    if (driverInfo.phone) {
-      Linking.openURL(`tel:${driverInfo.phone}`);
+    const phoneToCall = driverPhoneNumber || driverInfo.phone;
+    if (phoneToCall) {
+      console.log('📞 LiveTrackingScreen: Calling driver with phone:', phoneToCall);
+      Linking.openURL(`tel:${phoneToCall}`);
     } else {
       Alert.alert('No phone number available');
     }
@@ -238,32 +418,6 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     });
   };
 
-  const getStatusText = () => {
-    switch (rideStatus) {
-      case 'arriving':
-        return `${driverInfo.name || 'Pilot'} is arriving in ${driver?.eta || estimate?.eta || 'N/A'} mins`;
-      case 'picked_up':
-        return 'Ride started - Heading to destination';
-      case 'in_progress':
-        return `${driver?.eta || estimate?.eta || 'N/A'} mins to destination`;
-      default:
-        return 'Tracking your ride...';
-    }
-  };
-
-  const getProgressPercentage = () => {
-    switch (rideStatus) {
-      case 'arriving':
-        return '33%';
-      case 'picked_up':
-        return '66%';
-      case 'in_progress':
-        return '100%';
-      default:
-        return '0%';
-    }
-  };
-
   const onShareTrip = async () => {
     try {
       await Share.share({
@@ -274,35 +428,13 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     }
   };
 
-
-
   return (
     <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.white} />
+      
+      {/* Connection Status */}
       <ConnectionStatus />
-      {/* Call Modal */}
-      <Modal
-        visible={callModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCallModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.callModal}>
-            <Text style={styles.modalTitle}>Call Pilot</Text>
-            <Text style={styles.modalDriverName}>{driverInfo.name || 'Pilot'}</Text>
-            <Text style={styles.modalPhone}>{driverInfo.phone || 'No phone number'}</Text>
-            <View style={{ flexDirection: 'row', marginTop: 20 }}>
-              <TouchableOpacity style={styles.modalButton} onPress={handleCallNow}>
-                <Ionicons name="call" size={20} color="#fff" />
-                <Text style={styles.modalButtonText}>Call Now</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#ccc', marginLeft: 10 }]} onPress={() => setCallModalVisible(false)}>
-                <Text style={[styles.modalButtonText, { color: '#222' }]}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+
       {/* Map Container */}
       <View style={styles.mapContainer}>
         <MapView
@@ -324,6 +456,16 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           }}
+          showsUserLocation={true}
+          showsMyLocationButton={false}
+          showsCompass={false}
+          showsScale={false}
+          showsTraffic={false}
+          showsBuildings={false}
+          showsIndoors={false}
+          showsIndoorLevelPicker={false}
+          showsPointsOfInterest={false}
+          mapType="standard"
         >
           {/* Polyline from driver to pickup (origin) when arriving */}
           {rideStatus === 'arriving' && driverLocation && origin && origin.latitude && origin.longitude && (
@@ -332,118 +474,152 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
                 { latitude: driverLocation.latitude, longitude: driverLocation.longitude },
                 { latitude: origin.latitude, longitude: origin.longitude }
               ]}
-              strokeColor="#007AFF"
+              strokeColor={Colors.primary}
               strokeWidth={4}
+              lineDashPattern={[10, 5]}
             />
           )}
           {/* Show driver's path as polyline after pickup if needed */}
           {rideStatus !== 'arriving' && driverPath.length > 1 && (
             <Polyline
               coordinates={driverPath}
-              strokeColor="#007AFF"
+              strokeColor={Colors.primary}
               strokeWidth={4}
             />
           )}
           {driverLocation && (
-            <Marker coordinate={driverLocation} title="Driver" pinColor="blue" />
+            <Marker coordinate={driverLocation} title="Driver">
+              <View style={styles.driverMarker}>
+                <Ionicons name="car" size={20} color={Colors.white} />
+              </View>
+            </Marker>
           )}
           {/* Pickup marker */}
           {origin && origin.latitude && origin.longitude && (
-            <Marker coordinate={{ latitude: origin.latitude, longitude: origin.longitude }} title="Pickup" pinColor="#00C853" />
+            <Marker coordinate={{ latitude: origin.latitude, longitude: origin.longitude }} title="Pickup">
+              <View style={styles.pickupMarker}>
+                <Ionicons name="location" size={24} color={Colors.white} />
+              </View>
+            </Marker>
           )}
           {destination && destination.latitude && destination.longitude && (
-            <Marker coordinate={{ latitude: destination.latitude, longitude: destination.longitude }} title="Destination" pinColor="#FF5A5F" />
+            <Marker coordinate={{ latitude: destination.latitude, longitude: destination.longitude }} title="Destination" pinColor={Colors.coral} />
           )}
         </MapView>
+      </View>
 
-        {/* Status Overlay */}
-        <View style={styles.statusOverlay}>
-          <View style={styles.statusContainer}>
-            <Text style={styles.statusText}>{getStatusText()}</Text>
-            <View style={styles.progressBar}>
-              <View
-                style={[
-                  styles.progressFill,
-                  { width: getProgressPercentage() },
-                ]}
-              />
+      {/* Bottom Section */}
+      <View style={styles.bottomSection}>
+        {/* Driver Arrival Status */}
+        <View style={styles.arrivalSection}>
+          <Text style={styles.arrivalText}>{realDriverName || pilotName} is arriving soon</Text>
+        </View>
+
+        {/* Driver and Vehicle Details */}
+        <View style={styles.driverSection}>
+          <View style={styles.driverInfo}>
+            <Image 
+              source={driverInfo.photo ? { uri: driverInfo.photo } : Images.SCOOTER_1} 
+              style={styles.driverPhoto} 
+            />
+          </View>
+          
+          <View style={styles.driverDetails}>
+            <Text style={styles.driverName}>{realDriverName || pilotName}</Text>
+            <Text style={styles.licensePlate}>{driverInfo.vehicleNumber || '3M53AF2'}</Text>
+            <Text style={styles.vehicleInfo}>
+              {driverInfo.vehicleModel || 'Honda Civic'} - {driverInfo.vehicleColor || 'Silver'}
+            </Text>
+            <View style={styles.ratingContainer}>
+              {driverRating !== null && (
+                <>
+                  {isNewDriver ? (
+                    <View style={styles.newDriverContainer}>
+                      <Ionicons name="star" size={16} color={Colors.warning} />
+                      <Text style={styles.newDriverText}>New Driver</Text>
+                    </View>
+                  ) : (
+                    <>
+                      <View style={styles.starsContainer}>
+                        {[1, 2, 3, 4, 5].map((star) => (
+                          <Ionicons
+                            key={star}
+                            name={star <= driverRating ? "star" : "star-outline"}
+                            size={16}
+                            color={star <= driverRating ? Colors.warning : Colors.gray300}
+                          />
+                        ))}
+                      </View>
+                      <Text style={styles.ratingText}>{driverRating.toFixed(1)}</Text>
+                    </>
+                  )}
+                </>
+              )}
             </View>
           </View>
+          
+          {/* ETA Badge */}
+          <View style={styles.etaBadge}>
+            <Text style={styles.etaText}>
+              {(driverInfo.eta || '5 minutes').replace(/\D/g, '') + ' MIN'}
+            </Text>
+          </View>
+        </View>
+
+        {/* PIN Display */}
+        <View style={styles.pinSection}>
+          <PinDisplay 
+            pin={otpCode} 
+            onShare={onShareTrip}
+          />
         </View>
 
         {/* Action Buttons */}
         <View style={styles.actionButtons}>
-          <TouchableOpacity style={styles.actionButton} onPress={handleCall}>
-            <Ionicons name="call" size={20} color={Colors.white} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.actionButton} onPress={handleChat}>
-            <Ionicons name="chatbubble" size={20} color={Colors.white} />
-          </TouchableOpacity>
-          <TouchableOpacity style={[styles.actionButton, styles.sosButton]} onPress={handleSOS}>
-            <Ionicons name="warning" size={20} color={Colors.white} />
-          </TouchableOpacity>
-
-        </View>
-      </View>
-
-      {/* Driver Info Card */}
-      <View style={styles.driverCard}>
-        <View style={styles.driverInfo}>
-          <Image source={driverInfo.photo ? { uri: driverInfo.photo } : Images.SCOOTER_1} style={styles.driverPhoto} />
-          <View style={styles.driverDetails}>
-            <Text style={styles.driverName}>{driverInfo.name || 'Pilot'}</Text>
-            <View style={styles.ratingContainer}>
-              <Ionicons name="star" size={16} color={Colors.accent} />
-              <Text style={styles.rating}>{driverInfo.rating || '-'}</Text>
-            </View>
-            <Text style={styles.vehicleInfo}>
-              {driverInfo.vehicleModel || ''} • {driverInfo.vehicleNumber || ''}
-            </Text>
-          </View>
-          <View style={styles.etaContainer}>
-            <Text style={styles.etaText}>{driver?.eta || estimate?.eta || 'N/A'} min</Text>
-            <Text style={styles.etaLabel}>ETA</Text>
-          </View>
-        </View>
-      </View>
-
-      {/* Trip Info */}
-      <View style={styles.tripCard}>
-        <View style={styles.routeInfo}>
-          <View style={styles.routePoint}>
-            <View style={styles.pickupDot} />
-            <View style={styles.routeDetails}>
-              <Text style={styles.routeLabel}>Pickup</Text>
-              <Text style={styles.routeAddress}>Your current location</Text>
-            </View>
-          </View>
-
-          <View style={styles.routeLine} />
-
-          <View style={styles.routePoint}>
-            <View style={styles.destinationDot} />
-            <View style={styles.routeDetails}>
-              <Text style={styles.routeLabel}>Destination</Text>
-              <Text style={styles.routeAddress}>{destination.name}</Text>
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.tripActions}>
-          <TouchableOpacity style={styles.shareButton} onPress={onShareTrip}>
-            <Ionicons name="share" size={16} color={Colors.primary} />
-            <Text style={styles.shareText}>Share Trip</Text>
+          <TouchableOpacity style={styles.messageButton} onPress={handleChat}>
+            <Text style={styles.messageButtonText}>Send a message</Text>
           </TouchableOpacity>
           
-          {rideStatus === 'in_progress' && (
-            <TouchableOpacity style={styles.completeButton} onPress={handleCompleteRide}>
-              <Text style={styles.completeText}>Complete Ride</Text>
+          <View style={styles.iconButtons}>
+            <TouchableOpacity style={styles.iconButton} onPress={handleCall}>
+              <Ionicons name="call" size={20} color={Colors.primary} />
             </TouchableOpacity>
-          )}
+            
+            <TouchableOpacity style={styles.iconButton} onPress={onShareTrip}>
+              <Ionicons name="share" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.emergencyButton} onPress={handleSOS}>
+              <Ionicons name="shield" size={20} color={Colors.primary} />
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
-
+      {/* Call Modal */}
+      <Modal
+        visible={callModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCallModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.callModal}>
+            <Text style={styles.modalTitle}>Call Pilot</Text>
+            <Text style={styles.modalDriverName}>{pilotName}</Text>
+            <Text style={styles.modalPhone}>{driverPhoneNumber || driverInfo.phone || 'No phone number'}</Text>
+            <View style={{ flexDirection: 'row', marginTop: 20 }}>
+              <TouchableOpacity style={styles.modalButton} onPress={handleCallNow}>
+                <Ionicons name="call" size={20} color="#fff" />
+                <Text style={styles.modalButtonText}>Call Now</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#ccc', marginLeft: 10 }]} onPress={() => setCallModalVisible(false)}>
+                <Text style={[styles.modalButtonText, { color: '#222' }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -451,256 +627,184 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: Colors.white,
   },
   mapContainer: {
     flex: 1,
-    backgroundColor: Colors.gray100,
-    position: 'relative',
-  },
-  mapPlaceholder: {
-    flex: 1,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  mapText: {
-    marginTop: Layout.spacing.sm,
-    fontSize: Layout.fontSize.md,
-    color: Colors.gray400,
-  },
-  statusIndicator: {
-    marginTop: Layout.spacing.sm,
-    fontSize: Layout.fontSize.sm,
-    fontWeight: 'bold',
-    color: Colors.primary,
-  },
-  statusOverlay: {
-    position: 'absolute',
-    top: Layout.spacing.lg,
-    left: Layout.spacing.lg,
-    right: Layout.spacing.lg,
-  },
-  statusContainer: {
     backgroundColor: Colors.white,
-    borderRadius: Layout.borderRadius.lg,
-    padding: Layout.spacing.md,
+  },
+  driverMarker: {
+    backgroundColor: Colors.primary,
+    borderRadius: 20,
+    padding: 10,
+    borderWidth: 3,
+    borderColor: Colors.white,
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
   },
-  statusText: {
-    fontSize: Layout.fontSize.md,
+  pickupMarker: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: Colors.success, // Green pin
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: Colors.white,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  bottomSection: {
+    backgroundColor: Colors.white,
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: -4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  arrivalSection: {
+    alignItems: 'center',
+    marginBottom: 24,
+  },
+  arrivalText: {
+    fontSize: 20,
     fontWeight: '600',
     color: Colors.text,
     textAlign: 'center',
-    marginBottom: Layout.spacing.sm,
   },
-  progressBar: {
-    height: 4,
-    backgroundColor: Colors.gray200,
-    borderRadius: 2,
-    overflow: 'hidden',
-  },
-  progressFill: {
-    height: '100%',
-    backgroundColor: Colors.primary,
-    borderRadius: 2,
-  },
-  actionButtons: {
-    position: 'absolute',
-    bottom: Layout.spacing.lg,
-    right: Layout.spacing.lg,
-    flexDirection: 'column',
-  },
-  actionButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: Colors.primary,
+  driverSection: {
+    flexDirection: 'row',
     alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: Layout.spacing.sm,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  sosButton: {
-    backgroundColor: Colors.error,
-  },
-  driverCard: {
-    backgroundColor: Colors.white,
-    marginHorizontal: Layout.spacing.lg,
-    marginTop: Layout.spacing.lg,
-    borderRadius: Layout.borderRadius.lg,
-    padding: Layout.spacing.lg,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    marginBottom: 24,
+    position: 'relative', // Add this for absolute positioning of ETA badge
   },
   driverInfo: {
     flexDirection: 'row',
     alignItems: 'center',
+    marginRight: 16,
   },
   driverPhoto: {
     width: 60,
     height: 60,
     borderRadius: 30,
-    marginRight: Layout.spacing.md,
+    marginRight: 12,
+    borderWidth: 2,
+    borderColor: Colors.primary,
+  },
+  vehicleImage: {
+    width: 60,
+    height: 36,
+    backgroundColor: Colors.gray200,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   driverDetails: {
     flex: 1,
   },
   driverName: {
-    fontSize: Layout.fontSize.lg,
+    fontSize: 18,
     fontWeight: '600',
     color: Colors.text,
-    marginBottom: Layout.spacing.xs,
+    marginBottom: 6,
   },
-  ratingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Layout.spacing.xs,
-  },
-  rating: {
-    marginLeft: Layout.spacing.xs,
-    fontSize: Layout.fontSize.sm,
-    fontWeight: '600',
+  licensePlate: {
+    fontSize: 16,
+    fontWeight: '700',
     color: Colors.text,
+    marginBottom: 4,
   },
   vehicleInfo: {
-    fontSize: Layout.fontSize.sm,
+    fontSize: 14,
     color: Colors.textSecondary,
+    fontWeight: '500',
   },
-  etaContainer: {
+  pinSection: {
     alignItems: 'center',
+    marginBottom: 24,
   },
-  etaText: {
-    fontSize: Layout.fontSize.lg,
-    fontWeight: 'bold',
-    color: Colors.primary,
-  },
-  etaLabel: {
-    fontSize: Layout.fontSize.xs,
-    color: Colors.textSecondary,
-  },
-  tripCard: {
-    backgroundColor: Colors.white,
-    margin: Layout.spacing.lg,
-    borderRadius: Layout.borderRadius.lg,
-    padding: Layout.spacing.lg,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  routeInfo: {
-    marginBottom: Layout.spacing.md,
-  },
-  routePoint: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  pickupDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.primary,
-    marginRight: Layout.spacing.md,
-  },
-  destinationDot: {
-    width: 12,
-    height: 12,
-    borderRadius: 6,
-    backgroundColor: Colors.coral,
-    marginRight: Layout.spacing.md,
-  },
-  routeDetails: {
-    flex: 1,
-    paddingVertical: Layout.spacing.sm,
-  },
-  routeLabel: {
-    fontSize: Layout.fontSize.sm,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  routeAddress: {
-    fontSize: Layout.fontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: 2,
-  },
-  routeLine: {
-    width: 2,
-    height: 20,
-    backgroundColor: Colors.gray300,
-    marginLeft: 5,
-    marginVertical: 4,
-  },
-  tripActions: {
+  actionButtons: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingTop: Layout.spacing.md,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
   },
-  shareButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
+  messageButton: {
     backgroundColor: Colors.gray50,
-    paddingHorizontal: Layout.spacing.md,
-    paddingVertical: Layout.spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 25,
+    flex: 1,
+    marginRight: 16,
   },
-  shareText: {
-    marginLeft: Layout.spacing.xs,
-    fontSize: Layout.fontSize.sm,
-    fontWeight: '600',
-    color: Colors.primary,
+  messageButtonText: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: Colors.textSecondary,
+    textAlign: 'center',
   },
-  completeButton: {
-    backgroundColor: Colors.success,
-    paddingHorizontal: Layout.spacing.md,
-    paddingVertical: Layout.spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
+  iconButtons: {
+    flexDirection: 'row',
+    gap: 12,
   },
-  completeText: {
-    fontSize: Layout.fontSize.sm,
-    fontWeight: '600',
-    color: Colors.white,
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  cameraCount: {
+    fontSize: 10,
+    color: Colors.textSecondary,
+    marginTop: -8,
+    marginLeft: 8,
   },
   modalOverlay: {
     flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
+    backgroundColor: 'rgba(0,0,0,0.5)',
     justifyContent: 'center',
     alignItems: 'center',
   },
   callModal: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 24,
+    backgroundColor: Colors.white,
+    borderRadius: 20,
+    padding: 32,
     alignItems: 'center',
-    width: 300,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 8,
+    width: 320,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.25,
+    shadowRadius: 12,
+    elevation: 10,
   },
   modalTitle: {
-    fontSize: 20,
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 12,
+    marginBottom: 16,
     color: Colors.primary,
   },
   modalDriverName: {
-    fontSize: 18,
+    fontSize: 20,
     fontWeight: '600',
     marginBottom: 8,
     color: Colors.text,
@@ -708,20 +812,78 @@ const styles = StyleSheet.create({
   modalPhone: {
     fontSize: 16,
     color: Colors.textSecondary,
-    marginBottom: 16,
+    marginBottom: 24,
   },
   modalButton: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: Colors.primary,
-    paddingHorizontal: 18,
-    paddingVertical: 10,
-    borderRadius: 8,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 12,
   },
   modalButtonText: {
-    color: '#fff',
+    color: Colors.white,
     fontWeight: 'bold',
     fontSize: 16,
     marginLeft: 8,
   },
+  ratingContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  starsContainer: {
+    flexDirection: 'row',
+    marginRight: 8,
+  },
+  ratingText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.text,
+  },
+  newDriverContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fef3c7', // Light warning background
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  newDriverText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: Colors.warning,
+    marginLeft: 4,
+  },
+  etaBadge: {
+    backgroundColor: '#1e40af', // Blue color matching PIN
+    borderRadius: 16,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    position: 'absolute',
+    top: 0,
+    right: 0,
+  },
+  etaText: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: Colors.white,
+  },
+  emergencyButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.gray200,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+
 });
