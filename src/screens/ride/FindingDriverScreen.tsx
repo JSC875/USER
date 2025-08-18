@@ -27,6 +27,8 @@ import {
   onRideTimeout
 } from '../../utils/socket';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
+import { useAuth } from '@clerk/clerk-expo';
+import { rideService } from '../../services/rideService';
 
 const { width } = Dimensions.get('window');
 
@@ -172,6 +174,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
   const [searchText, setSearchText] = useState('Finding nearby pilots...');
   const [isDriverFound, setIsDriverFound] = useState(false);
   const [driverInfo, setDriverInfo] = useState<any>(null);
+  const { getToken } = useAuth();
   
   // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
   const transformDriverName = (name: string) => {
@@ -456,15 +459,54 @@ export default function FindingDriverScreen({ navigation, route }: any) {
     setShowCancelModal(true);
   };
 
-  const handleConfirmCancel = (reason: string) => {
-    // Emit cancel ride event to server with reason
-    const socket = getSocket();
-    if (socket && rideId) {
-      console.log('🚫 User cancelled ride, emitting cancel_ride with reason:', reason);
-      socket.emit('cancel_ride', { rideId, reason });
+  const handleConfirmCancel = async (reason: string) => {
+    try {
+      console.log('🚫 User cancelled ride with reason:', reason);
+      
+      // Call the cancel ride API endpoint
+      if (rideId && getToken) {
+        console.log('📡 Calling cancel ride API for ride ID:', rideId);
+        const token = await getToken();
+        if (!token) {
+          throw new Error('Authentication token not available');
+        }
+        const result = await rideService.cancelRide(rideId, () => Promise.resolve(token));
+        console.log('✅ Cancel ride API response:', result);
+        
+        // Emit socket event to notify server about cancellation (preserve socket events)
+        const socket = getSocket();
+        if (socket) {
+          console.log('🔌 Emitting cancel_ride socket event');
+          socket.emit('cancel_ride', { rideId, reason });
+        }
+        
+        // Close modal first
+        setShowCancelModal(false);
+        
+        // Navigate immediately without alert
+        console.log('🚀 Navigating to home screen immediately after successful cancellation');
+        navigation.replace('TabNavigator', { screen: 'Home' });
+        
+      } else {
+        throw new Error('Missing rideId or authentication token');
+      }
+    } catch (error) {
+      console.error('❌ Error cancelling ride:', error);
+      
+      // Show error message but still try to emit socket event
+      const socket = getSocket();
+      if (socket && rideId) {
+        console.log('🔌 Emitting cancel_ride socket event as fallback');
+        socket.emit('cancel_ride', { rideId, reason });
+      }
+      
+      // Close modal first
+      setShowCancelModal(false);
+      
+      // Navigate immediately even on error
+      console.log('🚀 Navigating to home screen after error');
+      navigation.replace('TabNavigator', { screen: 'Home' });
     }
-    setShowCancelModal(false);
-    navigation.navigate('TabNavigator', { screen: 'Home' });
   };
 
   const formatSearchTime = (seconds: number) => {
