@@ -23,7 +23,18 @@
     "submit": "إرسال",
     "continue": "متابعة",
     "skip": "تخطي",
-    "done": "تم"
+    "done": "تم",
+    "gender": "الجنس",
+    "all": "الكل",
+    "retry": "إعادة المحاولة",
+    "current": "الحالي",
+    "fullName": "الاسم الكامل",
+    "phoneNumber": "رقم الهاتف",
+    "dateOfBirth": "تاريخ الميلاد",
+    "customer": "العميل",
+    "user": "المستخدم",
+    "notAvailable": "غير متاح",
+    "currencySymbol": "₹"
   },
   "auth": {
     "login": "تسجيل الدخول",

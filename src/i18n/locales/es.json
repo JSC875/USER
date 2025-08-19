@@ -23,7 +23,18 @@
     "submit": "Enviar",
     "continue": "Continuar",
     "skip": "Omitir",
-    "done": "Hecho"
+    "done": "Hecho",
+    "gender": "Género",
+    "all": "Todos",
+    "retry": "Reintentar",
+    "current": "Actual",
+    "fullName": "Nombre Completo",
+    "phoneNumber": "Número de Teléfono",
+    "dateOfBirth": "Fecha de Nacimiento",
+    "customer": "Cliente",
+    "user": "Usuario",
+    "notAvailable": "No Disponible",
+    "currencySymbol": "₹"
   },
   "auth": {
     "login": "Iniciar Sesión",
