@@ -26,30 +26,6 @@ import DropLocationSelectorScreen from '../screens/home/DropLocationSelectorScre
 import DropPinLocationScreen from '../screens/home/DropPinLocationScreen';
 import RideOptionsScreen from '../screens/home/RideOptionsScreen';
 
-// Ride Screens
-import FindingDriverScreen from '../screens/ride/FindingDriverScreen';
-import LiveTrackingScreen from '../screens/ride/LiveTrackingScreen';
-import MpinEntryScreen from '../screens/ride/MpinEntryScreen';
-import RideInProgressScreen from '../screens/ride/RideInProgressScreen';
-import ChatScreen from '../screens/ride/ChatScreen';
-import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
-
-
-// Profile Screens
-import ProfileScreen from '../screens/profile/ProfileScreen';
-import RideHistoryScreen from '../screens/profile/RideHistoryScreen';
-import HistoryDetailScreen from '../screens/profile/HistoryDetailScreen';
-
-import SettingsScreen from '../screens/profile/SettingsScreen';
-import EditProfileScreen from '../screens/profile/EditProfileScreen';
-import PersonalDetailsScreen from '../screens/profile/PersonalDetailsScreen';
-import AboutScreen from '../screens/profile/AboutScreen';
-import PaymentScreen from '../screens/profile/PaymentScreen';
-import RidePaymentScreen from '../screens/ride/PaymentScreen';
-import WebViewPaymentScreen from '../screens/ride/WebViewPaymentScreen';
-import PostRidePaymentScreen from '../screens/ride/PostRidePaymentScreen';
-import PrivacySecurityScreen from '../screens/profile/PrivacySecurityScreen';
-
 // Support Screens
 import HelpSupportScreen from '../screens/support/HelpSupportScreen';
 import RideIssuesScreen from '../screens/support/RideIssuesScreen';
@@ -65,14 +41,39 @@ import PaymentsIssuesScreen from '../screens/support/PaymentsIssuesScreen';
 import OtherIssuesScreen from '../screens/support/OtherIssuesScreen';
 import TermsConditionScreen from '../screens/support/TermsConditionScreen';
 
+// Ride Screens
+import FindingDriverScreen from '../screens/ride/FindingDriverScreen';
+import LiveTrackingScreen from '../screens/ride/LiveTrackingScreen';
+import RideInProgressScreen from '../screens/ride/RideInProgressScreen';
+import ChatScreen from '../screens/ride/ChatScreen';
+import RideSummaryScreen from '../screens/ride/RideSummaryScreen';
+import RideDetailsScreen from '../screens/ride/RideDetailsScreen';
+
+// Profile Screens
+import ProfileScreen from '../screens/profile/ProfileScreen';
+import RideHistoryScreen from '../screens/profile/RideHistoryScreen';
+import HistoryDetailScreen from '../screens/profile/HistoryDetailScreen';
+import SettingsScreen from '../screens/profile/SettingsScreen';
+import EditProfileScreen from '../screens/profile/EditProfileScreen';
+import PersonalDetailsScreen from '../screens/profile/PersonalDetailsScreen';
+import AboutScreen from '../screens/profile/AboutScreen';
+import PaymentScreen from '../screens/profile/PaymentScreen';
+import RidePaymentScreen from '../screens/ride/PaymentScreen';
+import WebViewPaymentScreen from '../screens/ride/WebViewPaymentScreen';
+import PostRidePaymentScreen from '../screens/ride/PostRidePaymentScreen';
+import PrivacySecurityScreen from '../screens/profile/PrivacySecurityScreen';
+import LanguageSettingsScreen from '../screens/profile/LanguageSettingsScreen';
+
 import { Colors } from '../constants/Colors';
 import { Layout } from '../constants/Layout';
+import { useTranslation } from 'react-i18next';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
 function TabNavigator() {
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
   
   return (
     <Tab.Navigator
@@ -124,10 +125,9 @@ function TabNavigator() {
         headerShown: false,
       })}
     >
-      <Tab.Screen name="Home" component={HomeScreen} />
-      <Tab.Screen name="History" component={RideHistoryScreen} />
-      
-      <Tab.Screen name="Profile" component={ProfileScreen} />
+      <Tab.Screen name="Home" component={HomeScreen} options={{ title: t('common.home') }} />
+      <Tab.Screen name="History" component={RideHistoryScreen} options={{ title: t('common.history') }} />
+      <Tab.Screen name="Profile" component={ProfileScreen} options={{ title: t('common.profile') }} />
     </Tab.Navigator>
   );
 }
@@ -194,7 +194,6 @@ function MainNavigator() {
       {/* Ride Flow */}
       <Stack.Screen name="FindingDriver" component={FindingDriverScreen} />
       <Stack.Screen name="LiveTracking" component={LiveTrackingScreen} />
-      <Stack.Screen name="MpinEntry" component={MpinEntryScreen} />
       <Stack.Screen name="RideInProgress" component={RideInProgressScreen} />
       <Stack.Screen name="Chat" component={ChatScreen} />
       <Stack.Screen name="RidePayment" component={RidePaymentScreen as any} />
@@ -202,10 +201,12 @@ function MainNavigator() {
       <Stack.Screen name="PostRidePayment" component={PostRidePaymentScreen as any} />
 
       <Stack.Screen name="RideSummary" component={RideSummaryScreen} />
+      <Stack.Screen name="RideDetails" component={RideDetailsScreen} />
       <Stack.Screen name="RateDriver" component={require('../screens/ride/RateDriverScreen').default} />
       
       {/* Profile Flow */}
       <Stack.Screen name="Settings" component={SettingsScreen} />
+      <Stack.Screen name="LanguageSettings" component={LanguageSettingsScreen} />
       <Stack.Screen name="EditProfile" component={EditProfileScreen} />
       <Stack.Screen name="PersonalDetails" component={PersonalDetailsScreen} />
       <Stack.Screen name="About" component={AboutScreen} />
@@ -214,8 +215,8 @@ function MainNavigator() {
       <Stack.Screen name="HistoryDetail" component={HistoryDetailScreen} />
       
       {/* Debug Flow */}
-      <Stack.Screen name="ConnectionTest" component={require('../screens/debug/ConnectionTestScreen').default} />
-      <Stack.Screen name="LivePaymentTest" component={require('../screens/debug/LivePaymentTestScreen').default} />
+        <Stack.Screen name="ConnectionTest" component={require('../screens/debug/ConnectionTestScreen').default} />
+  <Stack.Screen name="LivePaymentTest" component={require('../screens/debug/LivePaymentTestScreen').default} />
     </Stack.Navigator>
   );
 }

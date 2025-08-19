@@ -12,9 +12,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useUser } from '@clerk/clerk-expo';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 export default function SettingsScreen({ navigation }: any) {
   const { user } = useUser();
+  const { t } = useTranslation();
+  const { currentLanguage } = useLanguage();
   const [notifications, setNotifications] = useState(true);
   const [locationServices, setLocationServices] = useState(true);
   const [autoPayment, setAutoPayment] = useState(false);
@@ -43,14 +47,25 @@ export default function SettingsScreen({ navigation }: any) {
     return user?.imageUrl || '';
   };
 
+  const getCurrentLanguageName = () => {
+    const languageMap: { [key: string]: string } = {
+      'en': 'English',
+      'es': 'Español',
+      'fr': 'Français',
+      'hi': 'हिंदी',
+      'ar': 'العربية'
+    };
+    return languageMap[currentLanguage] || currentLanguage.toUpperCase();
+  };
+
   const settingSections = [
     {
-      title: 'Account',
+      title: t('profile.account', 'Account'),
       items: [
         {
           icon: 'person-outline',
-          title: 'Personal Information',
-          subtitle: 'Update your profile details',
+          title: t('common.personalInformation'),
+          subtitle: t('common.updateProfileDetails'),
           action: () => navigation.navigate('PersonalDetails', {
             name: getUserName(),
             email: getUserEmail(),
@@ -63,36 +78,42 @@ export default function SettingsScreen({ navigation }: any) {
         },
         {
           icon: 'shield-checkmark-outline',
-          title: 'Privacy & Security',
-          subtitle: 'Manage your privacy settings',
+          title: t('common.privacySecurity'),
+          subtitle: t('common.managePrivacySettings'),
           action: () => navigation.navigate('PrivacySecurity'),
         },
         
       ],
     },
     {
-      title: 'Preferences',
+      title: t('profile.preferences', 'Preferences'),
       items: [
         {
+          icon: 'language-outline',
+          title: t('profile.language'),
+          subtitle: `Current: ${getCurrentLanguageName()}`,
+          action: () => navigation.navigate('LanguageSettings'),
+        },
+        {
           icon: 'notifications-outline',
-          title: 'Push Notifications',
-          subtitle: 'Receive ride updates and offers',
+          title: t('common.pushNotifications'),
+          subtitle: t('common.receiveRideUpdates'),
           toggle: true,
           value: notifications,
           onToggle: setNotifications,
         },
         {
           icon: 'location-outline',
-          title: 'Location Services',
-          subtitle: 'Allow location access for better experience',
+          title: t('common.locationServices'),
+          subtitle: t('common.allowLocationAccess'),
           toggle: true,
           value: locationServices,
           onToggle: setLocationServices,
         },
         {
           icon: 'card-outline',
-          title: 'Auto Payment',
-          subtitle: 'Automatically pay for rides',
+          title: t('common.autoPayment'),
+          subtitle: t('common.automaticallyPayForRides'),
           toggle: true,
           value: autoPayment,
           onToggle: setAutoPayment,
@@ -100,47 +121,47 @@ export default function SettingsScreen({ navigation }: any) {
       ],
     },
     {
-      title: 'Support',
+      title: t('support.helpSupport', 'Support'),
       items: [
         {
           icon: 'help-circle-outline',
-          title: 'Help Center',
-          subtitle: 'Get help with your account',
+          title: t('common.helpCenter'),
+          subtitle: t('common.getHelpWithAccount'),
           action: () => console.log('Help Center'),
         },
         {
           icon: 'chatbubble-outline',
-          title: 'Contact Support',
-          subtitle: 'Chat with our support team',
+          title: t('common.contactSupport'),
+          subtitle: t('common.chatWithSupportTeam'),
           action: () => console.log('Contact Support'),
         },
         {
           icon: 'star-outline',
-          title: 'Rate the App',
-          subtitle: 'Share your feedback',
+          title: t('common.rateApp'),
+          subtitle: t('common.shareYourFeedback'),
           action: () => console.log('Rate App'),
         },
       ],
     },
     {
-      title: 'Legal',
+      title: t('profile.legal', 'Legal'),
       items: [
         {
           icon: 'document-text-outline',
-          title: 'Terms of Service',
-          subtitle: 'Read our terms and conditions',
+          title: t('common.termsOfService'),
+          subtitle: t('common.readTermsAndConditions'),
           action: () => console.log('Terms'),
         },
         {
           icon: 'shield-outline',
-          title: 'Privacy Policy',
-          subtitle: 'Learn how we protect your data',
+          title: t('common.privacyPolicy'),
+          subtitle: t('common.learnHowWeProtectData'),
           action: () => console.log('Privacy Policy'),
         },
         {
           icon: 'share-outline',
-          title: 'Data Sharing',
-          subtitle: 'Control how your data is shared',
+          title: t('common.dataSharing'),
+          subtitle: t('common.controlDataSharing'),
           toggle: true,
           value: shareData,
           onToggle: setShareData,
@@ -190,7 +211,7 @@ export default function SettingsScreen({ navigation }: any) {
         >
           <Ionicons name="arrow-back" size={24} color={Colors.text} />
         </TouchableOpacity>
-        <Text style={styles.headerTitle}>Settings</Text>
+        <Text style={styles.headerTitle}>{t('navigation.settings')}</Text>
         <View style={styles.placeholder} />
       </View>
 
@@ -204,11 +225,8 @@ export default function SettingsScreen({ navigation }: any) {
           </View>
         ))}
 
-        {/* App Info */}
-        <View style={styles.appInfo}>
-          <Text style={styles.appVersion}>RideSwift v1.0.0</Text>
-          <Text style={styles.appBuild}>Build 2024.01.15</Text>
-        </View>
+        {/* Bottom Margin */}
+        <View style={styles.bottomMargin} />
       </ScrollView>
     </SafeAreaView>
   );
@@ -314,5 +332,8 @@ const styles = StyleSheet.create({
     fontSize: Layout.fontSize.xs,
     color: Colors.textLight,
     marginTop: Layout.spacing.xs,
+  },
+  bottomMargin: {
+    height: Layout.spacing.xl,
   },
 });

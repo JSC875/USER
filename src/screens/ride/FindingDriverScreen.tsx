@@ -27,6 +27,9 @@ import {
   onRideTimeout
 } from '../../utils/socket';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
+import { useAuth } from '@clerk/clerk-expo';
+import { rideService } from '../../services/rideService';
+import { useTranslation } from 'react-i18next';
 
 const { width } = Dimensions.get('window');
 
@@ -34,15 +37,16 @@ function CancelRideModal({ visible, onClose, onConfirm }: { visible: boolean; on
   const [selectedReason, setSelectedReason] = useState<string>('');
   const anim = useRef(new Animated.Value(0)).current;
   const insets = useSafeAreaInsets();
+  const { t } = useTranslation();
 
   const cancelReasons = [
-    'Found another ride',
-    'Changed my mind',
-    'Emergency situation',
-    'Wrong pickup location',
-    'Price too high',
-    'Waiting too long',
-    'Other'
+    t('ride.cancelReasons.foundAnotherRide'),
+    t('ride.cancelReasons.changedMind'),
+    t('ride.cancelReasons.emergency'),
+    t('ride.cancelReasons.wrongLocation'),
+    t('ride.cancelReasons.priceTooHigh'),
+    t('ride.cancelReasons.waitingTooLong'),
+    t('ride.cancelReasons.other')
   ];
 
   React.useEffect(() => {
@@ -80,10 +84,10 @@ function CancelRideModal({ visible, onClose, onConfirm }: { visible: boolean; on
         transform: [{ scale: anim.interpolate({ inputRange: [0, 1], outputRange: [0.9, 1] }) }],
       }}>
         <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#222', marginBottom: 16, textAlign: 'center' }}>
-          Cancel Ride
+          {t('ride.cancelRideTitle')}
         </Text>
         <Text style={{ fontSize: 16, color: '#666', marginBottom: 20, textAlign: 'center' }}>
-          Please select a reason for cancelling this ride
+          {t('ride.cancelRideMessage')}
         </Text>
         
         <ScrollView style={{ maxHeight: 300 }} showsVerticalScrollIndicator={false}>
@@ -169,7 +173,9 @@ function CancelRideModal({ visible, onClose, onConfirm }: { visible: boolean; on
 
 export default function FindingDriverScreen({ navigation, route }: any) {
   const { destination, estimate, paymentMethod, driver, rideId, pickup } = route.params;
-  const [searchText, setSearchText] = useState('Finding nearby pilots...');
+  const { getToken } = useAuth();
+  const { t } = useTranslation();
+  const [searchText, setSearchText] = useState(t('ride.findingDriver'));
   const [isDriverFound, setIsDriverFound] = useState(false);
   const [driverInfo, setDriverInfo] = useState<any>(null);
   
@@ -192,12 +198,12 @@ export default function FindingDriverScreen({ navigation, route }: any) {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
       if (!isDriverFound) {
         Alert.alert(
-          'Cancel Search',
-          'Are you sure you want to cancel searching for pilots?',
+          t('ride.cancelRideTitle'),
+          t('ride.cancelRideMessage'),
           [
-            { text: 'Continue Searching', style: 'cancel' },
+            { text: t('common.continue'), style: 'cancel' },
             { 
-              text: 'Cancel Search', 
+              text: t('ride.cancelRide'), 
               style: 'destructive',
               onPress: () => {
                 // Emit cancel ride event to server
@@ -234,11 +240,11 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       
       // Update search text based on time
       if (elapsed < 30) {
-        setSearchText('Finding nearby pilots...');
+        setSearchText(t('ride.findingDriver'));
       } else if (elapsed < 60) {
-                  setSearchText('Still searching for pilots...');
+        setSearchText(t('ride.findingDriver'));
       } else {
-        setSearchText('Searching in wider area...');
+        setSearchText(t('ride.findingDriver'));
       }
     }, 1000);
 
@@ -256,10 +262,10 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       if (!connected) {
         console.log('⚠️ Socket not connected, attempting to reconnect...');
         Alert.alert(
-          'Connection Issue',
-          'Lost connection to server. Please check your internet and try again.',
+          t('common.error'),
+          t('errors.networkError'),
           [
-            { text: 'OK', onPress: () => navigation.navigate('TabNavigator', { screen: 'Home' }) }
+            { text: t('common.ok'), onPress: () => navigation.navigate('TabNavigator', { screen: 'Home' }) }
           ]
         );
       }
@@ -456,15 +462,54 @@ export default function FindingDriverScreen({ navigation, route }: any) {
     setShowCancelModal(true);
   };
 
-  const handleConfirmCancel = (reason: string) => {
-    // Emit cancel ride event to server with reason
-    const socket = getSocket();
-    if (socket && rideId) {
-      console.log('🚫 User cancelled ride, emitting cancel_ride with reason:', reason);
-      socket.emit('cancel_ride', { rideId, reason });
+  const handleConfirmCancel = async (reason: string) => {
+    try {
+      console.log('🚫 User cancelled ride with reason:', reason);
+      
+      // Call the cancel ride API endpoint
+      if (rideId && getToken) {
+        console.log('📡 Calling cancel ride API for ride ID:', rideId);
+        const token = await getToken();
+        if (!token) {
+          throw new Error('Authentication token not available');
+        }
+        const result = await rideService.cancelRide(rideId, () => Promise.resolve(token));
+        console.log('✅ Cancel ride API response:', result);
+        
+        // Emit socket event to notify server about cancellation (preserve socket events)
+        const socket = getSocket();
+        if (socket) {
+          console.log('🔌 Emitting cancel_ride socket event');
+          socket.emit('cancel_ride', { rideId, reason });
+        }
+        
+        // Close modal first
+        setShowCancelModal(false);
+        
+        // Navigate immediately without alert
+        console.log('🚀 Navigating to home screen immediately after successful cancellation');
+        navigation.replace('TabNavigator', { screen: 'Home' });
+        
+      } else {
+        throw new Error('Missing rideId or authentication token');
+      }
+    } catch (error) {
+      console.error('❌ Error cancelling ride:', error);
+      
+      // Show error message but still try to emit socket event
+      const socket = getSocket();
+      if (socket && rideId) {
+        console.log('🔌 Emitting cancel_ride socket event as fallback');
+        socket.emit('cancel_ride', { rideId, reason });
+      }
+      
+      // Close modal first
+      setShowCancelModal(false);
+      
+      // Navigate immediately even on error
+      console.log('🚀 Navigating to home screen after error');
+      navigation.replace('TabNavigator', { screen: 'Home' });
     }
-    setShowCancelModal(false);
-    navigation.navigate('TabNavigator', { screen: 'Home' });
   };
 
   const formatSearchTime = (seconds: number) => {

@@ -16,6 +16,26 @@ export interface RideDetails {
     lastName: string;
     phoneNumber: string;
   };
+  driver?: {
+    id?: string;
+    firstName?: string;
+    name?: string;
+    phoneNumber?: string;
+    phone?: string;
+    rating?: number;
+    averageRating?: number;
+    driverRating?: number;
+  };
+  pilot?: {
+    id?: string;
+    firstName?: string;
+    name?: string;
+    phoneNumber?: string;
+    phone?: string;
+    rating?: number;
+    averageRating?: number;
+    driverRating?: number;
+  };
 }
 
 export interface RideDetailsResponse {
@@ -199,11 +219,11 @@ class RideService {
     try {
       console.log('❌ === CANCEL RIDE API CALL ===');
       console.log('🎯 Endpoint: /api/rides/' + rideId + '/cancel');
-      console.log('📋 Method: POST');
+      console.log('📋 Method: PUT');
 
       const token = await getToken();
       const response = await fetch(`${this.baseUrl}/api/rides/${rideId}/cancel`, {
-        method: 'POST',
+        method: 'PUT',
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',

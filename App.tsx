@@ -7,6 +7,8 @@ import * as SecureStore from 'expo-secure-store';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Constants from 'expo-constants';
+import './src/i18n/index';
+import { LanguageProvider } from './src/i18n/LanguageContext';
 
 
 // Get configuration from Constants
@@ -160,12 +162,13 @@ export default function App() {
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
-        <SafeAreaProvider>
-          <StatusBar style="dark" backgroundColor="#ffffff" />
-          <SocketInitializer />
-          <AppNavigator />
-
-        </SafeAreaProvider>
+        <LanguageProvider>
+          <SafeAreaProvider>
+            <StatusBar style="dark" backgroundColor="#ffffff" />
+            <SocketInitializer />
+            <AppNavigator />
+          </SafeAreaProvider>
+        </LanguageProvider>
       </ClerkProvider>
     </GestureHandlerRootView>
   );
