@@ -24,6 +24,7 @@
     "continue": "కొనసాగించండి",
     "skip": "దాటవేయండి",
     "done": "పూర్తయింది",
+    "gender": "లింగం",
     "home": "హోమ్",
     "profile": "ప్రొఫైల్",
     "history": "చరిత్ర",
@@ -83,7 +84,14 @@
     "learnHowWeProtectData": "మేము మీ డేటాను ఎలా రక్షిస్తామో తెలుసుకోండి",
     "all": "అన్నీ",
     "retry": "మళ్లీ ప్రయత్నించండి",
-    "current": "ప్రస్తుత"
+    "current": "ప్రస్తుత",
+    "fullName": "పూర్తి పేరు",
+    "phoneNumber": "ఫోన్ నంబర్",
+    "dateOfBirth": "పుట్టిన తేదీ",
+    "customer": "కస్టమర్",
+    "user": "వినియోగదారు",
+    "notAvailable": "అందుబాటులో లేదు",
+    "currencySymbol": "₹"
   },
   "auth": {
     "login": "లాగిన్",

@@ -23,7 +23,18 @@
     "submit": "Soumettre",
     "continue": "Continuer",
     "skip": "Passer",
-    "done": "Terminé"
+    "done": "Terminé",
+    "gender": "Genre",
+    "all": "Tous",
+    "retry": "Réessayer",
+    "current": "Actuel",
+    "fullName": "Nom Complet",
+    "phoneNumber": "Numéro de Téléphone",
+    "dateOfBirth": "Date de Naissance",
+    "customer": "Client",
+    "user": "Utilisateur",
+    "notAvailable": "Non Disponible",
+    "currencySymbol": "₹"
   },
   "auth": {
     "login": "Se Connecter",

@@ -5,6 +5,8 @@ import { Colors, TITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useAuth } from '@clerk/clerk-expo';
 import { userApi, UserProfile } from '../../services/userService';
+import { useTranslation } from 'react-i18next';
+import { useLanguage } from '../../i18n/LanguageContext';
 
 export default function PersonalDetailsScreen({ route, navigation }: any) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -13,6 +15,8 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
   const [error, setError] = useState<string | null>(null);
 
   const { getToken } = useAuth();
+  const { t } = useTranslation();
+  const { availableLanguages } = useLanguage();
 
   // Load user profile on component mount
   useEffect(() => {
@@ -66,7 +70,7 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
   };
 
   const formatDate = (dateString?: string) => {
-    if (!dateString) return '-';
+    if (!dateString) return t('common.notAvailable');
     try {
       const date = new Date(dateString);
       return date.toLocaleDateString('en-IN', {
@@ -80,7 +84,7 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
   };
 
   const formatPhoneNumber = (phone?: string) => {
-    if (!phone) return '-';
+    if (!phone) return t('common.notAvailable');
     // Format Indian phone numbers
     if (phone.startsWith('+91')) {
       return phone.replace('+91', '+91 ');
@@ -88,17 +92,23 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
     return phone;
   };
 
+  const getLanguageName = (languageCode?: string) => {
+    if (!languageCode) return t('languages.english');
+    const language = availableLanguages.find(lang => lang.code === languageCode);
+    return language ? language.nativeName : languageCode.toUpperCase();
+  };
+
   if (isLoading) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
           <Ionicons name="person-circle" size={32} color={TITLE_COLOR} />
-          <Text style={styles.headerTitle}>Personal Details</Text>
+          <Text style={styles.headerTitle}>{t('profile.personalDetails')}</Text>
           <View style={{ width: 32 }} />
         </View>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Loading profile data...</Text>
+          <Text style={styles.loadingText}>{t('common.loading')}</Text>
         </View>
       </View>
     );
@@ -109,14 +119,14 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
       <View style={styles.container}>
         <View style={styles.header}>
           <Ionicons name="person-circle" size={32} color={TITLE_COLOR} />
-          <Text style={styles.headerTitle}>Personal Details</Text>
+          <Text style={styles.headerTitle}>{t('profile.personalDetails')}</Text>
           <View style={{ width: 32 }} />
         </View>
         <View style={styles.errorContainer}>
           <Ionicons name="alert-circle" size={48} color={Colors.error} />
           <Text style={styles.errorText}>{error}</Text>
           <TouchableOpacity style={styles.retryButton} onPress={() => loadUserProfile()}>
-            <Text style={styles.retryButtonText}>Retry</Text>
+            <Text style={styles.retryButtonText}>{t('common.retry')}</Text>
           </TouchableOpacity>
         </View>
       </View>
@@ -127,7 +137,7 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Ionicons name="person-circle" size={32} color={TITLE_COLOR} />
-        <Text style={styles.headerTitle}>Personal Details</Text>
+        <Text style={styles.headerTitle}>{t('profile.personalDetails')}</Text>
         <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
           <Ionicons name="create-outline" size={24} color={Colors.primary} />
         </TouchableOpacity>
@@ -153,111 +163,111 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
             <Ionicons name="person" size={80} color={Colors.gray400} />
           )}
           <Text style={styles.userName}>
-            {userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : 'Loading...'}
+            {userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : t('common.loading')}
           </Text>
           <Text style={styles.userType}>
-            {userProfile?.userType === 'customer' ? 'Customer' : 'User'}
+            {userProfile?.userType === 'customer' ? t('common.customer') : t('common.user')}
           </Text>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Basic Information</Text>
+          <Text style={styles.sectionTitle}>{t('profile.basicInformation')}</Text>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Full Name:</Text>
+            <Text style={styles.label}>{t('common.fullName')}:</Text>
             <Text style={styles.value}>
-              {userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : '-'}
+              {userProfile ? `${userProfile.firstName} ${userProfile.lastName}` : t('common.notAvailable')}
             </Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Email:</Text>
-            <Text style={styles.value}>{userProfile?.email || '-'}</Text>
+            <Text style={styles.label}>{t('common.email')}:</Text>
+            <Text style={styles.value}>{userProfile?.email || t('common.notAvailable')}</Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Phone Number:</Text>
+            <Text style={styles.label}>{t('common.phoneNumber')}:</Text>
             <Text style={styles.value}>{formatPhoneNumber(userProfile?.phoneNumber)}</Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Date of Birth:</Text>
+            <Text style={styles.label}>{t('common.dateOfBirth')}:</Text>
             <Text style={styles.value}>{formatDate(userProfile?.dateOfBirth)}</Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Gender:</Text>
-            <Text style={styles.value}>{userProfile?.gender || '-'}</Text>
+            <Text style={styles.label}>{t('common.gender')}:</Text>
+            <Text style={styles.value}>{userProfile?.gender || t('common.notAvailable')}</Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Preferred Language:</Text>
-            <Text style={styles.value}>{userProfile?.preferredLanguage || 'English'}</Text>
+            <Text style={styles.label}>{t('profile.preferredLanguage')}:</Text>
+            <Text style={styles.value}>{getLanguageName(userProfile?.preferredLanguage)}</Text>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Emergency Contact</Text>
+          <Text style={styles.sectionTitle}>{t('profile.emergencyContact')}</Text>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Emergency Contact Name:</Text>
-            <Text style={styles.value}>{userProfile?.emergencyContactName || '-'}</Text>
+            <Text style={styles.label}>{t('profile.emergencyContactName')}:</Text>
+            <Text style={styles.value}>{userProfile?.emergencyContactName || t('common.notAvailable')}</Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Emergency Contact Phone:</Text>
+            <Text style={styles.label}>{t('profile.emergencyContactPhone')}:</Text>
             <Text style={styles.value}>{formatPhoneNumber(userProfile?.emergencyContactPhone)}</Text>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Account Information</Text>
+          <Text style={styles.sectionTitle}>{t('profile.accountInformation')}</Text>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>User ID:</Text>
-            <Text style={styles.value}>{userProfile?.id || '-'}</Text>
+            <Text style={styles.label}>{t('profile.userId')}:</Text>
+            <Text style={styles.value}>{userProfile?.id || t('common.notAvailable')}</Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Registration Date:</Text>
+            <Text style={styles.label}>{t('profile.registrationDate')}:</Text>
             <Text style={styles.value}>{formatDate(userProfile?.registrationDate)}</Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Account Status:</Text>
+            <Text style={styles.label}>{t('profile.accountStatus')}:</Text>
             <View style={styles.statusContainer}>
               <View style={[
                 styles.statusBadge, 
                 { backgroundColor: userProfile?.isActive ? Colors.success : Colors.error }
               ]}>
                 <Text style={styles.statusText}>
-                  {userProfile?.isActive ? 'Active' : 'Inactive'}
+                  {userProfile?.isActive ? t('common.active') : t('common.inactive')}
                 </Text>
               </View>
               {userProfile?.isVerified && (
                 <View style={[styles.statusBadge, { backgroundColor: Colors.info }]}>
-                  <Text style={styles.statusText}>Verified</Text>
+                  <Text style={styles.statusText}>{t('profile.verified')}</Text>
                 </View>
               )}
             </View>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Referral Code:</Text>
-            <Text style={styles.value}>{userProfile?.referralCode || '-'}</Text>
+            <Text style={styles.label}>{t('profile.referralCode')}:</Text>
+            <Text style={styles.value}>{userProfile?.referralCode || t('common.notAvailable')}</Text>
           </View>
         </View>
 
         <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Ride Statistics</Text>
+          <Text style={styles.sectionTitle}>{t('profile.rideStatistics')}</Text>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Total Rides:</Text>
+            <Text style={styles.label}>{t('profile.totalRides')}:</Text>
             <Text style={styles.value}>{userProfile?.totalRides || 0}</Text>
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Rating:</Text>
+            <Text style={styles.label}>{t('common.rating')}:</Text>
             <View style={styles.ratingContainer}>
               <Ionicons name="star" size={16} color={Colors.accent} />
               <Text style={styles.ratingText}>{userProfile?.rating || 0}</Text>
@@ -265,8 +275,8 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
           </View>
           
           <View style={styles.detailRow}>
-            <Text style={styles.label}>Wallet Balance:</Text>
-            <Text style={styles.value}>₹{userProfile?.walletBalance || 0}</Text>
+            <Text style={styles.label}>{t('common.walletBalance')}:</Text>
+            <Text style={styles.value}>{t('common.currencySymbol')}{userProfile?.walletBalance || 0}</Text>
           </View>
         </View>
       </ScrollView>

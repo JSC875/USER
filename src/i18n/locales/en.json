@@ -83,7 +83,15 @@
     "learnHowWeProtectData": "Learn how we protect your data",
     "all": "All",
     "retry": "Retry",
-    "current": "Current"
+    "current": "Current",
+    "fullName": "Full Name",
+    "phoneNumber": "Phone Number",
+    "dateOfBirth": "Date of Birth",
+    "gender": "Gender",
+    "customer": "Customer",
+    "user": "User",
+    "notAvailable": "Not Available",
+    "currencySymbol": "₹"
   },
   "auth": {
     "login": "Login",
@@ -217,7 +225,19 @@
     "languageNote": "Language Note",
     "languageNoteText": "Changing the language will update the app interface immediately. Some content may remain in the original language.",
     "availableLanguages": "Available Languages",
-    "languageChanged": "Language changed successfully"
+    "languageChanged": "Language changed successfully",
+    "basicInformation": "Basic Information",
+    "preferredLanguage": "Preferred Language",
+    "emergencyContactName": "Emergency Contact Name",
+    "emergencyContactPhone": "Emergency Contact Phone",
+    "accountInformation": "Account Information",
+    "userId": "User ID",
+    "registrationDate": "Registration Date",
+    "accountStatus": "Account Status",
+    "verified": "Verified",
+    "referralCode": "Referral Code",
+    "rideStatistics": "Ride Statistics",
+    "totalRides": "Total Rides"
   },
   "payment": {
     "paymentMethods": "Payment Methods",

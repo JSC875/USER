@@ -83,7 +83,15 @@
     "learnHowWeProtectData": "जानें कि हम आपके डेटा की रक्षा कैसे करते हैं",
     "all": "सभी",
     "retry": "पुनः प्रयास करें",
-    "current": "वर्तमान"
+    "current": "वर्तमान",
+    "fullName": "पूरा नाम",
+    "phoneNumber": "फोन नंबर",
+    "dateOfBirth": "जन्म तिथि",
+    "gender": "लिंग",
+    "customer": "ग्राहक",
+    "user": "उपयोगकर्ता",
+    "notAvailable": "उपलब्ध नहीं",
+    "currencySymbol": "₹"
   },
   "auth": {
     "login": "लॉगिन",
@@ -217,7 +225,19 @@
     "languageNote": "भाषा नोट",
     "languageNoteText": "भाषा बदलने से ऐप इंटरफेस तुरंत अपडेट हो जाएगा। कुछ सामग्री मूल भाषा में रह सकती है।",
     "availableLanguages": "उपलब्ध भाषाएं",
-    "languageChanged": "भाषा सफलतापूर्वक बदली गई"
+    "languageChanged": "भाषा सफलतापूर्वक बदली गई",
+    "basicInformation": "बुनियादी जानकारी",
+    "preferredLanguage": "पसंदीदा भाषा",
+    "emergencyContactName": "आपातकालीन संपर्क का नाम",
+    "emergencyContactPhone": "आपातकालीन संपर्क फोन",
+    "accountInformation": "खाता जानकारी",
+    "userId": "उपयोगकर्ता ID",
+    "registrationDate": "पंजीकरण तिथि",
+    "accountStatus": "खाता स्थिति",
+    "verified": "सत्यापित",
+    "referralCode": "रेफरल कोड",
+    "rideStatistics": "सवारी आंकड़े",
+    "totalRides": "कुल सवारियां"
   },
   "payment": {
     "paymentMethods": "भुगतान के तरीके",
