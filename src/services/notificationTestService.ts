@@ -314,8 +314,13 @@ class NotificationTestService {
          rideId: 'test-ride-123',
          senderId: 'driver-456',
          senderName: 'John D.',
-         messageType: 'text'
-       }
+         messageType: 'text',
+         priority: 'high',
+         sound: 'default',
+         badge: 1
+       },
+       null,
+       'high'
      ));
 
     // Test image message

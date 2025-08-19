@@ -130,6 +130,9 @@ const NOTIFICATION_TEMPLATES = {
       senderName: 'John D.',
       message: 'I\'m 5 minutes away from your pickup location. Please be ready!',
       messageType: 'text',
+      priority: 'high',
+      sound: 'default',
+      badge: 1,
       timestamp: Date.now()
     }
   },

@@ -151,15 +151,26 @@ export default function ChatScreen({ navigation, route }: any) {
       
       // Send push notification for incoming messages from driver
       if (message.senderType === 'driver') {
-        console.log('🔔 Sending chat notification for incoming message from driver');
+        console.log('🔔 Sending high-priority chat notification for incoming message from driver');
+        
+        // Send notification immediately with high priority
         sendChatNotificationToCurrentUser({
           rideId: message.rideId,
           senderId: message.senderId,
           senderName: driver?.name || 'Driver',
           message: message.message,
-          messageType: 'text'
+          messageType: 'text',
+          priority: 'high',
+          sound: 'default',
+          badge: 1
+        }).then(success => {
+          if (success) {
+            console.log('✅ High-priority chat notification sent successfully');
+          } else {
+            console.log('❌ Failed to send high-priority chat notification');
+          }
         }).catch(error => {
-          console.error('❌ Error sending chat notification:', error);
+          console.error('❌ Error sending high-priority chat notification:', error);
         });
         
         // Mark message as read
@@ -362,15 +373,18 @@ export default function ChatScreen({ navigation, route }: any) {
              
              const testMessage = lastDriverMessage?.message || 'I\'m on my way to your pickup location';
              
-             sendChatNotificationToCurrentUser({
-               rideId: rideId,
-               senderId: 'test-driver-123',
-               senderName: driver?.name || 'Test Driver',
-               message: testMessage,
-               messageType: 'text'
-             }).then(success => {
-               console.log(success ? '✅ Test notification sent' : '❌ Test notification failed');
-             });
+                           sendChatNotificationToCurrentUser({
+                rideId: rideId,
+                senderId: 'test-driver-123',
+                senderName: driver?.name || 'Test Driver',
+                message: testMessage,
+                messageType: 'text',
+                priority: 'high',
+                sound: 'default',
+                badge: 1
+              }).then(success => {
+                console.log(success ? '✅ High-priority test notification sent' : '❌ High-priority test notification failed');
+              });
            }}
          >
            <Ionicons name="notifications" size={20} color={Colors.success} />

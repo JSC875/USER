@@ -13,21 +13,34 @@ export const sendChatNotification = async (
     senderName: string;
     message: string;
     messageType?: 'text' | 'image' | 'location';
+    priority?: 'high' | 'normal' | 'low';
+    sound?: string;
+    badge?: number;
   }
 ): Promise<boolean> => {
   try {
+    console.log('🚀 Sending high-priority chat notification...');
     const backendService = BackendNotificationService.getInstance();
-    const success = await backendService.sendChatNotification(recipientToken, chatData);
+    
+    // Always use high priority for chat notifications
+    const enhancedChatData = {
+      ...chatData,
+      priority: 'high' as const,
+      sound: 'default',
+      badge: chatData.badge || 1
+    };
+    
+    const success = await backendService.sendChatNotification(recipientToken, enhancedChatData);
     
     if (success) {
-      console.log('✅ Chat notification sent successfully');
+      console.log('✅ High-priority chat notification sent successfully');
     } else {
-      console.log('❌ Failed to send chat notification');
+      console.log('❌ Failed to send high-priority chat notification');
     }
     
     return success;
   } catch (error) {
-    console.error('❌ Error sending chat notification:', error);
+    console.error('❌ Error sending high-priority chat notification:', error);
     return false;
   }
 };
@@ -46,18 +59,31 @@ export const useChatNotifications = () => {
       senderName: string;
       message: string;
       messageType?: 'text' | 'image' | 'location';
+      priority?: 'high' | 'normal' | 'low';
+      sound?: string;
+      badge?: number;
     }
   ): Promise<boolean> => {
     try {
+      console.log('🚀 Getting token for high-priority chat notification...');
       const tokenData = await getStoredToken();
       if (!tokenData?.token) {
-        console.log('⚠️ No push token available for chat notification');
+        console.log('⚠️ No push token available for high-priority chat notification');
         return false;
       }
 
-      return await sendChatNotification(tokenData.token, chatData);
+      // Always use high priority for chat notifications
+      const enhancedChatData = {
+        ...chatData,
+        priority: 'high' as const,
+        sound: 'default',
+        badge: chatData.badge || 1
+      };
+
+      console.log('🚀 Sending high-priority chat notification to current user...');
+      return await sendChatNotification(tokenData.token, enhancedChatData);
     } catch (error) {
-      console.error('❌ Error sending chat notification to current user:', error);
+      console.error('❌ Error sending high-priority chat notification to current user:', error);
       return false;
     }
   };

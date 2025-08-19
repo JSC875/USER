@@ -55,6 +55,9 @@ class NotificationService {
     if (this.isInitialized) return;
 
     try {
+      // Set up notification channels for better performance
+      await this.setupNotificationChannels();
+      
       // Request permissions
       const hasPermission = await this.requestPermissions();
       
@@ -69,12 +72,45 @@ class NotificationService {
         this.setupTokenRefresh();
         
         this.isInitialized = true;
-        console.log('Notification service initialized successfully');
+        console.log('✅ Notification service initialized successfully');
       } else {
-        console.log('Notification permissions not granted');
+        console.log('❌ Notification permissions not granted');
       }
     } catch (error) {
-      console.error('Failed to initialize notification service:', error);
+      console.error('❌ Failed to initialize notification service:', error);
+    }
+  }
+
+  /**
+   * Set up notification channels for better Android performance
+   */
+  private async setupNotificationChannels(): Promise<void> {
+    try {
+      // Set up high-priority chat channel
+      await Notifications.setNotificationChannelAsync('chat', {
+        name: 'Chat Messages',
+        importance: Notifications.AndroidImportance.HIGH,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#FF231F7C',
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
+      });
+
+      // Set up default channel
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Default',
+        importance: Notifications.AndroidImportance.DEFAULT,
+        vibrationPattern: [0, 250],
+        lightColor: '#FF231F7C',
+        sound: 'default',
+        enableVibrate: true,
+        showBadge: true,
+      });
+
+      console.log('✅ Notification channels set up successfully');
+    } catch (error) {
+      console.error('❌ Error setting up notification channels:', error);
     }
   }
 
@@ -373,7 +409,8 @@ class NotificationService {
     title: string,
     body: string,
     data?: NotificationData,
-    trigger?: Notifications.NotificationTriggerInput
+    trigger?: Notifications.NotificationTriggerInput,
+    priority: 'high' | 'normal' | 'low' = 'normal'
   ): Promise<string> {
     try {
       const identifier = await Notifications.scheduleNotificationAsync({
@@ -382,14 +419,20 @@ class NotificationService {
           body,
           ...(data && { data: data as unknown as Record<string, unknown> }),
           sound: true,
+          priority: priority === 'high' ? Notifications.AndroidNotificationPriority.HIGH : Notifications.AndroidNotificationPriority.DEFAULT,
+          // Add urgency for high priority notifications
+          ...(priority === 'high' && {
+            autoDismiss: false,
+            sticky: true,
+          }),
         },
         trigger: trigger || null,
       });
       
-      console.log('Local notification scheduled:', identifier);
+      console.log(`✅ ${priority} priority local notification scheduled:`, identifier);
       return identifier;
     } catch (error) {
-      console.error('Error scheduling local notification:', error);
+      console.error(`❌ Error scheduling ${priority} priority local notification:`, error);
       throw error;
     }
   }

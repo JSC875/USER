@@ -254,7 +254,7 @@ class BackendNotificationService {
   }
 
   /**
-   * Send chat notification
+   * Send chat notification with high priority for faster delivery
    */
   async sendChatNotification(pushToken: string, chatData: {
     rideId: string;
@@ -262,6 +262,9 @@ class BackendNotificationService {
     senderName: string;
     message: string;
     messageType?: 'text' | 'image' | 'location';
+    priority?: 'high' | 'normal' | 'low';
+    sound?: string;
+    badge?: number;
   }): Promise<boolean> {
     const notification: BackendNotificationData = {
       type: 'chat',
@@ -273,10 +276,76 @@ class BackendNotificationService {
       senderId: chatData.senderId,
       senderName: chatData.senderName,
       messageType: chatData.messageType || 'text',
+      priority: chatData.priority || 'high',
+      sound: chatData.sound || 'default',
+      badge: chatData.badge,
       timestamp: Date.now()
     };
 
-    return this.sendPushNotification(pushToken, notification);
+    // Use high priority for chat notifications
+    return this.sendPushNotificationWithPriority(pushToken, notification, 'high');
+  }
+
+  /**
+   * Send push notification with specific priority for faster delivery
+   */
+  private async sendPushNotificationWithPriority(
+    pushToken: string, 
+    notification: BackendNotificationData, 
+    priority: 'high' | 'normal' | 'low' = 'normal'
+  ): Promise<boolean> {
+    try {
+      console.log(`🚀 Sending ${priority} priority notification to:`, pushToken.substring(0, 20) + '...');
+      
+      const message = {
+        to: pushToken,
+        title: notification.title,
+        body: notification.message,
+        data: notification,
+        sound: notification.sound || 'default',
+        priority: priority,
+        channelId: priority === 'high' ? 'chat' : 'default',
+        badge: notification.badge,
+        // Add urgency for high priority notifications
+        ...(priority === 'high' && {
+          _displayInForeground: true,
+          _displayInBackground: true,
+          _sound: 'default',
+          _priority: 'high'
+        })
+      };
+
+      console.log(`📤 Sending ${priority} priority message:`, {
+        to: message.to.substring(0, 20) + '...',
+        title: message.title,
+        body: message.body,
+        priority: message.priority,
+        channelId: message.channelId
+      });
+
+      const response = await fetch('https://exp.host/--/api/v2/push/send', {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json',
+          'Accept-encoding': 'gzip, deflate',
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(message),
+      });
+
+      const result = await response.json();
+      
+      console.log(`📡 ${priority} priority notification response:`, {
+        status: response.status,
+        success: result.data?.[0]?.status === 'ok',
+        result: result
+      });
+
+      return result.data?.[0]?.status === 'ok';
+    } catch (error) {
+      console.error(`❌ Error sending ${priority} priority notification:`, error);
+      return false;
+    }
   }
 }
 
