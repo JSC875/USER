@@ -30,6 +30,8 @@ import ConnectionStatus from '../../components/common/ConnectionStatus';
 import { useAuth } from '@clerk/clerk-expo';
 import { rideService } from '../../services/rideService';
 import { useTranslation } from 'react-i18next';
+import { useNotifications } from '../../store/NotificationContext';
+import BackendNotificationService from '../../services/backendNotificationService';
 
 const { width } = Dimensions.get('window');
 
@@ -175,6 +177,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
   const { destination, estimate, paymentMethod, driver, rideId, pickup } = route.params;
   const { getToken } = useAuth();
   const { t } = useTranslation();
+  const { getStoredToken } = useNotifications();
   const [searchText, setSearchText] = useState(t('ride.findingDriver'));
   const [isDriverFound, setIsDriverFound] = useState(false);
   const [driverInfo, setDriverInfo] = useState<any>(null);
@@ -278,7 +281,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       console.log('🔧 Setting up socket listeners for FindingDriverScreen');
       
       // Listen for ride acceptance
-      onRideAccepted((data) => {
+      onRideAccepted(async (data) => {
         console.log('✅ Driver accepted ride (callback):', data);
         console.log('🔍 Current isDriverFound state (callback):', isDriverFound);
         console.log('🔍 Current hasNavigated state (callback):', hasNavigated);
@@ -315,7 +318,24 @@ export default function FindingDriverScreen({ navigation, route }: any) {
           searchTimer.current = null;
         }
         
-                  // Navigate immediately without alert
+                  // Send ride accepted notification
+        try {
+          const tokenData = await getStoredToken();
+          if (tokenData?.token) {
+            const backendService = BackendNotificationService.getInstance();
+            await backendService.sendRideAcceptedNotification(tokenData.token, {
+              rideId: data.rideId || rideId,
+              driverId: data.driverId,
+              driverName: data.driverName,
+              eta: data.estimatedArrival
+            });
+            console.log('✅ Ride accepted notification sent');
+          }
+        } catch (error) {
+          console.error('❌ Error sending ride accepted notification:', error);
+        }
+
+        // Navigate immediately without alert
           navigation.replace('LiveTracking', {
             destination,
             estimate,

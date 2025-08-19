@@ -8,12 +8,15 @@ import {
   Image,
   Share,
   Linking,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
+import { useNotifications } from '../../store/NotificationContext';
+import BackendNotificationService from '../../services/backendNotificationService';
 // Remove: import { mockDrivers } from '../../data/mockData';
 // Remove: const [selectedDriver] = useState(mockDrivers[0]);
 // Remove any simulated driver logic.
@@ -21,16 +24,61 @@ import Button from '../../components/common/Button';
 
 export default function ConfirmRideScreen({ navigation, route }: any) {
   const { destination, estimate, paymentMethod } = route.params;
+  const { getStoredToken } = useNotifications();
+  const [isBooking, setIsBooking] = useState(false);
   // Remove: const [selectedDriver] = useState(mockDrivers[0]);
 
-  // Remove: const handleBookRide = () => {
-  // Remove:   navigation.navigate('FindingDriver', {
-  // Remove:     destination,
-  // Remove:     estimate,
-  // Remove:     paymentMethod,
-  // Remove:     driver: selectedDriver,
-  // Remove:   });
-  // Remove: };
+  const handleBookRide = async () => {
+    try {
+      setIsBooking(true);
+      
+      // Get the user's push token
+      const tokenData = await getStoredToken();
+      if (!tokenData?.token) {
+        console.log('No push token available');
+        // Continue with booking even without push token
+      }
+
+      // Simulate booking process
+      console.log('🚀 Starting ride booking process...');
+      
+      // Generate a unique ride ID
+      const rideId = `ride_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      
+      // Send ride request notification to simulate backend notification
+      if (tokenData?.token) {
+        const backendService = BackendNotificationService.getInstance();
+        await backendService.sendRideRequestNotification(tokenData.token, {
+          rideId,
+          pickup: 'Your current location',
+          destination: destination.name,
+          estimatedPrice: estimate.fare
+        });
+        console.log('✅ Ride request notification sent');
+      }
+
+      // Simulate a delay for booking process
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      // Navigate to finding driver screen
+      navigation.navigate('FindingDriver', {
+        destination,
+        estimate,
+        paymentMethod,
+        rideId, // Pass the ride ID for tracking
+      });
+      
+    } catch (error) {
+      console.error('❌ Error during booking:', error);
+      Alert.alert(
+        'Booking Error',
+        'There was an error processing your booking. Please try again.',
+        [{ text: 'OK' }]
+      );
+    } finally {
+      setIsBooking(false);
+    }
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -182,13 +230,10 @@ export default function ConfirmRideScreen({ navigation, route }: any) {
           <Text style={styles.fareValue}>₹{estimate.fare}</Text>
         </View>
         <Button
-          title="Book Ride"
-          onPress={() => navigation.navigate('FindingDriver', {
-            destination,
-            estimate,
-            paymentMethod,
-          })}
+          title={isBooking ? "Booking..." : "Book Ride"}
+          onPress={handleBookRide}
           style={styles.bookButton}
+          disabled={isBooking}
         />
       </View>
     </SafeAreaView>

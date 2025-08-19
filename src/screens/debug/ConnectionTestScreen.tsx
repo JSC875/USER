@@ -13,6 +13,7 @@ import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { runConnectionTest, quickTest } from '../../utils/socketTest';
 import { runAutocompleteTest, quickAutocompleteTest } from '../../utils/autocompleteTest';
+import NotificationTest from '../../components/common/NotificationTest';
 
 interface TestResult {
   test: string;
@@ -287,6 +288,9 @@ export default function ConnectionTestScreen({ navigation }: any) {
           </View>
         )}
 
+        {/* Notification Test */}
+        <NotificationTest />
+
         {/* Instructions */}
         <View style={styles.instructionsContainer}>
           <Text style={styles.instructionsTitle}>Instructions</Text>
@@ -295,6 +299,7 @@ export default function ConnectionTestScreen({ navigation }: any) {
             • Full Test: Comprehensive connection and event testing{'\n'}
             • Auto Test: Quick autocomplete functionality test{'\n'}
             • Auto Full: Comprehensive autocomplete API testing{'\n'}
+            • Notification Test: Test push notifications{'\n'}
             • Check console logs for detailed information{'\n'}
             • Server URL: https://testsocketio-roqet.up.railway.app{'\n'}
             • Maps API: https://maps.googleapis.com

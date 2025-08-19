@@ -22,10 +22,13 @@ import ConnectionStatus from '../../components/common/ConnectionStatus';
 import PinDisplay from '../../components/common/PinDisplay';
 import { useAuth } from '@clerk/clerk-expo';
 import { rideService } from '../../services/rideService';
+import { useNotifications } from '../../store/NotificationContext';
+import BackendNotificationService from '../../services/backendNotificationService';
 
 export default function LiveTrackingScreen({ navigation, route }: any) {
-  const { destination, estimate, driver, rideId, origin } = route.params;
+  const { destination, estimate, driver, rideId, origin, driverArrived } = route.params;
   const { getToken } = useAuth();
+  const { getStoredToken } = useNotifications();
   
   console.log('🚀 LiveTrackingScreen: Component initialized with params:', {
     destination,
@@ -66,6 +69,31 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       return name.replace(/Driver/g, 'Pilot');
     }
     return name;
+  };
+
+  // Handle driver arrived notification
+  const handleDriverArrived = async () => {
+    try {
+      console.log('🚗 Driver arrived at pickup location');
+      
+      // Get the user's push token
+      const tokenData = await getStoredToken();
+      if (tokenData?.token) {
+        const backendService = BackendNotificationService.getInstance();
+        await backendService.sendDriverArrivedNotification(tokenData.token, {
+          rideId: rideId,
+          driverId: driver?.id || 'unknown',
+          driverName: driverInfo.name,
+          pickupLocation: origin?.name || 'Your pickup location'
+        });
+        console.log('✅ Driver arrived notification sent');
+      }
+      
+      // Update ride status
+      setRideStatus('arrived');
+    } catch (error) {
+      console.error('❌ Error sending driver arrived notification:', error);
+    }
   };
   
   const driverInfo = {
@@ -313,13 +341,38 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     console.log('🔧 LiveTrackingScreen: Setting up direct socket listeners');
     console.log('🔧 Current rideId for direct listeners:', rideId);
     
-    const handleDriverArrived = (data: { rideId: string; driverId: string; message?: string; status?: string }) => {
+    const handleDriverArrived = async (data: { rideId: string; driverId: string; message?: string; status?: string }) => {
       console.log('🎯 LiveTrackingScreen received driver_arrived event:', data);
       console.log('🎯 Checking if rideId matches:', data.rideId, '===', rideId);
       
       if (data.rideId === rideId) {
         console.log('🚗 Driver arrived at pickup location, staying on LiveTrackingScreen');
         console.log('🚗 OTP is already displayed on this screen for customer to share');
+        
+        // Send push notification for driver arrived
+        try {
+          console.log('🚗 Sending driver arrived push notification...');
+          
+          // Get the user's push token
+          const tokenData = await getStoredToken();
+          if (tokenData?.token) {
+            const backendService = BackendNotificationService.getInstance();
+            await backendService.sendDriverArrivedNotification(tokenData.token, {
+              rideId: data.rideId,
+              driverId: data.driverId,
+              driverName: driverInfo.name,
+              pickupLocation: origin?.name || 'Your pickup location'
+            });
+            console.log('✅ Driver arrived push notification sent successfully');
+          } else {
+            console.log('⚠️ No push token available for driver arrived notification');
+          }
+          
+          // Update ride status
+          setRideStatus('arrived');
+        } catch (error) {
+          console.error('❌ Error sending driver arrived notification:', error);
+        }
         
         // Stay on LiveTrackingScreen - OTP is already displayed here
         // Customer can share the OTP with the driver directly from this screen
@@ -579,6 +632,18 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           <TouchableOpacity style={styles.messageButton} onPress={handleChat}>
             <Text style={styles.messageButtonText}>Send a message</Text>
           </TouchableOpacity>
+          
+          {/* Driver Arrived Button - Only show when driver is arriving */}
+          {rideStatus === 'arriving' && (
+            <TouchableOpacity 
+              style={[styles.messageButton, { backgroundColor: Colors.success }]} 
+              onPress={handleDriverArrived}
+            >
+              <Text style={[styles.messageButtonText, { color: Colors.white }]}>
+                🚗 Pilot Arrived
+              </Text>
+            </TouchableOpacity>
+          )}
           
           <View style={styles.iconButtons}>
             <TouchableOpacity style={styles.iconButton} onPress={handleCall}>

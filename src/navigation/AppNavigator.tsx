@@ -1,10 +1,10 @@
-import React from 'react';
-import { NavigationContainer } from '@react-navigation/native';
+import React, { useEffect } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '@clerk/clerk-expo';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
+import { useNotifications } from '../store/NotificationContext';
 
 // Auth Screens
 import SplashScreen from '../screens/auth/SplashScreen';
@@ -153,6 +153,23 @@ function AuthNavigator() {
 }
 
 function MainNavigator() {
+  const { initializeNotifications } = useNotifications();
+
+  useEffect(() => {
+    const initializeNotificationsAsync = async () => {
+      try {
+        console.log('🔔 App: Initializing notifications in MainNavigator...');
+        await initializeNotifications();
+        console.log('✅ App: Notifications initialized successfully');
+      } catch (error) {
+        console.error('❌ App: Failed to initialize notifications:', error);
+      }
+    };
+
+    // Initialize notifications when MainNavigator mounts
+    initializeNotificationsAsync();
+  }, [initializeNotifications]);
+
   return (
     <Stack.Navigator
       id={undefined}
@@ -229,9 +246,5 @@ export default function AppNavigator() {
     return null; // or a loading screen component
   }
 
-  return (
-    <NavigationContainer>
-      {isSignedIn ? <MainNavigator /> : <AuthNavigator />}
-    </NavigationContainer>
-  );
+  return isSignedIn ? <MainNavigator /> : <AuthNavigator />;
 }

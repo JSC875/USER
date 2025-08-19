@@ -8,6 +8,7 @@
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "scheme": "roqet-app",
+    "projectId": "84f24d0c-26df-4cec-afe7-d75952191729",
     "splash": {
       "image": "./assets/images/roqetlogo.jpg",
       "resizeMode": "contain",
@@ -31,7 +32,9 @@
         "CAMERA",
         "INTERNET",
         "FOREGROUND_SERVICE",
-        "WAKE_LOCK"
+        "WAKE_LOCK",
+        "VIBRATE",
+        "RECEIVE_BOOT_COMPLETED"
       ],
       "config": {
         "googleMaps": {
@@ -58,7 +61,15 @@
       "expo-font",
       "expo-web-browser",
       "expo-secure-store",
-      "expo-camera"
+      "expo-camera",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/roqetlogo.jpg",
+          "color": "#ffffff",
+          "sounds": ["./assets/sounds/notification.wav"]
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true

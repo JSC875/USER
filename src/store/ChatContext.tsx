@@ -10,6 +10,7 @@ import {
   onTypingIndicator,
   onMessagesRead
 } from '../utils/socket';
+import { useChatNotifications } from '../utils/chatNotificationHelper';
 
 interface ChatMessage {
   id: string;
@@ -58,11 +59,26 @@ interface ChatProviderProps {
 export const ChatProvider: React.FC<ChatProviderProps> = ({ children }) => {
   const [chats, setChats] = useState<Map<string, ChatState>>(new Map());
   const [activeChat, setActiveChat] = useState<string | null>(null);
+  const { sendChatNotificationToCurrentUser } = useChatNotifications();
 
   useEffect(() => {
     // Set up global chat event listeners
     onChatMessage((message) => {
       console.log('💬 Global chat message received:', message);
+      
+             // Send push notification for incoming messages from driver
+       if (message.senderType === 'driver') {
+         console.log('🔔 Sending chat notification from ChatContext for incoming message from driver');
+         sendChatNotificationToCurrentUser({
+           rideId: message.rideId,
+           senderId: message.senderId,
+           senderName: message.senderName || 'Driver', // Use sender name if available
+           message: message.message,
+           messageType: 'text'
+         }).catch(error => {
+           console.error('❌ Error sending chat notification from ChatContext:', error);
+         });
+       }
       
       setChats(prevChats => {
         const newChats = new Map(prevChats);

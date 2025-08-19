@@ -1,14 +1,16 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { StatusBar } from 'expo-status-bar';
-import { Platform } from 'react-native';
+import { Platform, View } from 'react-native';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { ClerkProvider, useAuth } from '@clerk/clerk-expo';
 import * as SecureStore from 'expo-secure-store';
+import { NavigationContainer } from '@react-navigation/native';
 import AppNavigator from './src/navigation/AppNavigator';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 import Constants from 'expo-constants';
 import './src/i18n/index';
 import { LanguageProvider } from './src/i18n/LanguageContext';
+import { NotificationProvider } from './src/store/NotificationContext';
 
 
 // Get configuration from Constants
@@ -117,6 +119,7 @@ function SocketInitializer() {
         }
         
         // Initialize socket connection
+        log('🔌 App: Initializing socket connection...');
         const { initializeAPKConnection, startBackgroundRetry } = require('./src/utils/socket');
         await initializeAPKConnection(getToken);
         
@@ -158,15 +161,25 @@ function SocketInitializer() {
   return null;
 }
 
+
+
 export default function App() {
+  const navigationRef = useRef<any>(null);
+
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <ClerkProvider tokenCache={tokenCache} publishableKey={publishableKey}>
         <LanguageProvider>
           <SafeAreaProvider>
-            <StatusBar style="dark" backgroundColor="#ffffff" />
-            <SocketInitializer />
-            <AppNavigator />
+                         <View style={{ flex: 1, backgroundColor: '#ffffff' }}>
+               <StatusBar style="dark" />
+                             <NavigationContainer ref={navigationRef}>
+                 <NotificationProvider navigationRef={navigationRef}>
+                   <SocketInitializer />
+                   <AppNavigator />
+                 </NotificationProvider>
+               </NavigationContainer>
+            </View>
           </SafeAreaProvider>
         </LanguageProvider>
       </ClerkProvider>

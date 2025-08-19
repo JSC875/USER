@@ -28,6 +28,7 @@ import {
 } from '../../utils/socket';
 import { useAuth } from '@clerk/clerk-expo';
 import { getUserIdFromJWT } from '../../utils/jwtDecoder';
+import { useChatNotifications } from '../../utils/chatNotificationHelper';
 
 interface ChatMessage {
   id: string;
@@ -49,6 +50,7 @@ const quickReplies = [
 export default function ChatScreen({ navigation, route }: any) {
   const { ride, driver } = route.params;
   const { getToken, isLoaded } = useAuth();
+  const { sendChatNotificationToCurrentUser } = useChatNotifications();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
   const [isTyping, setIsTyping] = useState(false);
@@ -147,8 +149,20 @@ export default function ChatScreen({ navigation, route }: any) {
       console.log('💬 Received chat message:', message);
       setMessages(prev => [...prev, message]);
       
-      // Mark message as read if it's from driver
+      // Send push notification for incoming messages from driver
       if (message.senderType === 'driver') {
+        console.log('🔔 Sending chat notification for incoming message from driver');
+        sendChatNotificationToCurrentUser({
+          rideId: message.rideId,
+          senderId: message.senderId,
+          senderName: driver?.name || 'Driver',
+          message: message.message,
+          messageType: 'text'
+        }).catch(error => {
+          console.error('❌ Error sending chat notification:', error);
+        });
+        
+        // Mark message as read
         markMessagesAsRead({
           rideId: message.rideId,
           readerId: userId,
@@ -337,6 +351,30 @@ export default function ChatScreen({ navigation, route }: any) {
         <TouchableOpacity style={styles.callButton}>
           <Ionicons name="call" size={24} color={Colors.primary} />
         </TouchableOpacity>
+                 <TouchableOpacity 
+           style={styles.testButton}
+           onPress={() => {
+             console.log('🧪 Testing chat notification...');
+             // Use the last message from driver or a sample message
+             const lastDriverMessage = messages
+               .filter(msg => msg.senderType === 'driver')
+               .pop();
+             
+             const testMessage = lastDriverMessage?.message || 'I\'m on my way to your pickup location';
+             
+             sendChatNotificationToCurrentUser({
+               rideId: rideId,
+               senderId: 'test-driver-123',
+               senderName: driver?.name || 'Test Driver',
+               message: testMessage,
+               messageType: 'text'
+             }).then(success => {
+               console.log(success ? '✅ Test notification sent' : '❌ Test notification failed');
+             });
+           }}
+         >
+           <Ionicons name="notifications" size={20} color={Colors.success} />
+         </TouchableOpacity>
       </View>
 
       {/* Messages */}
@@ -449,6 +487,10 @@ const styles = StyleSheet.create({
   },
   callButton: {
     padding: Layout.spacing.sm,
+  },
+  testButton: {
+    padding: Layout.spacing.sm,
+    marginLeft: Layout.spacing.sm,
   },
   messagesList: {
     flex: 1,
