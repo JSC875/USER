@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -15,7 +15,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks } from '../../utils/socket';
+import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks, getSocket } from '../../utils/socket';
 import MapView, { Marker, Polyline } from 'react-native-maps';
 import { Images } from '../../constants/Images';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
@@ -24,6 +24,17 @@ import { useAuth } from '@clerk/clerk-expo';
 import { rideService } from '../../services/rideService';
 import { useNotifications } from '../../store/NotificationContext';
 import BackendNotificationService from '../../services/backendNotificationService';
+import RoutingService from '../../services/routingService';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming, 
+  withSpring,
+  withRepeat,
+  interpolate,
+  runOnJS,
+  Easing
+} from 'react-native-reanimated';
 
 export default function LiveTrackingScreen({ navigation, route }: any) {
   const { destination, estimate, driver, rideId, origin, driverArrived } = route.params;
@@ -42,6 +53,10 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   const [callModalVisible, setCallModalVisible] = useState(false);
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [driverPath, setDriverPath] = useState<{latitude: number, longitude: number}[]>([]);
+  const [routePath, setRoutePath] = useState<{latitude: number, longitude: number}[]>([]);
+
+  const [pathUpdateCount, setPathUpdateCount] = useState(0);
+  const [locationUpdateCount, setLocationUpdateCount] = useState(0);
   const [otpCode, setOtpCode] = useState('0824'); // Default fallback
   const [pilotName, setPilotName] = useState('Anderson'); // Default fallback
   const [driverRating, setDriverRating] = useState<number | null>(null); // Driver rating from backend
@@ -49,6 +64,340 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   const [driverPhoneNumber, setDriverPhoneNumber] = useState<string | null>(null); // Real phone number from backend
   const [realDriverName, setRealDriverName] = useState<string | null>(null); // Real driver name from backend
   const [isLoadingRideData, setIsLoadingRideData] = useState(true);
+  const [driverInfoState, setDriverInfoState] = useState<{
+    id: string;
+    name: string;
+    phone: string;
+    eta?: string;
+    vehicleType?: string;
+    vehicleModel?: string;
+    photo?: string;
+    vehicleNumber?: string;
+    vehicleColor?: string;
+  }>({
+    id: driver?.id || '',
+    name: driver?.name || pilotName,
+    phone: driver?.phone || '',
+    eta: driver?.eta,
+    vehicleType: driver?.vehicleType,
+    vehicleModel: driver?.vehicleModel
+  });
+
+  // Use state to store current driver ID so useEffect can depend on it
+  const [currentDriverId, setCurrentDriverId] = useState(driverInfoState.id);
+
+  // Update current driver ID when driverInfoState changes
+  useEffect(() => {
+    setCurrentDriverId(driverInfoState.id);
+    console.log('🔄 Updated driver ID to:', driverInfoState.id);
+  }, [driverInfoState.id]);
+
+  // Flag to prevent multiple API calls
+  const hasFetchedRideDetails = useRef(false);
+
+  // State to track if we're receiving real-time updates
+  const [lastLocationUpdate, setLastLocationUpdate] = useState<Date | null>(null);
+
+  // Animation values for driver marker
+  const driverRotation = useSharedValue(0);
+  const driverScale = useSharedValue(1);
+  const driverOpacity = useSharedValue(1);
+  const pulseAnimation = useSharedValue(0);
+  
+  // Smooth animation values for driver location
+  const animatedLatitude = useSharedValue(0);
+  const animatedLongitude = useSharedValue(0);
+  const isAnimating = useSharedValue(false);
+  
+  // State for animated driver location (for marker coordinate)
+  const [animatedDriverLocation, setAnimatedDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
+  
+  const mapRef = useRef<MapView>(null);
+
+  // Pulsing animation effect
+  useEffect(() => {
+    pulseAnimation.value = withRepeat(
+      withTiming(1, { duration: 1000 }),
+      -1, // Infinite repeat
+      true // Reverse animation
+    );
+  }, []);
+
+  // Set initial driver location only if no real location is available
+  useEffect(() => {
+    // Only set initial location if we don't have any driver location and we're in development
+    // AND we haven't received any real driver location updates yet
+    if (!driverLocation && __DEV__ && !lastLocationUpdate) {
+      console.log('🧪 Setting initial driver location for development testing');
+      let initialDriverLocation;
+      
+      if (origin && origin.latitude && origin.longitude) {
+        // Use origin as reference if available
+        initialDriverLocation = {
+          latitude: origin.latitude + 0.001, // Slightly north of pickup
+          longitude: origin.longitude + 0.001  // Slightly east of pickup
+        };
+      } else if (destination && destination.latitude && destination.longitude) {
+        // Use destination as reference if origin not available
+        initialDriverLocation = {
+          latitude: destination.latitude - 0.001, // Slightly south of destination
+          longitude: destination.longitude - 0.001  // Slightly west of destination
+        };
+      } else {
+        // Don't set hardcoded coordinates - wait for real driver location
+        console.log('🧪 Waiting for real driver location instead of using hardcoded coordinates');
+        return;
+      }
+      
+      setDriverLocation(initialDriverLocation);
+      console.log('🧪 Initial driver location set for testing:', initialDriverLocation);
+    }
+  }, [origin, destination, driverLocation, lastLocationUpdate]);
+
+
+  // Summary log for driver location updates
+  useEffect(() => {
+    if (locationUpdateCount > 0) {
+      console.log('📊 Driver Location Summary:', {
+        totalUpdates: locationUpdateCount,
+        pathLength: driverPath.length,
+        lastUpdate: lastLocationUpdate?.toLocaleTimeString()
+      });
+    }
+  }, [locationUpdateCount, driverPath.length, lastLocationUpdate]);
+
+  // Smooth animation function for driver marker
+  const animateDriverToLocation = (newLocation: {latitude: number, longitude: number}) => {
+    if (!driverLocation) {
+      // First location - set immediately without animation
+      animatedLatitude.value = newLocation.latitude;
+      animatedLongitude.value = newLocation.longitude;
+      setAnimatedDriverLocation(newLocation);
+      return;
+    }
+
+    // Calculate bearing for rotation
+    const bearing = calculateBearing(driverLocation, newLocation);
+    driverRotation.value = bearing;
+
+    // Start smooth animation
+    isAnimating.value = true;
+    
+    console.log('🎬 Starting smooth animation from:', driverLocation, 'to:', newLocation);
+    
+    // Animate latitude and longitude over 5 seconds
+    animatedLatitude.value = withTiming(
+      newLocation.latitude,
+      { duration: 5000, easing: Easing.inOut(Easing.cubic) },
+      (finished) => {
+        if (finished) {
+          console.log('✅ Latitude animation completed');
+        }
+      }
+    );
+    
+    animatedLongitude.value = withTiming(
+      newLocation.longitude,
+      { duration: 5000, easing: Easing.inOut(Easing.cubic) },
+      (finished) => {
+        if (finished) {
+          console.log('✅ Longitude animation completed');
+          isAnimating.value = false;
+        }
+      }
+    );
+    
+    // Update animated location state during animation
+    const updateAnimatedLocation = () => {
+      setAnimatedDriverLocation({
+        latitude: animatedLatitude.value,
+        longitude: animatedLongitude.value
+      });
+    };
+    
+    // Update every 100ms during animation
+    const animationInterval = setInterval(() => {
+      if (isAnimating.value) {
+        updateAnimatedLocation();
+      } else {
+        clearInterval(animationInterval);
+      }
+    }, 100);
+  };
+
+  // Update location tracking when driver location changes
+  useEffect(() => {
+    if (driverLocation) {
+      setLastLocationUpdate(new Date());
+      
+      // Start smooth animation to new location
+      animateDriverToLocation(driverLocation);
+    }
+  }, [driverLocation]);
+
+  // Calculate bearing between two points for car rotation
+  const calculateBearing = (start: {latitude: number, longitude: number}, end: {latitude: number, longitude: number}) => {
+    const toRad = (deg: number) => deg * Math.PI / 180;
+    const toDeg = (rad: number) => rad * 180 / Math.PI;
+    
+    const startLat = toRad(start.latitude);
+    const startLng = toRad(start.longitude);
+    const endLat = toRad(end.latitude);
+    const endLng = toRad(end.longitude);
+    
+    const dLng = endLng - startLng;
+    
+    const y = Math.sin(dLng) * Math.cos(endLat);
+    const x = Math.cos(startLat) * Math.sin(endLat) - Math.sin(startLat) * Math.cos(endLat) * Math.cos(dLng);
+    
+    let bearing = toDeg(Math.atan2(y, x));
+    return (bearing + 360) % 360;
+  };
+
+
+
+  // Calculate distance between two points in meters
+  const calculateDistance = (point1: {latitude: number, longitude: number}, point2: {latitude: number, longitude: number}) => {
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = point1.latitude * Math.PI / 180;
+    const φ2 = point2.latitude * Math.PI / 180;
+    const Δφ = (point2.latitude - point1.latitude) * Math.PI / 180;
+    const Δλ = (point2.longitude - point1.longitude) * Math.PI / 180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+  };
+
+  // Animated style for driver marker
+  const animatedDriverStyle = useAnimatedStyle(() => {
+    const pulseScale = interpolate(pulseAnimation.value, [0, 1], [1, 1.2]);
+    return {
+      transform: [
+        { rotate: `${driverRotation.value}deg` },
+        { scale: driverScale.value * pulseScale }
+      ],
+      opacity: driverOpacity.value,
+    };
+  });
+
+  // Coordinate validation function
+  const validateAndProcessCoordinates = (lat: number, lng: number) => {
+    // Ensure coordinates are numbers and within valid ranges
+    if (typeof lat !== 'number' || typeof lng !== 'number' || 
+        isNaN(lat) || isNaN(lng) ||
+        lat < -90 || lat > 90 || lng < -180 || lng > 180) {
+      console.log('🚫 Invalid coordinates received:', { lat, lng });
+      return null;
+    }
+    
+    // Ensure consistent precision (7 decimal places for ~1cm accuracy)
+    const processedLat = parseFloat(lat.toFixed(7));
+    const processedLng = parseFloat(lng.toFixed(7));
+    
+    console.log('✅ Coordinate validation passed:', {
+      originalLat: lat,
+      originalLng: lng,
+      processedLat: processedLat,
+      processedLng: processedLng,
+      latPrecision: processedLat.toString().split('.')[1]?.length || 0,
+      lngPrecision: processedLng.toString().split('.')[1]?.length || 0
+    });
+    
+    return { latitude: processedLat, longitude: processedLng };
+  };
+
+  // Update driver location with animation and path tracking
+  const updateDriverLocationWithAnimation = (newLocation: {latitude: number, longitude: number}) => {
+    console.log('🔄 Updating driver location from:', driverLocation, 'to:', newLocation);
+    
+    // Validate the new location
+    if (!newLocation || !newLocation.latitude || !newLocation.longitude ||
+        isNaN(newLocation.latitude) || isNaN(newLocation.longitude)) {
+      console.log('🚫 Invalid new location data, skipping update');
+      return;
+    }
+    
+    // Additional validation for coordinate ranges
+    if (newLocation.latitude < -90 || newLocation.latitude > 90 || 
+        newLocation.longitude < -180 || newLocation.longitude > 180) {
+      console.log('🚫 Coordinates out of valid range, skipping update');
+      return;
+    }
+    
+    console.log('✅ Coordinates validation passed:', {
+      latitude: newLocation.latitude,
+      longitude: newLocation.longitude,
+      latInRange: newLocation.latitude >= -90 && newLocation.latitude <= 90,
+      lngInRange: newLocation.longitude >= -180 && newLocation.longitude <= 180
+    });
+    
+    if (driverLocation) {
+      // Calculate bearing for car rotation
+      const bearing = calculateBearing(driverLocation, newLocation);
+      
+      // Animate rotation
+      driverRotation.value = withTiming(bearing, { duration: 500 });
+      
+      // Add a small scale animation for movement feedback
+      driverScale.value = withSpring(1.1, { damping: 10 }, () => {
+        driverScale.value = withSpring(1, { damping: 10 });
+      });
+    }
+    
+    // Update driver location state immediately
+    setDriverLocation(newLocation);
+    
+    // Update driver path for polyline
+    setDriverPath(prev => {
+      const lastPoint = prev[prev.length - 1];
+      // Only add new point if it's different from the last one (to avoid duplicates)
+      if (!prev.length || !lastPoint || 
+          Math.abs(lastPoint.latitude - newLocation.latitude) > 0.00001 || 
+          Math.abs(lastPoint.longitude - newLocation.longitude) > 0.00001) {
+        const newPath = [...prev, newLocation];
+        // Keep only last 50 points to prevent memory issues
+        if (newPath.length > 50) {
+          newPath.splice(0, newPath.length - 50);
+        }
+        setPathUpdateCount(prev => prev + 1);
+        console.log('🛣️ Updated driver path, new length:', newPath.length);
+        return newPath;
+      }
+      console.log('🛣️ Path not updated - duplicate location');
+      return prev;
+    });
+    
+    // Immediately update map region to follow driver
+    if (mapRef.current) {
+      console.log('📷 Animating map to follow driver location:', newLocation);
+      const region = {
+        latitude: newLocation.latitude,
+        longitude: newLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+      
+      console.log('📷 Map region to animate to:', region);
+      
+      mapRef.current.animateToRegion(region, 1000); // 1 second animation
+      
+      // Also force a map update after animation
+      setTimeout(() => {
+        if (mapRef.current) {
+          console.log('📷 Forcing map region update after animation');
+          mapRef.current.animateToRegion(region, 0);
+        }
+      }, 1100);
+    } else {
+      console.log('⚠️ Map reference not available for region update');
+    }
+    
+    console.log('✅ Driver location update completed successfully');
+  };
 
   // Debug effect to log when driverRating changes
   useEffect(() => {
@@ -56,11 +405,13 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     console.log('⭐ LiveTrackingScreen: Is new driver:', isNewDriver);
   }, [driverRating, isNewDriver]);
 
-  // Temporary test: Force rating for debugging
+
+
+  // Log when custom motorcycle icon is being used
   useEffect(() => {
-    console.log('🧪 LiveTrackingScreen: Setting test rating for debugging');
-    setDriverRating(0);
-    setIsNewDriver(true);
+    console.log('🏍️ Using custom motorcycle icon (iconAnimation1.png) for driver marker');
+    console.log('🏍️ Icon source:', Images.ICON_ANIMATION_1);
+    console.log('🏍️ Icon description: Top-down view of person riding motorcycle with green glow effect');
   }, []);
 
   // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
@@ -83,7 +434,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         await backendService.sendDriverArrivedNotification(tokenData.token, {
           rideId: rideId,
           driverId: driver?.id || 'unknown',
-          driverName: driverInfo.name,
+                        driverName: driverInfoState.name,
           pickupLocation: origin?.name || 'Your pickup location'
         });
         console.log('✅ Driver arrived notification sent');
@@ -100,25 +451,26 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     ...driver,
     name: driver?.name ? transformDriverName(driver.name) : pilotName
   };
-  
-  console.log('🚀 LiveTrackingScreen: Initial state:', {
-    rideStatus,
-    driverInfo,
-    otpCode,
-    pilotName,
-    driverRating
-  });
+
+
 
   // Fetch ride details from backend to get real OTP and pilot name
   useEffect(() => {
     const fetchRideDetails = async () => {
-      if (!rideId || !getToken) {
-        console.log('⚠️ LiveTrackingScreen: Missing rideId or getToken, skipping API call');
+      if (!rideId) {
+        console.log('⚠️ LiveTrackingScreen: Missing rideId, skipping API call');
         setIsLoadingRideData(false);
         return;
       }
 
+      // Prevent multiple API calls
+      if (hasFetchedRideDetails.current) {
+        console.log('⚠️ LiveTrackingScreen: Already fetched ride details, skipping duplicate call');
+        return;
+      }
+
       try {
+        hasFetchedRideDetails.current = true;
         console.log('🔍 LiveTrackingScreen: Fetching ride details from backend...');
         console.log('🎯 Ride ID:', rideId);
         
@@ -245,6 +597,25 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
             console.log('📊 LiveTrackingScreen: Setting ride status from backend:', response.data.status);
             setRideStatus(response.data.status);
           }
+          
+          // Update driver info with correct driver ID from backend
+          if (response.data?.driver?.id) {
+            const driverId = response.data.driver.id;
+            console.log('🆔 LiveTrackingScreen: Updating driver info with backend driver ID:', driverId);
+            // Update the driver info to use the correct driver ID from backend
+            // This ensures we listen for location updates from the correct driver
+            setDriverInfoState(prev => ({
+              ...prev,
+              id: driverId, // Use the actual driver ID from backend
+              name: response.data!.driver!.firstName || prev.name,
+              phone: response.data!.driver!.phoneNumber || prev.phone,
+              // Keep vehicle info consistent with the scooter icon
+              vehicleType: 'scooter',
+              vehicleModel: 'Scooter',
+              vehicleColor: 'Green',
+              vehicleNumber: '3M53AF2'
+            }));
+          }
         } else {
           console.warn('⚠️ LiveTrackingScreen: Failed to fetch ride details:', response.message);
         }
@@ -265,12 +636,17 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     };
 
     fetchRideDetails();
-  }, [rideId, getToken]);
+
+    // Cleanup function to reset flag when component unmounts
+    return () => {
+      hasFetchedRideDetails.current = false;
+    };
+  }, [rideId]); // Removed getToken from dependencies to prevent infinite loop
 
   useEffect(() => {
-    console.log('🔧 LiveTrackingScreen: Setting up ride status and driver location listeners');
+    console.log('�� LiveTrackingScreen: Setting up ride status and driver location listeners');
     console.log('🔧 Current rideId:', rideId);
-    console.log('🔧 Current driverInfo:', driverInfo);
+    console.log('🔧 Current driverInfo:', driverInfoState);
     
     // Listen for real-time ride status and driver location updates
     onRideStatus((data: { rideId: string; status: string; message?: string; }) => {
@@ -310,23 +686,69 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       }
     });
 
-    onDriverLocation((data: { driverId: string; latitude: number; longitude: number; }) => {
-      console.log('📍 LiveTrackingScreen received driver location:', data);
-      console.log('📍 Expected driverId:', driverInfo?.id);
+    onDriverLocation((data: { driverId: string; latitude: number; longitude: number; timestamp?: number; }) => {
+      console.log('📍 Received driver location update:', data);
+      console.log('📍 Current driver ID:', currentDriverId);
+      console.log('📍 Driver ID match:', data.driverId === currentDriverId);
+      console.log('📍 Location data validation:', {
+        hasLatitude: typeof data.latitude === 'number' && !isNaN(data.latitude),
+        hasLongitude: typeof data.longitude === 'number' && !isNaN(data.longitude),
+        latitude: data.latitude,
+        longitude: data.longitude,
+        timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : 'No timestamp'
+      });
       
-      if (data.driverId === driverInfo?.id) {
-        console.log('✅ DriverId matches, updating location');
-        setDriverLocation({ latitude: data.latitude, longitude: data.longitude });
-        setDriverPath(prev => {
-          // Only add if different from last
-          const lastPoint = prev[prev.length - 1];
-          if (!prev.length || !lastPoint || lastPoint.latitude !== data.latitude || lastPoint.longitude !== data.longitude) {
-            return [...prev, { latitude: data.latitude, longitude: data.longitude }];
-          }
-          return prev;
+      // Enhanced validation for location data
+      if (!data.latitude || !data.longitude || 
+          isNaN(data.latitude) || isNaN(data.longitude) ||
+          data.latitude === 0 || data.longitude === 0) {
+        console.log('🚫 Invalid location data received, ignoring update');
+        return;
+      }
+      
+      if (data.driverId === currentDriverId) {
+        setLocationUpdateCount(prev => prev + 1);
+        
+        // Use coordinate validation function to ensure consistency
+        const validatedLocation = validateAndProcessCoordinates(data.latitude, data.longitude);
+        if (!validatedLocation) {
+          console.log('🚫 Coordinate validation failed, ignoring update');
+          return;
+        }
+        
+        console.log('✅ Valid driver location received:', validatedLocation);
+        console.log('✅ Previous driver location:', driverLocation);
+        
+        // Log coordinate details for debugging
+        console.log('🔍 Coordinate details:', {
+          received: validatedLocation,
+          latPrecision: validatedLocation.latitude.toString().split('.')[1]?.length || 0,
+          lngPrecision: validatedLocation.longitude.toString().split('.')[1]?.length || 0,
+          timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : 'No timestamp'
         });
+        
+        // Update driver location with animation and path tracking
+        updateDriverLocationWithAnimation(validatedLocation);
+        
+        // Update real-time status
+        setLastLocationUpdate(new Date());
+        
+        // Fetch updated route path when driver moves
+        if (origin?.latitude && origin?.longitude) {
+          fetchRoutePath(validatedLocation, { latitude: origin.latitude, longitude: origin.longitude });
+        }
+        
+        console.log('✅ Driver location updated successfully');
       } else {
-        console.log('🚫 Ignoring driver location for different driver:', data.driverId, 'expected:', driverInfo?.id);
+        console.log('🚫 Driver ID mismatch, ignoring location update');
+        console.log('🚫 Expected driver ID:', currentDriverId);
+        console.log('🚫 Received driver ID:', data.driverId);
+        console.log('🚫 Driver ID type comparison:', {
+          expected: typeof currentDriverId,
+          received: typeof data.driverId,
+          expectedLength: currentDriverId?.length,
+          receivedLength: data.driverId?.length
+        });
       }
     });
     
@@ -334,7 +756,45 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       console.log('🧹 LiveTrackingScreen: Cleaning up ride status and driver location listeners');
       clearCallbacks();
     };
-  }, [rideId, driverInfo, navigation, destination, estimate]);
+  }, [rideId, navigation, destination, estimate, currentDriverId]); // Added currentDriverId to re-run when driver ID changes
+
+  // Set initial driver location near pickup point
+  useEffect(() => {
+    if (!driverLocation && origin?.latitude && origin?.longitude) {
+      const initialDriverLocation = {
+        latitude: origin.latitude + 0.001, // 100m away from pickup
+        longitude: origin.longitude + 0.001
+      };
+      console.log('📍 Setting initial driver location:', initialDriverLocation);
+      setDriverLocation(initialDriverLocation);
+      setDriverPath([initialDriverLocation]);
+    }
+  }, [origin, driverLocation]);
+
+  // Test socket connection
+  useEffect(() => {
+    const testSocketConnection = () => {
+      console.log('🧪 Testing socket connection...');
+      const socket = getSocket();
+      if (socket && socket.connected) {
+        console.log('✅ Socket is connected, emitting test event');
+        socket.emit('test_event', { message: 'Hello from customer app', timestamp: Date.now() });
+      } else {
+        console.log('❌ Socket is not connected');
+      }
+    };
+
+    // Test after 2 seconds
+    const timer = setTimeout(testSocketConnection, 2000);
+    return () => clearTimeout(timer);
+  }, []);
+
+  // Fetch route path when driver location or pickup point changes
+  useEffect(() => {
+    if (driverLocation && origin?.latitude && origin?.longitude) {
+      fetchRoutePath(driverLocation, { latitude: origin.latitude, longitude: origin.longitude });
+    }
+  }, [driverLocation, origin]);
 
   // Listen for driver_arrived event to show MPIN entry
   useEffect(() => {
@@ -360,7 +820,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
             await backendService.sendDriverArrivedNotification(tokenData.token, {
               rideId: data.rideId,
               driverId: data.driverId,
-              driverName: driverInfo.name,
+              driverName: driverInfoState.name,
               pickupLocation: origin?.name || 'Your pickup location'
             });
             console.log('✅ Driver arrived push notification sent successfully');
@@ -391,7 +851,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         console.log('🚀 Current screen state before navigation:', { rideStatus });
         
         navigation.replace('RideInProgress', {
-          driver: driverInfo,
+          driver: driverInfoState,
           rideId,
           destination,
           origin,
@@ -441,7 +901,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
 
   const handleCallNow = () => {
     setCallModalVisible(false);
-    const phoneToCall = driverPhoneNumber || driverInfo.phone;
+    const phoneToCall = driverPhoneNumber || driverInfoState.phone;
     if (phoneToCall) {
       console.log('📞 LiveTrackingScreen: Calling driver with phone:', phoneToCall);
       Linking.openURL(`tel:${phoneToCall}`);
@@ -481,6 +941,69 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     }
   };
 
+
+
+  // Function to fetch real road route between driver and pickup using Google Directions API
+  const fetchRoutePath = async (driverPos: {latitude: number, longitude: number}, pickupPos: {latitude: number, longitude: number}) => {
+    try {
+      console.log('🛣️ Fetching real road route from Google Directions API...');
+      const routingService = RoutingService.getInstance();
+      
+      // Try to get real route from Google Directions API first
+      const routeResponse = await routingService.getRoute(driverPos, pickupPos, 'driving');
+      
+      if (routeResponse.success && routeResponse.route) {
+        console.log('✅ Got real road route with', routeResponse.route.length, 'points');
+        setRoutePath(routeResponse.route);
+      } else {
+        // Fallback to generated path if API fails
+        console.log('⚠️ Google Directions API failed, using fallback path');
+        const curvedPath = routingService.generateCurvedPath(driverPos, pickupPos, 30);
+        console.log('🛣️ Generated fallback path with', curvedPath.length, 'points');
+        setRoutePath(curvedPath);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching route:', error);
+      // Fallback to generated path
+      const routingService = RoutingService.getInstance();
+      const curvedPath = routingService.generateCurvedPath(driverPos, pickupPos, 30);
+      console.log('🛣️ Generated fallback path with', curvedPath.length, 'points');
+      setRoutePath(curvedPath);
+    }
+  };
+
+  // Function to get the appropriate driver icon based on vehicle type
+  const getDriverIcon = () => {
+    const vehicleType = driverInfoState?.vehicleType?.toLowerCase() || '';
+    const vehicleModel = driverInfoState?.vehicleModel?.toLowerCase() || '';
+    
+    // For bike/scooter rides, use the scooter image from assets
+    if (vehicleType.includes('scooter') || vehicleType.includes('bike') || vehicleModel.includes('scooter') || vehicleModel.includes('bike')) {
+      return 'scooter'; // Use scooter image
+    } else if (vehicleType.includes('car') || vehicleModel.includes('civic') || vehicleModel.includes('car')) {
+      return 'car-sport'; // Car icon
+    } else if (vehicleType.includes('auto') || vehicleModel.includes('auto')) {
+      return 'car'; // Auto rickshaw icon
+    } else {
+      return 'scooter'; // Default to scooter for bike rides
+    }
+  };
+
+  // Force center map on driver location for debugging
+  const forceCenterOnDriver = () => {
+    if (driverLocation && mapRef.current) {
+      console.log('🔧 Force centering map on driver location:', driverLocation);
+      mapRef.current.animateToRegion({
+        latitude: driverLocation.latitude,
+        longitude: driverLocation.longitude,
+        latitudeDelta: 0.005, // Zoom in closer
+        longitudeDelta: 0.005,
+      }, 1000);
+    }
+  };
+
+  // Force center map on exact driver app coordinates - removed hardcoded coordinates
+
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="dark-content" backgroundColor={Colors.white} />
@@ -491,10 +1014,11 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       {/* Map Container */}
       <View style={styles.mapContainer}>
         <MapView
+          ref={mapRef}
           style={{ flex: 1 }}
           initialRegion={{
-            latitude: driverLocation?.latitude || destination?.latitude || 17.4448,
-            longitude: driverLocation?.longitude || destination?.longitude || 78.3498,
+            latitude: origin?.latitude || destination?.latitude || 17.4448,
+            longitude: origin?.longitude || destination?.longitude || 78.3498,
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           }}
@@ -504,8 +1028,8 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           } : {
-            latitude: destination?.latitude || 17.4448,
-            longitude: destination?.longitude || 78.3498,
+            latitude: origin?.latitude || destination?.latitude || 17.4448,
+            longitude: origin?.longitude || destination?.longitude || 78.3498,
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           }}
@@ -519,32 +1043,90 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           showsIndoorLevelPicker={false}
           showsPointsOfInterest={false}
           mapType="standard"
+          followsUserLocation={false}
+          onMapReady={() => {
+            console.log('🗺️ Map is ready');
+            // If we have driver location, center the map on it
+            if (driverLocation) {
+              console.log('🗺️ Centering map on driver location:', driverLocation);
+              mapRef.current?.animateToRegion({
+                latitude: driverLocation.latitude,
+                longitude: driverLocation.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }, 1000);
+            }
+          }}
         >
-          {/* Polyline from driver to pickup (origin) when arriving */}
-          {rideStatus === 'arriving' && driverLocation && origin && origin.latitude && origin.longitude && (
+          {/* Enhanced polyline visualization */}
+          {/* Route from driver to pickup point - actual road path */}
+          {routePath.length > 0 && (
             <Polyline
-              coordinates={[
-                { latitude: driverLocation.latitude, longitude: driverLocation.longitude },
-                { latitude: origin.latitude, longitude: origin.longitude }
-              ]}
-              strokeColor={Colors.primary}
-              strokeWidth={4}
-              lineDashPattern={[10, 5]}
+              coordinates={routePath}
+              strokeColor="#000000"
+              strokeWidth={6}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={3}
             />
           )}
-          {/* Show driver's path as polyline after pickup if needed */}
-          {rideStatus !== 'arriving' && driverPath.length > 1 && (
+          
+          {/* Driver's traveled path (polyline) */}
+          {driverPath.length > 1 && (
             <Polyline
               coordinates={driverPath}
-              strokeColor={Colors.primary}
+              strokeColor={Colors.success}
               strokeWidth={4}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={2}
             />
           )}
-          {driverLocation && (
-            <Marker coordinate={driverLocation} title="Driver">
-              <View style={styles.driverMarker}>
-                <Ionicons name="car" size={20} color={Colors.white} />
-              </View>
+          
+          {/* Route from pickup to destination when ride is in progress */}
+          {rideStatus === 'in_progress' && origin && origin.latitude && origin.longitude && 
+           destination && destination.latitude && destination.longitude && (
+            <Polyline
+              coordinates={[
+                { latitude: origin.latitude, longitude: origin.longitude },
+                { latitude: destination.latitude, longitude: destination.longitude }
+              ]}
+              strokeColor={Colors.warning}
+              strokeWidth={5}
+              lineDashPattern={[10, 5]}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={1}
+            />
+          )}
+          {/* Route progress indicator - animated dot moving along the route */}
+          {rideStatus === 'arriving' && driverLocation && origin && origin.latitude && origin.longitude && (
+            <Marker 
+              coordinate={{
+                latitude: (driverLocation.latitude + origin.latitude) / 2,
+                longitude: (driverLocation.longitude + origin.longitude) / 2
+              }}
+            >
+              <Animated.View style={[styles.progressIndicator, animatedDriverStyle]}>
+                <View style={styles.progressDot} />
+              </Animated.View>
+            </Marker>
+          )}
+          {animatedDriverLocation && (
+            <Marker 
+              coordinate={animatedDriverLocation}
+              title="Driver"
+              onPress={() => {
+                console.log('📍 Driver marker pressed at:', animatedDriverLocation);
+              }}
+            >
+              <Animated.View style={[styles.driverMarker, animatedDriverStyle]}>
+                <Image 
+                  source={Images.ICON_ANIMATION_1}
+                  style={{ width: 40, height: 40 }}
+                  resizeMode="contain"
+                />
+              </Animated.View>
             </Marker>
           )}
           {/* Pickup marker */}
@@ -558,7 +1140,49 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           {destination && destination.latitude && destination.longitude && (
             <Marker coordinate={{ latitude: destination.latitude, longitude: destination.longitude }} title="Destination" pinColor={Colors.coral} />
           )}
+          
+          {/* Test marker removed - was causing confusion with wrong coordinates */}
         </MapView>
+        
+        {/* Debug overlay for driver location coordinates */}
+        {__DEV__ && driverLocation && (
+          <View style={styles.debugOverlay}>
+            <Text style={styles.debugText}>
+              🚗 Driver Location: {driverLocation.latitude.toFixed(6)}, {driverLocation.longitude.toFixed(6)}
+            </Text>
+            <Text style={styles.debugText}>
+              📍 Updates: {locationUpdateCount} | Path: {driverPath.length}
+            </Text>
+            <Text style={styles.debugText}>
+              ⏰ Last Update: {lastLocationUpdate?.toLocaleTimeString() || 'Never'}
+            </Text>
+            <View style={styles.debugButtons}>
+              <TouchableOpacity style={styles.debugButton} onPress={forceCenterOnDriver}>
+                <Text style={styles.debugButtonText}>Center on Driver</Text>
+              </TouchableOpacity>
+                          <TouchableOpacity style={styles.debugButton} onPress={() => console.log('Debug button removed')}>
+              <Text style={styles.debugButtonText}>Center on Exact</Text>
+            </TouchableOpacity>
+              <TouchableOpacity 
+                style={styles.debugButton} 
+                onPress={() => {
+                  const exactCoords = { latitude: 17.452078, longitude: 78.3935025 };
+                  console.log('🔧 Force centering map on latest driver coordinates:', exactCoords);
+                  if (mapRef.current) {
+                    mapRef.current.animateToRegion({
+                      latitude: exactCoords.latitude,
+                      longitude: exactCoords.longitude,
+                      latitudeDelta: 0.005,
+                      longitudeDelta: 0.005,
+                    }, 1000);
+                  }
+                }}
+              >
+                <Text style={styles.debugButtonText}>Center on Latest</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        )}
       </View>
 
       {/* Bottom Section */}
@@ -572,17 +1196,17 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         <View style={styles.driverSection}>
           <View style={styles.driverInfo}>
             <Image 
-              source={driverInfo.photo ? { uri: driverInfo.photo } : Images.SCOOTER_1} 
+              source={Images.ICON_ANIMATION_1} 
               style={styles.driverPhoto} 
             />
           </View>
           
           <View style={styles.driverDetails}>
             <Text style={styles.driverName}>{realDriverName || pilotName}</Text>
-            <Text style={styles.licensePlate}>{driverInfo.vehicleNumber || '3M53AF2'}</Text>
-            <Text style={styles.vehicleInfo}>
-              {driverInfo.vehicleModel || 'Honda Civic'} - {driverInfo.vehicleColor || 'Silver'}
-            </Text>
+                          <Text style={styles.licensePlate}>{driverInfoState.vehicleNumber || '3M53AF2'}</Text>
+              <Text style={styles.vehicleInfo}>
+                {driverInfoState.vehicleModel || 'Scooter'} - {driverInfoState.vehicleColor || 'Green'}
+              </Text>
             <View style={styles.ratingContainer}>
               {driverRating !== null && (
                 <>
@@ -614,7 +1238,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           {/* ETA Badge */}
           <View style={styles.etaBadge}>
             <Text style={styles.etaText}>
-              {(driverInfo.eta || '5 minutes').replace(/\D/g, '') + ' MIN'}
+              {(driverInfoState.eta || '5 minutes').replace(/\D/g, '') + ' MIN'}
             </Text>
           </View>
         </View>
@@ -672,7 +1296,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           <View style={styles.callModal}>
             <Text style={styles.modalTitle}>Call Pilot</Text>
             <Text style={styles.modalDriverName}>{pilotName}</Text>
-            <Text style={styles.modalPhone}>{driverPhoneNumber || driverInfo.phone || 'No phone number'}</Text>
+            <Text style={styles.modalPhone}>{driverPhoneNumber || driverInfoState.phone || 'No phone number'}</Text>
             <View style={{ flexDirection: 'row', marginTop: 20 }}>
               <TouchableOpacity style={styles.modalButton} onPress={handleCallNow}>
                 <Ionicons name="call" size={20} color="#fff" />
@@ -699,16 +1323,15 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
   },
   driverMarker: {
-    backgroundColor: Colors.primary,
-    borderRadius: 20,
-    padding: 10,
-    borderWidth: 3,
-    borderColor: Colors.white,
+    // Remove background styling since iconAnimation1.png has its own glow effect
+    alignItems: 'center',
+    justifyContent: 'center',
+    // Add a subtle shadow for better visibility on map
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.25,
-    shadowRadius: 4,
-    elevation: 5,
+    shadowOpacity: 0.3,
+    shadowRadius: 6,
+    elevation: 8,
   },
   pickupMarker: {
     width: 32,
@@ -950,5 +1573,57 @@ const styles = StyleSheet.create({
     shadowRadius: 3,
     elevation: 2,
   },
+  progressIndicator: {
+    width: 16,
+    height: 16,
+    borderRadius: 8,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 3,
+    borderColor: Colors.white,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.25,
+    shadowRadius: 4,
+    elevation: 5,
+  },
+  progressDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+    backgroundColor: Colors.white,
+  },
+  debugOverlay: {
+    position: 'absolute',
+    top: 100,
+    left: 10,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 10,
+    borderRadius: 8,
+    zIndex: 10,
+  },
+  debugText: {
+    color: Colors.white,
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  debugButtons: {
+    flexDirection: 'row',
+    marginTop: 10,
+    gap: 10,
+  },
+  debugButton: {
+    backgroundColor: Colors.primary,
+    paddingHorizontal: 15,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  debugButtonText: {
+    color: Colors.white,
+    fontSize: 12,
+    fontWeight: '600',
+  },
+
 
 });
