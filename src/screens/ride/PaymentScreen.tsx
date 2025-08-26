@@ -19,7 +19,7 @@ import Button from '../../components/common/Button';
 import { initializePayment, PaymentOptions, PaymentResult, formatAmount, ensureAmountInPaise, convertPaiseToRupees, debugAmountConversion, formatAmountForDisplay } from '../../utils/razorpay';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { paymentService } from '../../services/paymentService';
-import { emitEvent } from '../../utils/socket';
+import { emitEvent, onPaymentSuccess } from '../../utils/socket';
 import { isUsingLiveKeys, getPaymentWarningMessage } from '../../config/razorpay';
 
 type RootStackParamList = {
@@ -52,6 +52,7 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
   const [paymentStatus, setPaymentStatus] = useState<'pending' | 'processing' | 'completed' | 'failed'>('pending');
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [paymentData, setPaymentData] = useState<any>(null);
+  const [showPaymentSuccessNotification, setShowPaymentSuccessNotification] = useState(false);
 
   // Get user information for payment
   const getUserInfo = () => {
@@ -61,6 +62,26 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
     
     return { email, phone, name };
   };
+
+  // Handle payment success notification from socket
+  const handlePaymentSuccessNotification = (data: any) => {
+    console.log('🎉 Payment success notification received:', data);
+    setShowPaymentSuccessNotification(true);
+    
+    // Hide notification after 3 seconds
+    setTimeout(() => {
+      setShowPaymentSuccessNotification(false);
+    }, 3000);
+  };
+
+  // Set up socket listeners
+  useEffect(() => {
+    onPaymentSuccess(handlePaymentSuccessNotification);
+    
+    return () => {
+      // Cleanup socket listeners if needed
+    };
+  }, []);
 
   // Validate and ensure minimum amount
   console.log('💰 PaymentScreen - Original amount:', amount);
@@ -300,6 +321,18 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
 
   return (
     <SafeAreaView style={styles.container}>
+      {/* Payment Success Notification */}
+      {showPaymentSuccessNotification && (
+        <View style={styles.successNotification}>
+          <View style={styles.notificationContent}>
+            <Ionicons name="checkmark-circle" size={24} color={Colors.success} />
+            <Text style={styles.notificationText}>
+              Payment Successful! Your payment has been processed.
+            </Text>
+          </View>
+        </View>
+      )}
+
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Header */}
         <View style={styles.header}>
@@ -775,5 +808,31 @@ const styles = StyleSheet.create({
     textAlign: 'center',
     marginTop: Layout.spacing.md,
     marginBottom: Layout.spacing.sm,
+  },
+  successNotification: {
+    position: 'absolute',
+    top: 20,
+    left: Layout.spacing.lg,
+    right: Layout.spacing.lg,
+    backgroundColor: Colors.success,
+    borderRadius: Layout.borderRadius.md,
+    padding: Layout.spacing.md,
+    zIndex: 1000,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  notificationContent: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  notificationText: {
+    marginLeft: Layout.spacing.sm,
+    fontSize: Layout.fontSize.md,
+    fontWeight: '600',
+    color: Colors.white,
   },
 }); 

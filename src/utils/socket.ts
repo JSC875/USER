@@ -520,9 +520,63 @@ export const connectSocket = (userId: string, userType: string = "customer"): Pr
       onRideAcceptedCallback?.(data);
     });
 
-    socket.on("driver_location_update", (data) => {
+    socket.on("driver_location", (data) => {
       log("📍 Driver location update:", data);
-      onDriverLocationCallback?.(data);
+      
+      // Ensure coordinates are properly processed with consistent precision
+      const latitude = parseFloat(data.latitude.toFixed(7));
+      const longitude = parseFloat(data.longitude.toFixed(7));
+      
+      // Ensure data has the correct structure
+      const locationData = {
+        driverId: data.driverId,
+        latitude: latitude,
+        longitude: longitude,
+        timestamp: data.timestamp || Date.now()
+      };
+      
+      log("📍 Processed location data:", {
+        originalLat: data.latitude,
+        originalLng: data.longitude,
+        processedLat: latitude,
+        processedLng: longitude,
+        latPrecision: latitude.toString().split('.')[1]?.length || 0,
+        lngPrecision: longitude.toString().split('.')[1]?.length || 0,
+        driverId: data.driverId,
+        timestamp: locationData.timestamp
+      });
+      
+      onDriverLocationCallback?.(locationData);
+    });
+
+    // Fallback listener for the old event name
+    socket.on("driver_location_update", (data) => {
+      log("📍 Driver location update (fallback):", data);
+      
+      // Ensure coordinates are properly processed with consistent precision
+      const latitude = parseFloat(data.latitude.toFixed(7));
+      const longitude = parseFloat(data.longitude.toFixed(7));
+      
+      // Ensure data has the correct structure
+      const locationData = {
+        driverId: data.driverId,
+        latitude: latitude,
+        longitude: longitude,
+        timestamp: data.timestamp || Date.now()
+      };
+      
+      log("📍 Processed location data (fallback):", {
+        originalLat: data.latitude,
+        originalLng: data.longitude,
+        processedLat: latitude,
+        processedLng: longitude,
+        latPrecision: latitude.toString().split('.')[1]?.length || 0,
+        lngPrecision: longitude.toString().split('.')[1]?.length || 0,
+        driverId: data.driverId,
+        timestamp: locationData.timestamp
+      });
+      
+      onDriverLocationCallback?.(locationData);
     });
 
     socket.on("ride_status_update", (data) => {
@@ -563,6 +617,11 @@ export const connectSocket = (userId: string, userType: string = "customer"): Pr
     socket.on("payment_success", (data) => {
       log("✅ Payment success:", data);
       onPaymentSuccessCallback?.(data);
+    });
+
+    // Debug listener to catch ALL events
+    socket.onAny((eventName, data) => {
+      log("🔍 DEBUG: Received socket event:", { eventName, data });
     });
   });
 
