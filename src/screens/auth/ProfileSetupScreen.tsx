@@ -1,4 +1,4 @@
-  import React, { useState } from 'react';
+  import React, { useState, useEffect } from 'react';
   import {
     View,
     Text,
@@ -9,6 +9,7 @@
     Platform,
     ScrollView,
     Alert,
+    BackHandler,
   } from 'react-native';
   import { SafeAreaView } from 'react-native-safe-area-context';
   import { Ionicons } from '@expo/vector-icons';
@@ -30,6 +31,15 @@
     const { getToken } = useAuth();
 
     useAssignUserType('customer');
+
+    // Prevent back navigation on Android
+    useEffect(() => {
+      const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+        return true; // Prevent default back behavior
+      });
+
+      return () => backHandler.remove();
+    }, []);
 
     const handleImagePicker = () => {
       Alert.alert(

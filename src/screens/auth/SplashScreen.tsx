@@ -1,5 +1,5 @@
-import React, { useRef, useState } from 'react';
-import { View, Text, Dimensions, TouchableOpacity, FlatList, Image } from 'react-native';
+import React, { useRef, useState, useEffect } from 'react';
+import { View, Text, Dimensions, TouchableOpacity, FlatList, Image, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Images } from '../../constants/Images';
 
@@ -55,6 +55,15 @@ const screens = [
 export default function OnboardingSwiper({ navigation }: { navigation?: any }) {
   const [index, setIndex] = useState(0);
   const flatListRef = useRef<FlatList>(null);
+
+  // Prevent back navigation on Android
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      return true; // Prevent default back behavior
+    });
+
+    return () => backHandler.remove();
+  }, []);
 
   const handleNext = () => {
     if (index < screens.length - 1) {
