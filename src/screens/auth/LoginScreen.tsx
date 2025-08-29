@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -10,6 +10,7 @@ import {
   Alert,
   Modal,
   TouchableWithoutFeedback,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -31,6 +32,15 @@ export default function LoginScreen({ navigation }: any) {
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const { signIn, setActive, isLoaded } = useSignIn();
+
+  // Prevent back navigation on Android
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      return true; // Prevent default back behavior
+    });
+
+    return () => backHandler.remove();
+  }, []);
 
   const handleSendOTP = async () => {
     if (!isLoaded) return;
@@ -60,7 +70,7 @@ export default function LoginScreen({ navigation }: any) {
           strategy: 'phone_code',
           phoneNumberId: phoneNumberFactor.phoneNumberId,
         });
-        navigation.navigate('OTPVerification', {
+        navigation.replace('OTPVerification', {
           phoneNumber: formattedPhone,
           isSignIn: true,
         });
@@ -74,7 +84,7 @@ export default function LoginScreen({ navigation }: any) {
   };
 
   const handleSignUp = () => {
-    navigation.navigate('SignUp');
+    navigation.replace('SignUp');
   };
 
   const renderCountryCodeSelector = () => (

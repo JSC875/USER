@@ -11,7 +11,8 @@ import {
   FlatList, 
   TextInput, 
   Image, 
-  Alert 
+  Alert,
+  BackHandler
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -39,7 +40,6 @@ interface PhoneStepProps {
   countryModalVisible: boolean;
   setCountryModalVisible: (v: boolean) => void;
   onNext: () => void;
-  onBack: () => void;
   isLoading: boolean;
   selectedCountry: CountryItem;
   setSelectedCountry: (c: CountryItem) => void;
@@ -49,7 +49,6 @@ interface OtpStepProps {
   otp: string[];
   setOtp: (v: string[]) => void;
   onVerify: () => void;
-  onBack: () => void;
   isLoading: boolean;
   error: string;
   resendOtp: () => void;
@@ -62,7 +61,6 @@ interface PhotoStepProps {
   setProfileImage: (v: string | null) => void;
   onComplete: () => void;
   onSkip: () => void;
-  onBack: () => void;
   isLoading: boolean;
 }
 
@@ -129,7 +127,6 @@ function PhoneStep({
   countryModalVisible, 
   setCountryModalVisible, 
   onNext, 
-  onBack, 
   isLoading,
   selectedCountry,
   setSelectedCountry
@@ -217,13 +214,7 @@ function PhoneStep({
         disabled={phoneNumber.length !== 10}
         style={{ marginTop: 24 }}
       />
-      <Button
-        title="Back"
-        onPress={onBack}
-        fullWidth
-        variant="secondary"
-        style={{ marginTop: 12 }}
-      />
+      {/* Back button removed to prevent going back to previous screens */}
     </View>
   );
 }
@@ -233,7 +224,6 @@ function OtpStep({
   otp, 
   setOtp, 
   onVerify, 
-  onBack, 
   isLoading, 
   error, 
   resendOtp, 
@@ -315,13 +305,7 @@ function OtpStep({
         disabled={otp.join('').length !== 6}
         style={{ marginTop: 24 }}
       />
-      <Button
-        title="Back"
-        onPress={onBack}
-        fullWidth
-        variant="secondary"
-        style={{ marginTop: 12 }}
-      />
+      {/* Back button removed to prevent going back to previous screens */}
     </View>
   );
 }
@@ -332,7 +316,6 @@ function PhotoStep({
   setProfileImage, 
   onComplete, 
   onSkip, 
-  onBack, 
   isLoading,
   firstName,
   lastName
@@ -386,15 +369,7 @@ function PhotoStep({
         disabled={!firstName.trim() || !lastName.trim()}
         style={{ marginTop: 24 }}
       />
-      {(!firstName.trim() || !lastName.trim()) && (
-        <Button
-          title="Back to Name Step"
-          onPress={onBack}
-          fullWidth
-          variant="secondary"
-          style={{ marginTop: 12 }}
-        />
-      )}
+      {/* Back to Name Step button removed to prevent going back to previous screens */}
       <Button
         title="I'll do it later"
         onPress={onSkip}
@@ -402,13 +377,7 @@ function PhotoStep({
         variant="secondary"
         style={{ marginTop: 12 }}
       />
-      <Button
-        title="Back"
-        onPress={onBack}
-        fullWidth
-        variant="ghost"
-        style={{ marginTop: 12 }}
-      />
+      {/* Back button removed to prevent going back to previous screens */}
     </View>
   );
 }
@@ -432,6 +401,15 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
   const { user } = useUser();
   const { isSignedIn, getToken } = useAuth();
   const [selectedCountry, setSelectedCountry] = useState<CountryItem>({ code: '+91', name: 'India', flag: '🇮🇳' });
+
+  // Prevent back navigation on Android
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      return true; // Prevent default back behavior
+    });
+
+    return () => backHandler.remove();
+  }, []);
 
   // Timer for OTP resend
   useEffect(() => {
@@ -469,7 +447,7 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
 
   // Step navigation
   const goToNextStep = () => setStep((s) => s + 1);
-  const goToPrevStep = () => setStep((s) => s - 1);
+  // goToPrevStep removed to prevent going back to previous steps
 
 
 
@@ -766,7 +744,6 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
         'Name Required', 
         'Please provide both first name and last name to complete your profile.',
         [
-          { text: 'Go Back', onPress: () => goToPrevStep() },
           { text: 'Cancel', style: 'cancel' }
         ]
       );
@@ -811,11 +788,7 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
           keyboardShouldPersistTaps="handled"
         >
           <View style={styles.header}>
-            {step > 1 && (
-              <TouchableOpacity onPress={goToPrevStep} style={styles.backButton}>
-                <Ionicons name="arrow-back" size={24} color={Colors.text} />
-              </TouchableOpacity>
-            )}
+            {/* Back button removed to prevent going back to previous screens */}
           </View>
           
           <View style={styles.content}>
@@ -838,7 +811,6 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
                 countryModalVisible={countryModalVisible}
                 setCountryModalVisible={setCountryModalVisible}
                 onNext={handleSendOTP}
-                onBack={goToPrevStep}
                 isLoading={isLoading}
                 selectedCountry={selectedCountry}
                 setSelectedCountry={setSelectedCountry}
@@ -850,7 +822,6 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
                 otp={otp}
                 setOtp={setOtp}
                 onVerify={handleVerifyOTP}
-                onBack={goToPrevStep}
                 isLoading={isLoading}
                 error={otpError}
                 resendOtp={handleResendOTP}
@@ -866,7 +837,6 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
                   setProfileImage={setProfileImage}
                   onComplete={handleCompleteProfile}
                   onSkip={handleSkipProfile}
-                  onBack={goToPrevStep}
                   isLoading={isLoading}
                   firstName={firstName}
                   lastName={lastName}

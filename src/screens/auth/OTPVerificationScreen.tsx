@@ -9,6 +9,7 @@ import {
   ScrollView,
   TextInput,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -35,6 +36,15 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
 
   // Assign customer type to user
   useAssignUserType('customer');
+
+  // Prevent back navigation on Android
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      return true; // Prevent default back behavior
+    });
+
+    return () => backHandler.remove();
+  }, []);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -190,7 +200,7 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
             console.error('OTPVerificationScreen - setSignUpActive is not available or no session ID');
           }
           // Navigate to profile setup for new users
-          navigation.navigate('ProfileSetup');
+          navigation.replace('ProfileSetup');
         } else {
           console.log('OTPVerificationScreen - Phone verification failed');
           console.log('OTPVerificationScreen - Complete signup object:', completeSignUp);
@@ -259,12 +269,7 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
         style={styles.keyboardView}
       >
         <View style={styles.header}>
-          <TouchableOpacity
-            onPress={() => navigation.goBack()}
-            style={styles.backButton}
-          >
-            <Ionicons name="arrow-back" size={24} color={Colors.text} />
-          </TouchableOpacity>
+          {/* Back button removed to prevent going back to previous screens */}
         </View>
 
         <View style={styles.content}>
