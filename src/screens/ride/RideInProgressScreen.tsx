@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import {
   View,
   Text,
@@ -9,23 +9,281 @@ import {
   Alert,
   Modal,
   Share,
+  StatusBar,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks } from '../../utils/socket';
+import { onRideStatus, onDriverLocation, onRideCompleted, clearCallbacks, getSocket } from '../../utils/socket';
 import MapView, { Marker, Polyline } from 'react-native-maps';
+import { Images } from '../../constants/Images';
+import ConnectionStatus from '../../components/common/ConnectionStatus';
+import { useAuth } from '@clerk/clerk-expo';
+import { rideService } from '../../services/rideService';
+import { useNotifications } from '../../store/NotificationContext';
+import BackendNotificationService from '../../services/backendNotificationService';
+import RoutingService from '../../services/routingService';
+import Animated, { 
+  useSharedValue, 
+  useAnimatedStyle, 
+  withTiming, 
+  withSpring,
+  withRepeat,
+  interpolate,
+  runOnJS,
+  Easing
+} from 'react-native-reanimated';
 
 export default function RideInProgressScreen({ navigation, route }: any) {
   const { destination, driver, rideId, origin, mpinVerified, estimate } = route.params;
+  const { getToken } = useAuth();
+  const { getStoredToken } = useNotifications();
+  
+  console.log('🚀 RideInProgressScreen: Component initialized with params:', {
+    destination,
+    estimate,
+    driver,
+    rideId,
+    origin
+  });
+  
   const [rideStatus, setRideStatus] = useState('in_progress');
   const [currentETA, setCurrentETA] = useState('25 mins');
   const [callModalVisible, setCallModalVisible] = useState(false);
   const [driverLocation, setDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
   const [driverPath, setDriverPath] = useState<{latitude: number, longitude: number}[]>([]);
+  const [routePath, setRoutePath] = useState<{latitude: number, longitude: number}[]>([]);
+  const [overallTripRoute, setOverallTripRoute] = useState<{latitude: number, longitude: number}[]>([]);
   const [rideProgress, setRideProgress] = useState(0);
+  const [pathUpdateCount, setPathUpdateCount] = useState(0);
+  const [locationUpdateCount, setLocationUpdateCount] = useState(0);
+  const [lastLocationUpdate, setLastLocationUpdate] = useState<Date | null>(null);
+  const [isLoadingRideData, setIsLoadingRideData] = useState(true);
+  
   const driverInfo = driver;
+  const mapRef = useRef<MapView>(null);
+
+  // Animated values for smooth driver marker animation
+  const animatedLatitude = useSharedValue(0);
+  const animatedLongitude = useSharedValue(0);
+  const driverRotation = useSharedValue(0);
+  const driverScale = useSharedValue(1);
+  const driverOpacity = useSharedValue(1);
+  const pulseAnimation = useSharedValue(0);
+  const isAnimating = useSharedValue(false);
+
+  // Animated driver location state
+  const [animatedDriverLocation, setAnimatedDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
+
+  // Start pulse animation for driver marker
+  useEffect(() => {
+    pulseAnimation.value = withRepeat(
+      withTiming(1, { duration: 2000, easing: Easing.inOut(Easing.ease) }),
+      -1,
+      true
+    );
+  }, []);
+
+  // Function to animate driver to new location smoothly
+  const animateDriverToLocation = (newLocation: {latitude: number, longitude: number}) => {
+    if (!driverLocation) {
+      // First location, set immediately
+      animatedLatitude.value = newLocation.latitude;
+      animatedLongitude.value = newLocation.longitude;
+      setAnimatedDriverLocation(newLocation);
+      return;
+    }
+
+    isAnimating.value = true;
+    
+    // Animate latitude
+    animatedLatitude.value = withTiming(
+      newLocation.latitude,
+      { duration: 5000, easing: Easing.inOut(Easing.cubic) },
+      (finished) => {
+        if (finished) {
+          console.log('✅ Latitude animation completed');
+        }
+      }
+    );
+    
+    // Animate longitude
+    animatedLongitude.value = withTiming(
+      newLocation.longitude,
+      { duration: 5000, easing: Easing.inOut(Easing.cubic) },
+      (finished) => {
+        if (finished) {
+          console.log('✅ Longitude animation completed');
+          isAnimating.value = false;
+        }
+      }
+    );
+    
+    // Update animated location state during animation
+    const updateAnimatedLocation = () => {
+      setAnimatedDriverLocation({
+        latitude: animatedLatitude.value,
+        longitude: animatedLongitude.value
+      });
+    };
+    
+    // Update every 100ms during animation
+    const animationInterval = setInterval(() => {
+      if (isAnimating.value) {
+        updateAnimatedLocation();
+      } else {
+        clearInterval(animationInterval);
+      }
+    }, 100);
+  };
+
+  // Calculate bearing between two points for car rotation
+  const calculateBearing = (start: {latitude: number, longitude: number}, end: {latitude: number, longitude: number}) => {
+    const toRad = (deg: number) => deg * Math.PI / 180;
+    const toDeg = (rad: number) => rad * 180 / Math.PI;
+    
+    const startLat = toRad(start.latitude);
+    const startLng = toRad(start.longitude);
+    const endLat = toRad(end.latitude);
+    const endLng = toRad(end.longitude);
+    
+    const dLng = endLng - startLng;
+    
+    const y = Math.sin(dLng) * Math.cos(endLat);
+    const x = Math.cos(startLat) * Math.sin(endLat) - Math.sin(startLat) * Math.cos(endLat) * Math.cos(dLng);
+    
+    let bearing = toDeg(Math.atan2(y, x));
+    return (bearing + 360) % 360;
+  };
+
+  // Update location tracking when driver location changes
+  useEffect(() => {
+    if (driverLocation) {
+      setLastLocationUpdate(new Date());
+      
+      // Start smooth animation to new location
+      animateDriverToLocation(driverLocation);
+    }
+  }, [driverLocation]);
+
+  // Update driver location with animation and path tracking
+  const updateDriverLocationWithAnimation = (newLocation: {latitude: number, longitude: number}) => {
+    console.log('🔄 Updating driver location from:', driverLocation, 'to:', newLocation);
+    
+    // Validate the new location
+    if (!newLocation || !newLocation.latitude || !newLocation.longitude ||
+        isNaN(newLocation.latitude) || isNaN(newLocation.longitude)) {
+      console.log('🚫 Invalid new location data, skipping update');
+      return;
+    }
+    
+    // Additional validation for coordinate ranges
+    if (newLocation.latitude < -90 || newLocation.latitude > 90 || 
+        newLocation.longitude < -180 || newLocation.longitude > 180) {
+      console.log('🚫 Coordinates out of valid range, skipping update');
+      return;
+    }
+    
+    if (driverLocation) {
+      // Calculate bearing for car rotation
+      const bearing = calculateBearing(driverLocation, newLocation);
+      
+      // Animate rotation
+      driverRotation.value = withTiming(bearing, { duration: 500 });
+      
+      // Add a small scale animation for movement feedback
+      driverScale.value = withSpring(1.1, { damping: 10 }, () => {
+        driverScale.value = withSpring(1, { damping: 10 });
+      });
+    }
+    
+    // Update driver location state immediately
+    setDriverLocation(newLocation);
+    
+    // Update driver path for polyline
+    setDriverPath(prev => {
+      const lastPoint = prev[prev.length - 1];
+      // Only add new point if it's different from the last one (to avoid duplicates)
+      if (!prev.length || !lastPoint || 
+          Math.abs(lastPoint.latitude - newLocation.latitude) > 0.00001 || 
+          Math.abs(lastPoint.longitude - newLocation.longitude) > 0.00001) {
+        const newPath = [...prev, newLocation];
+        // Keep only last 50 points to prevent memory issues
+        if (newPath.length > 50) {
+          newPath.splice(0, newPath.length - 50);
+        }
+        setPathUpdateCount(prev => prev + 1);
+        console.log('🛣️ Updated driver path, new length:', newPath.length);
+        return newPath;
+      }
+      console.log('🛣️ Path not updated - duplicate location');
+      return prev;
+    });
+    
+    // Immediately update map region to follow driver
+    if (mapRef.current) {
+      console.log('📷 Animating map to follow driver location:', newLocation);
+      const region = {
+        latitude: newLocation.latitude,
+        longitude: newLocation.longitude,
+        latitudeDelta: 0.01,
+        longitudeDelta: 0.01,
+      };
+      
+      mapRef.current.animateToRegion(region, 1000); // 1 second animation
+    }
+    
+    console.log('✅ Driver location update completed successfully');
+  };
+
+  // Function to fetch real road route between driver and destination using Google Directions API
+  const fetchRoutePath = async (driverPos: {latitude: number, longitude: number}, destPos: {latitude: number, longitude: number}) => {
+    try {
+      console.log('🛣️ Fetching real road route from Google Directions API...');
+      console.log('🛣️ Driver position:', driverPos);
+      console.log('🛣️ Destination position:', destPos);
+      
+      const routingService = RoutingService.getInstance();
+      
+      // Try to get real route from Google Directions API first
+      const routeResponse = await routingService.getRoute(driverPos, destPos, 'driving');
+      
+      console.log('🛣️ Route response:', routeResponse);
+      
+      if (routeResponse.success && routeResponse.route && routeResponse.route.length > 0) {
+        console.log('✅ Got real road route with', routeResponse.route.length, 'points');
+        console.log('✅ First point:', routeResponse.route[0]);
+        console.log('✅ Last point:', routeResponse.route[routeResponse.route.length - 1]);
+        setRoutePath(routeResponse.route);
+      } else {
+        // Fallback to generated path if API fails
+        console.log('⚠️ Google Directions API failed or returned empty route, using fallback path');
+        const curvedPath = routingService.generateCurvedPath(driverPos, destPos, 50);
+        console.log('🛣️ Generated fallback path with', curvedPath.length, 'points');
+        setRoutePath(curvedPath);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching route:', error);
+      // Fallback to generated path
+      const routingService = RoutingService.getInstance();
+      const curvedPath = routingService.generateCurvedPath(driverPos, destPos, 50);
+      console.log('🛣️ Generated fallback path with', curvedPath.length, 'points');
+      setRoutePath(curvedPath);
+    }
+  };
+
+  // Animated style for driver marker
+  const animatedDriverStyle = useAnimatedStyle(() => {
+    const pulseScale = interpolate(pulseAnimation.value, [0, 1], [1, 1.2]);
+    return {
+      transform: [
+        { rotate: `${driverRotation.value}deg` },
+        { scale: driverScale.value * pulseScale }
+      ],
+      opacity: driverOpacity.value,
+    };
+  });
 
   useEffect(() => {
     console.log('🚗 RideInProgressScreen mounted with params:', route.params);
@@ -88,36 +346,160 @@ export default function RideInProgressScreen({ navigation, route }: any) {
 
     onDriverLocation((data: { driverId: string; latitude: number; longitude: number; }) => {
       console.log('📍 Driver location update:', data);
-      setDriverLocation({ latitude: data.latitude, longitude: data.longitude });
-      setDriverPath(prev => {
-        // Only add if different from last
-        const lastLocation = prev.length > 0 ? prev[prev.length - 1] : null;
-        if (!lastLocation || lastLocation.latitude !== data.latitude || lastLocation.longitude !== data.longitude) {
-          return [...prev, { latitude: data.latitude, longitude: data.longitude }];
-        }
-        return prev;
-      });
+      setLocationUpdateCount(prev => prev + 1);
+      
+      const newLocation = { latitude: data.latitude, longitude: data.longitude };
+      updateDriverLocationWithAnimation(newLocation);
+      
+      // Fetch route path when we have both driver location and destination
+      if (destination && destination.latitude && destination.longitude) {
+        fetchRoutePath(newLocation, destination);
+      }
     });
 
     return () => {
       clearCallbacks();
     };
-  }, [rideId, driverInfo, navigation, destination]);
+  }, [rideId, navigation, destination, origin, estimate, driverInfo]);
 
-  // Simulate ride progress
+  // Initial route fetching when component mounts or when we have coordinates
   useEffect(() => {
-    const progressInterval = setInterval(() => {
-      setRideProgress(prev => {
-        if (prev >= 100) {
-          clearInterval(progressInterval);
-          return 100;
-        }
-        return prev + 1;
-      });
-    }, 3000); // Update every 3 seconds
+    console.log('🛣️ Initial route fetching setup...');
+    console.log('🛣️ Driver location:', driverLocation);
+    console.log('🛣️ Destination:', destination);
+    
+    // If we have driver location and destination, fetch the route immediately
+    if (driverLocation && destination?.latitude && destination?.longitude) {
+      console.log('🛣️ Fetching initial route from driver to destination...');
+      fetchRoutePath(driverLocation, destination);
+    }
+    
+    // Also fetch route from pickup to destination for the overall trip route
+    if (origin?.latitude && origin?.longitude && 
+        destination?.latitude && destination?.longitude) {
+      console.log('🛣️ Fetching overall trip route from pickup to destination...');
+      fetchOverallTripRoute(origin, destination);
+    }
+  }, [driverLocation, destination, origin]);
 
-    return () => clearInterval(progressInterval);
-  }, []);
+  // Function to fetch overall trip route from pickup to destination
+  const fetchOverallTripRoute = async (pickupPos: {latitude: number, longitude: number}, destPos: {latitude: number, longitude: number}) => {
+    try {
+      console.log('🛣️ Fetching overall trip route from Google Directions API...');
+      console.log('🛣️ Pickup position:', pickupPos);
+      console.log('🛣️ Destination position:', destPos);
+      
+      const routingService = RoutingService.getInstance();
+      
+      // Try to get real route from Google Directions API first
+      const routeResponse = await routingService.getRoute(pickupPos, destPos, 'driving');
+      
+      console.log('🛣️ Overall trip route response:', routeResponse);
+      
+      if (routeResponse.success && routeResponse.route && routeResponse.route.length > 0) {
+        console.log('✅ Got overall trip route with', routeResponse.route.length, 'points');
+        console.log('✅ First point:', routeResponse.route[0]);
+        console.log('✅ Last point:', routeResponse.route[routeResponse.route.length - 1]);
+        // Store this as a separate route for the overall trip visualization
+        setOverallTripRoute(routeResponse.route);
+      } else {
+        // Fallback to generated path if API fails
+        console.log('⚠️ Google Directions API failed for overall trip or returned empty route, using fallback path');
+        const curvedPath = routingService.generateCurvedPath(pickupPos, destPos, 50);
+        console.log('🛣️ Generated fallback overall trip path with', curvedPath.length, 'points');
+        setOverallTripRoute(curvedPath);
+      }
+    } catch (error) {
+      console.error('❌ Error fetching overall trip route:', error);
+      // Fallback to generated path
+      const routingService = RoutingService.getInstance();
+      const curvedPath = routingService.generateCurvedPath(pickupPos, destPos, 50);
+      console.log('🛣️ Generated fallback overall trip path with', curvedPath.length, 'points');
+      setOverallTripRoute(curvedPath);
+    }
+  };
+
+  // Function to get the appropriate driver icon based on vehicle type
+  const getDriverIcon = () => {
+    const vehicleType = driverInfo?.vehicleType?.toLowerCase() || '';
+    const vehicleModel = driverInfo?.vehicleModel?.toLowerCase() || '';
+    
+    // For bike/scooter rides, use the scooter image from assets
+    if (vehicleType.includes('scooter') || vehicleType.includes('bike') || vehicleModel.includes('scooter') || vehicleModel.includes('bike')) {
+      return 'scooter'; // Use scooter image
+    } else if (vehicleType.includes('car') || vehicleModel.includes('civic') || vehicleModel.includes('car')) {
+      return 'car-sport'; // Car icon
+    } else if (vehicleType.includes('auto') || vehicleModel.includes('auto')) {
+      return 'car'; // Auto rickshaw icon
+    } else {
+      return 'scooter'; // Default to scooter for bike rides
+    }
+  };
+
+  const getStatusText = () => {
+    switch (rideStatus) {
+      case 'in_progress':
+        return 'Heading to destination';
+      case 'completed':
+        return 'Ride completed';
+      case 'cancelled':
+        return 'Ride cancelled';
+      default:
+        return 'Ride in progress';
+    }
+  };
+
+  const getProgressPercentage = () => {
+    // Calculate progress based on distance covered
+    if (driverPath.length < 2) return 0;
+    
+    const totalDistance = calculateTotalDistance();
+    const coveredDistance = calculateCoveredDistance();
+    
+    if (totalDistance === 0) return 0;
+    
+    const percentage = Math.min(95, (coveredDistance / totalDistance) * 100);
+    return Math.round(percentage);
+  };
+
+  const calculateTotalDistance = () => {
+    if (!origin || !destination) return 0;
+    
+    const R = 6371e3; // Earth's radius in meters
+    const φ1 = origin.latitude * Math.PI / 180;
+    const φ2 = destination.latitude * Math.PI / 180;
+    const Δφ = (destination.latitude - origin.latitude) * Math.PI / 180;
+    const Δλ = (destination.longitude - origin.longitude) * Math.PI / 180;
+
+    const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ/2) * Math.sin(Δλ/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+    return R * c;
+  };
+
+  const calculateCoveredDistance = () => {
+    if (driverPath.length < 2) return 0;
+    
+    let totalDistance = 0;
+    for (let i = 1; i < driverPath.length; i++) {
+      const R = 6371e3; // Earth's radius in meters
+      const φ1 = driverPath[i-1].latitude * Math.PI / 180;
+      const φ2 = driverPath[i].latitude * Math.PI / 180;
+      const Δφ = (driverPath[i].latitude - driverPath[i-1].latitude) * Math.PI / 180;
+      const Δλ = (driverPath[i].longitude - driverPath[i-1].longitude) * Math.PI / 180;
+
+      const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+                Math.cos(φ1) * Math.cos(φ2) *
+                Math.sin(Δλ/2) * Math.sin(Δλ/2);
+      const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+      totalDistance += R * c;
+    }
+    
+    return totalDistance;
+  };
 
   const handleChat = () => {
     console.log('🔗 Navigating to Chat with data:', { 
@@ -138,8 +520,10 @@ export default function RideInProgressScreen({ navigation, route }: any) {
 
   const handleCallNow = () => {
     setCallModalVisible(false);
-    if (driverInfo.phone) {
-      Linking.openURL(`tel:${driverInfo.phone}`);
+    const phoneToCall = driverInfo?.phone;
+    if (phoneToCall) {
+      console.log('📞 RideInProgressScreen: Calling driver with phone:', phoneToCall);
+      Linking.openURL(`tel:${phoneToCall}`);
     } else {
       Alert.alert('No phone number available');
     }
@@ -158,27 +542,10 @@ export default function RideInProgressScreen({ navigation, route }: any) {
     );
   };
 
-  const getStatusText = () => {
-    switch (rideStatus) {
-      case 'in_progress':
-        return `Heading to ${destination?.name || 'destination'}`;
-      case 'near_destination':
-        return `Almost there - ${currentETA} to destination`;
-      case 'arrived':
-        return 'Arrived at destination';
-      default:
-        return 'Ride in progress...';
-    }
-  };
-
-  const getProgressPercentage = () => {
-    return Math.min(rideProgress, 100);
-  };
-
   const onShareTrip = async () => {
     try {
       await Share.share({
-        message: `I'm on my way to ${destination?.name || 'destination'} with ${driverInfo?.name || 'my pilot'}. Track my ride!`,
+        message: 'Check out my trip details! [Add trip info or link here]',
       });
     } catch (error: any) {
       alert('Error sharing: ' + (error?.message || error?.toString() || 'Unknown error'));
@@ -187,34 +554,15 @@ export default function RideInProgressScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Call Modal */}
-      <Modal
-        visible={callModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCallModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.callModal}>
-            <Text style={styles.modalTitle}>Call Pilot</Text>
-            <Text style={styles.modalDriverName}>{driverInfo.name || 'Pilot'}</Text>
-            <Text style={styles.modalPhone}>{driverInfo.phone || 'No phone number'}</Text>
-            <View style={{ flexDirection: 'row', marginTop: 20 }}>
-              <TouchableOpacity style={styles.modalButton} onPress={handleCallNow}>
-                <Ionicons name="call" size={20} color="#fff" />
-                <Text style={styles.modalButtonText}>Call Now</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#ccc', marginLeft: 10 }]} onPress={() => setCallModalVisible(false)}>
-                <Text style={[styles.modalButtonText, { color: '#222' }]}>Cancel</Text>
-              </TouchableOpacity>
-            </View>
-          </View>
-        </View>
-      </Modal>
+      <StatusBar barStyle="dark-content" backgroundColor={Colors.white} />
+      
+      {/* Connection Status */}
+      <ConnectionStatus />
 
       {/* Map Container */}
       <View style={styles.mapContainer}>
         <MapView
+          ref={mapRef}
           style={{ flex: 1 }}
           initialRegion={{
             latitude: driverLocation?.latitude || destination?.latitude || 17.4448,
@@ -233,26 +581,122 @@ export default function RideInProgressScreen({ navigation, route }: any) {
             latitudeDelta: 0.01,
             longitudeDelta: 0.01,
           }}
+          showsUserLocation={true}
+          showsMyLocationButton={false}
+          showsCompass={false}
+          showsScale={false}
+          showsTraffic={false}
+          showsBuildings={false}
+          showsIndoors={false}
+          showsIndoorLevelPicker={false}
+          showsPointsOfInterest={false}
+          mapType="standard"
+          followsUserLocation={false}
+          onMapReady={() => {
+            console.log('🗺️ Map is ready');
+            // If we have driver location, center the map on it
+            if (driverLocation) {
+              console.log('🗺️ Centering map on driver location:', driverLocation);
+              mapRef.current?.animateToRegion({
+                latitude: driverLocation.latitude,
+                longitude: driverLocation.longitude,
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              }, 1000);
+            }
+          }}
         >
-          {/* Show driver's path as polyline */}
-          {driverPath.length > 1 && (
+          {/* Enhanced polyline visualization */}
+          {/* Route from driver to destination - actual road path (Black) */}
+          {routePath.length > 0 && (
             <Polyline
-              coordinates={driverPath}
-              strokeColor="#007AFF"
-              strokeWidth={4}
+              coordinates={routePath}
+              strokeColor="#000000"
+              strokeWidth={6}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={3}
             />
           )}
           
-          {/* Driver marker */}
-          {driverLocation && (
-            <Marker coordinate={driverLocation} title="Driver" pinColor="blue" />
+          {/* Driver's traveled path (polyline) - Green */}
+          {driverPath.length > 1 && (
+            <Polyline
+              coordinates={driverPath}
+              strokeColor={Colors.success}
+              strokeWidth={4}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={2}
+            />
+          )}
+          
+          {/* Overall trip route from pickup to destination - real road path (Black) */}
+          {overallTripRoute.length > 0 && (
+            <Polyline
+              coordinates={overallTripRoute}
+              strokeColor="#000000"
+              strokeWidth={5}
+              lineCap="round"
+              lineJoin="round"
+              zIndex={1}
+            />
+          )}
+          
+          {/* Animated driver marker */}
+          {animatedDriverLocation && (
+            <Marker 
+              coordinate={animatedDriverLocation}
+              title="Driver"
+              onPress={() => {
+                console.log('📍 Driver marker pressed at:', animatedDriverLocation);
+              }}
+            >
+              <Animated.View style={[styles.driverMarker, animatedDriverStyle]}>
+                <Image 
+                  source={Images.ICON_ANIMATION_1}
+                  style={{ width: 40, height: 40 }}
+                  resizeMode="contain"
+                />
+              </Animated.View>
+            </Marker>
+          )}
+          
+          {/* Pickup marker */}
+          {origin && origin.latitude && origin.longitude && (
+            <Marker coordinate={{ latitude: origin.latitude, longitude: origin.longitude }} title="Pickup">
+              <View style={styles.pickupMarker}>
+                <Ionicons name="location" size={24} color={Colors.white} />
+              </View>
+            </Marker>
           )}
           
           {/* Destination marker */}
           {destination && destination.latitude && destination.longitude && (
-            <Marker coordinate={{ latitude: destination.latitude, longitude: destination.longitude }} title="Destination" pinColor="#FF5A5F" />
+            <Marker coordinate={{ latitude: destination.latitude, longitude: destination.longitude }} title="Destination" pinColor={Colors.coral} />
           )}
         </MapView>
+        
+        {/* Debug overlay for driver location coordinates */}
+        {__DEV__ && driverLocation && (
+          <View style={styles.debugOverlay}>
+            <Text style={styles.debugText}>
+              🚗 Driver Location: {driverLocation.latitude.toFixed(6)}, {driverLocation.longitude.toFixed(6)}
+            </Text>
+            <Text style={styles.debugText}>
+              📍 Updates: {locationUpdateCount} | Path: {driverPath.length}
+            </Text>
+            <Text style={styles.debugText}>
+              🛣️ Route Path: {routePath.length} points
+            </Text>
+            <Text style={styles.debugText}>
+              🛣️ Overall Trip: {overallTripRoute.length} points
+            </Text>
+            <Text style={styles.debugText}>
+              ⏰ Last Update: {lastLocationUpdate?.toLocaleTimeString() || 'Never'}
+            </Text>
+          </View>
+        )}
       </View>
 
       {/* Status Bar */}
@@ -311,9 +755,33 @@ export default function RideInProgressScreen({ navigation, route }: any) {
             <Ionicons name="share" size={16} color={Colors.primary} />
             <Text style={styles.shareText}>Share Trip</Text>
           </TouchableOpacity>
-
         </View>
       </View>
+
+      {/* Call Modal */}
+      <Modal
+        visible={callModalVisible}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setCallModalVisible(false)}
+      >
+        <View style={styles.modalOverlay}>
+          <View style={styles.callModal}>
+            <Text style={styles.modalTitle}>Call Pilot</Text>
+            <Text style={styles.modalDriverName}>{driverInfo?.name || 'Pilot'}</Text>
+            <Text style={styles.modalPhone}>{driverInfo?.phone || 'No phone number'}</Text>
+            <View style={{ flexDirection: 'row', marginTop: 20 }}>
+              <TouchableOpacity style={styles.modalButton} onPress={handleCallNow}>
+                <Ionicons name="call" size={20} color="#fff" />
+                <Text style={styles.modalButtonText}>Call Now</Text>
+              </TouchableOpacity>
+              <TouchableOpacity style={[styles.modalButton, { backgroundColor: '#ccc', marginLeft: 10 }]} onPress={() => setCallModalVisible(false)}>
+                <Text style={[styles.modalButtonText, { color: '#222' }]}>Cancel</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </SafeAreaView>
   );
 }
@@ -496,5 +964,31 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontWeight: '600',
     marginLeft: 6,
+  },
+  debugOverlay: {
+    position: 'absolute',
+    top: 100, // Adjust as needed
+    left: 20,
+    backgroundColor: 'rgba(0,0,0,0.7)',
+    padding: 10,
+    borderRadius: 8,
+  },
+  debugText: {
+    color: '#fff',
+    fontSize: 12,
+  },
+  driverMarker: {
+    width: 40,
+    height: 40,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  pickupMarker: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
 }); 
