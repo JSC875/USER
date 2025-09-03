@@ -223,6 +223,36 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
       console.log('📍 Pickup:', pickupLocation);
       console.log('🎯 Drop:', dropLocation);
       
+      // Check service availability for both pickup and drop locations
+      console.log('📍 === CHECKING SERVICE AVAILABILITY ===');
+      try {
+        await checkRideAvailability(
+          { latitude: pickupLocation.latitude, longitude: pickupLocation.longitude },
+          { latitude: dropLocation.latitude, longitude: dropLocation.longitude }
+        );
+        
+        if (!isAvailable) {
+          Alert.alert(
+            'Service Unavailable', 
+            message || 'Service is not available for the selected route. Please choose locations within Hyderabad service area.',
+            [{ text: 'OK' }]
+          );
+          setIsBooking(false);
+          return;
+        }
+        
+        console.log('✅ Service availability check passed');
+      } catch (error) {
+        console.error('❌ Service availability check failed:', error);
+        Alert.alert(
+          'Service Check Failed', 
+          'Unable to verify service availability. Please try again.',
+          [{ text: 'OK' }]
+        );
+        setIsBooking(false);
+        return;
+      }
+      
       // Calculate distance and fare
       const distanceKm = getDistanceFromLatLonInKm(
         pickupLocation.latitude,

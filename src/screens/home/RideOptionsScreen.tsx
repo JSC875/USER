@@ -16,6 +16,8 @@ import { calculateRideFare, getDistanceFromLatLonInKm } from '../../utils/helper
 import { getUserIdFromJWT } from '../../utils/jwtDecoder';
 import { Images } from '../../constants/Images';
 import { rideApi, RideRequestResponse } from '../../services/rideService';
+import { useServiceAvailability } from '../../hooks/useServiceAvailability';
+import ServiceAvailabilityBanner from '../../components/ServiceAvailabilityBanner';
 
 const { width, height } = Dimensions.get('window');
 
@@ -38,6 +40,9 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const { user } = useUser();
   const { getToken } = useAuth();
   const [rideOptions, setRideOptions] = useState<any[]>([]);
+
+  // Service availability check
+  const { checkRideAvailability, isAvailable, message, isChecking } = useServiceAvailability();
 
   // Calculate real ride options based on distance and duration
   useEffect(() => {
@@ -83,6 +88,17 @@ export default function RideOptionsScreen({ navigation, route }: any) {
       console.log('Calculated ride options:', options);
     }
   }, [pickup, drop]);
+
+  // Auto-check service availability when locations change
+  useEffect(() => {
+    if (pickup && drop && pickup.latitude && pickup.longitude && drop.latitude && drop.longitude) {
+      console.log('📍 Auto-checking service availability for new locations');
+      checkRideAvailability(
+        { latitude: pickup.latitude, longitude: pickup.longitude },
+        { latitude: drop.latitude, longitude: drop.longitude }
+      );
+    }
+  }, [pickup, drop, checkRideAvailability]);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const mapRef = useRef<MapView>(null);
@@ -136,6 +152,37 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     // Validate required data
     if (!drop) {
       Alert.alert('Select Destination', 'Please select a destination first.');
+      return;
+    }
+
+    // Check service availability for both pickup and drop locations
+    console.log('📍 === CHECKING SERVICE AVAILABILITY ===');
+    console.log('📍 Pickup location:', pickup);
+    console.log('🎯 Drop location:', drop);
+    
+    try {
+      await checkRideAvailability(
+        { latitude: pickup.latitude, longitude: pickup.longitude },
+        { latitude: drop.latitude, longitude: drop.longitude }
+      );
+      
+      if (!isAvailable) {
+        Alert.alert(
+          'Service Unavailable', 
+          message || 'Service is not available for the selected route. Please choose locations within Hyderabad service area.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      console.log('✅ Service availability check passed');
+    } catch (error) {
+      console.error('❌ Service availability check failed:', error);
+      Alert.alert(
+        'Service Check Failed', 
+        'Unable to verify service availability. Please try again.',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -459,6 +506,28 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         </View>
        
       </View>
+
+      {/* Service Availability Banner */}
+      {pickup && drop && (
+        <ServiceAvailabilityBanner 
+          status={{ 
+            isAvailable: isAvailable, 
+            message: message || 'Checking service availability...',
+            nearestArea: 'Hyderabad'
+          }}
+          isLoading={isChecking}
+          onRetry={() => {
+            if (pickup && drop) {
+              checkRideAvailability(
+                { latitude: pickup.latitude, longitude: pickup.longitude },
+                { latitude: drop.latitude, longitude: drop.longitude }
+              );
+            }
+          }}
+          showDetails={true}
+        />
+      )}
+
       {/* Bottom Sheet and rest of the UI */}
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#fff' }}>
         <View style={{
@@ -536,17 +605,21 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           <TouchableOpacity 
             style={[
               styles.bookBtnFullGreen, 
-              isBooking && styles.bookBtnDisabled
+              (isBooking || !isAvailable) && styles.bookBtnDisabled
             ]} 
             onPress={handleBook} 
             activeOpacity={0.85}
-            disabled={isBooking}
+            disabled={isBooking || !isAvailable}
           >
             {isBooking ? (
               <View style={styles.loadingContainer}>
                 <LoadingSpinner size="small" color="#fff" />
                 <Text style={styles.bookBtnTextFullGreen}>Booking...</Text>
               </View>
+            ) : !isAvailable ? (
+              <Text style={styles.bookBtnTextFullGreen}>
+                Service Unavailable
+              </Text>
             ) : (
               <Text style={styles.bookBtnTextFullGreen}>
                 Book {rideOptions.find(o => o.id === selected)?.label || 'ride'}

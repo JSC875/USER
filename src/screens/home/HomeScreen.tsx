@@ -38,6 +38,8 @@ import { getUserIdFromJWT, decodeJWT, logJWTDetails, logFullJWT } from "../../ut
 import ConnectionStatus from "../../components/common/ConnectionStatus";
 import { rideApi, RideRequestResponse } from "../../services/rideService";
 import { useTranslation } from 'react-i18next';
+import { useServiceAvailability } from '../../hooks/useServiceAvailability';
+import ServiceAvailabilityBanner from '../../components/ServiceAvailabilityBanner';
 // JWTLoggingTest import - REMOVED
 
 const { width } = Dimensions.get('window');
@@ -72,9 +74,34 @@ export default function HomeScreen({ navigation, route }: any) {
   const [driverLocation, setDriverLocation] = useState<any>(null);
   const [rideStatus, setRideStatus] = useState<string>('');
   const [showRideModal, setShowRideModal] = useState(false);
+
+  // Service availability check
+  const { checkRideAvailability, isAvailable, message, isChecking } = useServiceAvailability();
   // JWT Test state - REMOVED
 
   useAssignUserType('customer');
+
+  // Auto-check service availability when dropLocation changes
+  useEffect(() => {
+    if (dropLocation && dropLocation.latitude && dropLocation.longitude) {
+      console.log('📍 Auto-checking service availability for new drop location');
+      // Get current location for pickup
+      (async () => {
+        try {
+          let { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            let loc = await Location.getCurrentPositionAsync({});
+            checkRideAvailability(
+              { latitude: loc.coords.latitude, longitude: loc.coords.longitude },
+              { latitude: dropLocation.latitude, longitude: dropLocation.longitude }
+            );
+          }
+        } catch (error) {
+          console.error('Failed to check service availability:', error);
+        }
+      })();
+    }
+  }, [dropLocation, checkRideAvailability]);
 
   // On mount, get current location and set as pickup if not set
   useEffect(() => {
@@ -334,6 +361,53 @@ export default function HomeScreen({ navigation, route }: any) {
   const handleBookRide = async () => {
     if (!dropLocation) {
       Alert.alert(t('home.selectDestination'), t('home.pleaseSelectDestination'));
+      return;
+    }
+
+    // Check service availability for both pickup and drop locations
+    console.log('📍 === CHECKING SERVICE AVAILABILITY ===');
+    
+    try {
+      // Get current location for pickup
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('home.locationPermissionRequired'));
+        return;
+      }
+      
+      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      const pickup = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        address: t('home.currentLocation'),
+        name: t('home.currentLocation'),
+      };
+      
+      console.log('📍 Pickup location:', pickup);
+      console.log('🎯 Drop location:', dropLocation);
+      
+      await checkRideAvailability(
+        { latitude: pickup.latitude, longitude: pickup.longitude },
+        { latitude: dropLocation.latitude, longitude: dropLocation.longitude }
+      );
+      
+      if (!isAvailable) {
+        Alert.alert(
+          'Service Unavailable', 
+          message || 'Service is not available for the selected route. Please choose locations within Hyderabad service area.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      console.log('✅ Service availability check passed');
+    } catch (error) {
+      console.error('❌ Service availability check failed:', error);
+      Alert.alert(
+        'Service Check Failed', 
+        'Unable to verify service availability. Please try again.',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -620,8 +694,37 @@ export default function HomeScreen({ navigation, route }: any) {
           </TouchableOpacity>
         </View>
       </View>
-      
-     
+
+      {/* Service Availability Banner */}
+      {dropLocation && dropLocation.latitude && dropLocation.longitude && (
+        <ServiceAvailabilityBanner 
+          status={{ 
+            isAvailable: isAvailable, 
+            message: message || 'Checking service availability...',
+            nearestArea: 'Hyderabad'
+          }}
+          isLoading={isChecking}
+          onRetry={() => {
+            if (dropLocation) {
+              (async () => {
+                try {
+                  let { status } = await Location.requestForegroundPermissionsAsync();
+                  if (status === 'granted') {
+                    let loc = await Location.getCurrentPositionAsync({});
+                    checkRideAvailability(
+                      { latitude: loc.coords.latitude, longitude: loc.coords.longitude },
+                      { latitude: dropLocation.latitude, longitude: dropLocation.longitude }
+                    );
+                  }
+                } catch (error) {
+                  console.error('Failed to check service availability:', error);
+                }
+              })();
+            }
+          }}
+          showDetails={true}
+        />
+      )}
 
       {/* Ride Status Modal */}
       <Modal
