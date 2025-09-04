@@ -21,6 +21,7 @@ import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
 import Input from '../../components/common/Input';
+import OTPInput from '../../components/common/OTPInput';
 import { logJWTDetails } from '../../utils/jwtDecoder';
 
 // Types
@@ -266,22 +267,18 @@ function OtpStep({
         We've sent a verification code to your mobile number
       </Text>
       
-      <View style={styles.otpContainer}>
-        {otp.map((digit, index) => (
-          <TextInput
-            key={index}
-            ref={(ref) => { inputRefs.current[index] = ref; }}
-            style={[styles.otpInput, digit && styles.otpInputFilled]}
-            value={digit}
-            onChangeText={(value) => handleOtpChange(value, index)}
-            onKeyPress={({ nativeEvent }) => handleKeyPress(nativeEvent, index)}
-            keyboardType="number-pad"
-            maxLength={1}
-            textAlign="center"
-            selectTextOnFocus
-          />
-        ))}
-      </View>
+      <OTPInput
+        length={6}
+        value={otp}
+        onChange={setOtp}
+        onComplete={(otpString) => {
+          console.log('OTP completed in SignUp:', otpString);
+          // Optionally auto-verify when OTP is complete
+          // onVerify();
+        }}
+        autoFocus={true}
+        showPasteButton={true}
+      />
       
       {error ? (
         <Text style={styles.errorText}>{error}</Text>
