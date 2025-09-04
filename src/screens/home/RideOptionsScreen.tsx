@@ -16,8 +16,6 @@ import { calculateRideFare, getDistanceFromLatLonInKm } from '../../utils/helper
 import { getUserIdFromJWT } from '../../utils/jwtDecoder';
 import { Images } from '../../constants/Images';
 import { rideApi, RideRequestResponse } from '../../services/rideService';
-import { useServiceAvailability } from '../../hooks/useServiceAvailability';
-import ServiceAvailabilityBanner from '../../components/ServiceAvailabilityBanner';
 
 const { width, height } = Dimensions.get('window');
 
@@ -41,8 +39,6 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const { getToken } = useAuth();
   const [rideOptions, setRideOptions] = useState<any[]>([]);
 
-  // Service availability check
-  const { checkRideAvailability, isAvailable, message, isChecking } = useServiceAvailability();
 
   // Calculate real ride options based on distance and duration
   useEffect(() => {
@@ -89,16 +85,6 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     }
   }, [pickup, drop]);
 
-  // Auto-check service availability when locations change
-  useEffect(() => {
-    if (pickup && drop && pickup.latitude && pickup.longitude && drop.latitude && drop.longitude) {
-      console.log('📍 Auto-checking service availability for new locations');
-      checkRideAvailability(
-        { latitude: pickup.latitude, longitude: pickup.longitude },
-        { latitude: drop.latitude, longitude: drop.longitude }
-      );
-    }
-  }, [pickup, drop, checkRideAvailability]);
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const mapRef = useRef<MapView>(null);
@@ -155,36 +141,6 @@ export default function RideOptionsScreen({ navigation, route }: any) {
       return;
     }
 
-    // Check service availability for both pickup and drop locations
-    console.log('📍 === CHECKING SERVICE AVAILABILITY ===');
-    console.log('📍 Pickup location:', pickup);
-    console.log('🎯 Drop location:', drop);
-    
-    try {
-      await checkRideAvailability(
-        { latitude: pickup.latitude, longitude: pickup.longitude },
-        { latitude: drop.latitude, longitude: drop.longitude }
-      );
-      
-      if (!isAvailable) {
-        Alert.alert(
-          'Service Unavailable', 
-          message || 'Service is not available for the selected route. Please choose locations within Hyderabad service area.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-      
-      console.log('✅ Service availability check passed');
-    } catch (error) {
-      console.error('❌ Service availability check failed:', error);
-      Alert.alert(
-        'Service Check Failed', 
-        'Unable to verify service availability. Please try again.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
 
     setIsBooking(true);
     setBookingError(null);
@@ -507,26 +463,6 @@ export default function RideOptionsScreen({ navigation, route }: any) {
        
       </View>
 
-      {/* Service Availability Banner */}
-      {pickup && drop && (
-        <ServiceAvailabilityBanner 
-          status={{ 
-            isAvailable: isAvailable, 
-            message: message || 'Checking service availability...',
-            nearestArea: 'Hyderabad'
-          }}
-          isLoading={isChecking}
-          onRetry={() => {
-            if (pickup && drop) {
-              checkRideAvailability(
-                { latitude: pickup.latitude, longitude: pickup.longitude },
-                { latitude: drop.latitude, longitude: drop.longitude }
-              );
-            }
-          }}
-          showDetails={true}
-        />
-      )}
 
       {/* Bottom Sheet and rest of the UI */}
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#fff' }}>
@@ -586,17 +522,13 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           </View>
           {/* Divider */}
           <View style={{ height: 1, backgroundColor: '#f3f4f6', marginHorizontal: 16, marginTop: 8, marginBottom: 0, borderRadius: 1 }} />
-          {/* Sticky Bar */}
+          {/* Sticky Bar with Offers Button */}
           <View style={styles.stickyBar}>
-            <TouchableOpacity
-              style={[styles.stickyBtn, { flex: 1, borderRightWidth: 1, borderRightColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }]}
+            <TouchableOpacity 
+              style={[styles.stickyBtn, { flex: 1, alignItems: 'center', justifyContent: 'center' }]} 
               activeOpacity={0.7}
-              onPress={() => navigation.navigate('Payment')}
+              onPress={() => navigation.navigate('Offers')}
             >
-              <Ionicons name="cash-outline" size={22} color="#222" style={{ marginRight: 8 }} />
-              <Text style={styles.stickyBtnText}>Cash</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.stickyBtn, { flex: 1, alignItems: 'center', justifyContent: 'center' }]} activeOpacity={0.7}>
               <Ionicons name="pricetag-outline" size={22} color="#22c55e" style={{ marginRight: 8 }} />
               <Text style={[styles.stickyBtnText, { color: '#22c55e' }]}>% Offers</Text>
             </TouchableOpacity>
@@ -605,21 +537,17 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           <TouchableOpacity 
             style={[
               styles.bookBtnFullGreen, 
-              (isBooking || !isAvailable) && styles.bookBtnDisabled
+              isBooking && styles.bookBtnDisabled
             ]} 
             onPress={handleBook} 
             activeOpacity={0.85}
-            disabled={isBooking || !isAvailable}
+            disabled={isBooking}
           >
             {isBooking ? (
               <View style={styles.loadingContainer}>
                 <LoadingSpinner size="small" color="#fff" />
                 <Text style={styles.bookBtnTextFullGreen}>Booking...</Text>
               </View>
-            ) : !isAvailable ? (
-              <Text style={styles.bookBtnTextFullGreen}>
-                Service Unavailable
-              </Text>
             ) : (
               <Text style={styles.bookBtnTextFullGreen}>
                 Book {rideOptions.find(o => o.id === selected)?.label || 'ride'}
@@ -758,7 +686,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     marginTop: 16,
-    marginBottom: 12,
+    marginBottom: 24,
     shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,

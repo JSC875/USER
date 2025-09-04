@@ -43,6 +43,8 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
   const mapRef = useRef<MapView>(null);
   const [showAddAddressInput, setShowAddAddressInput] = useState(false);
   const [newAddress, setNewAddress] = useState('');
+  const [showCustomNameInput, setShowCustomNameInput] = useState(false);
+  const [customName, setCustomName] = useState('');
   const [savedLocations, setSavedLocations] = useState<{ home?: any; work?: any; custom?: any[] }>({});
   const [showSavedModal, setShowSavedModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -187,17 +189,45 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
       console.log('🚗 === STARTING RIDE BOOKING PROCESS FROM DROP PIN ===');
       console.log('🔍 === DETAILED BOOKING FLOW LOG ===');
       
-      // Get current location as pickup (we'll need to get this from location store or current position)
+      // Get current location as pickup with proper address
       let pickupLocation;
       try {
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status === 'granted') {
           let loc = await Location.getCurrentPositionAsync({});
+          
+          // Reverse geocode the current location to get actual address
+          let pickupAddress = 'Current Location';
+          let pickupName = 'Current Location';
+          
+          try {
+            const response = await fetch(
+              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.coords.latitude},${loc.coords.longitude}&key=${Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}`
+            );
+            const data = await response.json();
+            if (data.status === 'OK' && data.results.length > 0) {
+              const result = data.results[0];
+              pickupAddress = result.formatted_address;
+              
+              // Extract location name from address components
+              const locality = result.address_components?.find((comp: any) =>
+                comp.types.includes('locality') || comp.types.includes('sublocality')
+              );
+              if (locality) {
+                pickupName = locality.long_name;
+              } else {
+                pickupName = result.formatted_address.split(',')[0];
+              }
+            }
+          } catch (geocodeError) {
+            console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
+          }
+          
           pickupLocation = {
             latitude: loc.coords.latitude,
             longitude: loc.coords.longitude,
-            address: 'Current Location',
-            name: 'Current Location'
+            address: pickupAddress,
+            name: pickupName
           };
         } else {
           throw new Error('Location permission denied');
@@ -207,8 +237,8 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
         pickupLocation = {
           latitude: region.latitude - 0.01, // Fallback: slightly offset from drop location
           longitude: region.longitude - 0.01,
-          address: 'Current Location',
-          name: 'Current Location'
+          address: 'Hyderabad, Telangana, India',
+          name: 'Hyderabad'
         };
       }
 
@@ -388,15 +418,52 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
         setIsSaving(false);
         return;
       }
+      
       // Get existing saved locations
       const existing = await AsyncStorage.getItem('@saved_locations');
       let saved = existing ? JSON.parse(existing) : {};
+      
+      // Check for duplicates based on address
+      const isDuplicate = (existingLocation: any) => {
+        return existingLocation && 
+               existingLocation.address && 
+               existingLocation.address.toLowerCase().trim() === address.toLowerCase().trim();
+      };
+      
       if (type === 'home' || type === 'work') {
+        // Check if this address is already saved as home/work
+        if (isDuplicate(saved[type])) {
+          Alert.alert('Duplicate Location', 'This location is already saved as ' + type + '.');
+          setIsSaving(false);
+          return;
+        }
+        // Check if this address is already saved as custom
+        if (saved.custom && saved.custom.some((loc: any) => isDuplicate(loc))) {
+          Alert.alert('Duplicate Location', 'This location is already saved in your custom locations.');
+          setIsSaving(false);
+          return;
+        }
         saved[type] = locationToSave;
       } else if (type === 'custom' && customLabel) {
         if (!saved.custom) saved.custom = [];
+        
+        // Check if this address is already saved as home/work
+        if (isDuplicate(saved.home) || isDuplicate(saved.work)) {
+          Alert.alert('Duplicate Location', 'This location is already saved as Home or Work.');
+          setIsSaving(false);
+          return;
+        }
+        
+        // Check if this address is already saved as custom
+        if (saved.custom.some((loc: any) => isDuplicate(loc))) {
+          Alert.alert('Duplicate Location', 'This location is already saved in your custom locations.');
+          setIsSaving(false);
+          return;
+        }
+        
         saved.custom.push(locationToSave);
       }
+      
       await AsyncStorage.setItem('@saved_locations', JSON.stringify(saved));
       if (Platform.OS === 'android') {
         ToastAndroid.show('Location saved!', ToastAndroid.SHORT);
@@ -518,9 +585,9 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
           <View style={styles.divider} />
           <Text style={styles.saveLabel}>Save location as</Text>
           <View style={styles.saveRow}>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('home')}><Text style={styles.saveBtnIcon}>🏠</Text><Text style={styles.saveBtnText}> Home</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('work')}><Text style={styles.saveBtnIcon}>💼</Text><Text style={styles.saveBtnText}> Work</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={handleAddNew}><Text style={styles.saveBtnIcon}>➕</Text><Text style={styles.saveBtnText}> Add New</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => { setCustomName(''); setShowCustomNameInput(true); }}><Text style={styles.saveBtnIcon}>🏠</Text><Text style={styles.saveBtnText}> Home</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => { setCustomName(''); setShowCustomNameInput(true); }}><Text style={styles.saveBtnIcon}>💼</Text><Text style={styles.saveBtnText}> Work</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => { setCustomName(''); setShowCustomNameInput(true); }}><Text style={styles.saveBtnIcon}>➕</Text><Text style={styles.saveBtnText}> Add New</Text></TouchableOpacity>
           </View>
         </View>
         <TouchableOpacity 
@@ -544,6 +611,82 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
           <Text style={styles.bookingErrorText}>{bookingError}</Text>
         )}
       </View>
+      {/* Custom Name Input Modal */}
+      {showCustomNameInput && (
+        <Modal
+          visible={showCustomNameInput}
+          transparent
+          animationType="slide"
+          onRequestClose={() => setShowCustomNameInput(false)}
+        >
+          <View style={{ flex: 1, backgroundColor: 'rgba(0,0,0,0.5)', justifyContent: 'center', alignItems: 'center' }}>
+            <View style={{ backgroundColor: '#fff', borderRadius: 16, padding: 24, width: '85%' }}>
+              <Text style={{ fontSize: 18, fontWeight: 'bold', marginBottom: 16, textAlign: 'center' }}>
+                Save Location
+              </Text>
+              <TextInput
+                value={customName}
+                onChangeText={setCustomName}
+                placeholder="Enter custom name (e.g., My Office, Friend's House)"
+                style={{ 
+                  borderWidth: 1, 
+                  borderColor: '#ddd', 
+                  borderRadius: 8, 
+                  padding: 12, 
+                  marginBottom: 16,
+                  fontSize: 16
+                }}
+                editable={!isSaving}
+                autoFocus
+              />
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <TouchableOpacity
+                  style={{ 
+                    flex: 1, 
+                    backgroundColor: '#f5f5f5', 
+                    padding: 12, 
+                    borderRadius: 8, 
+                    marginRight: 8,
+                    alignItems: 'center'
+                  }}
+                  onPress={() => {
+                    setShowCustomNameInput(false);
+                    setCustomName('');
+                  }}
+                  disabled={isSaving}
+                >
+                  <Text style={{ color: '#666', fontWeight: '600' }}>Cancel</Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={{ 
+                    flex: 1, 
+                    backgroundColor: customName.trim() ? '#22c55e' : '#ccc', 
+                    padding: 12, 
+                    borderRadius: 8, 
+                    marginLeft: 8,
+                    alignItems: 'center'
+                  }}
+                  onPress={async () => {
+                    if (!customName.trim()) {
+                      Alert.alert('Name Required', 'Please enter a name for this location.');
+                      return;
+                    }
+                    await saveLocation('custom', customName.trim());
+                    setCustomName('');
+                    setShowCustomNameInput(false);
+                  }}
+                  disabled={isSaving || !customName.trim()}
+                >
+                  <Text style={{ color: '#fff', fontWeight: '600' }}>
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </View>
+        </Modal>
+      )}
+      
       {showAddAddressInput && (
         <View style={{ marginVertical: 10 }}>
           <TextInput

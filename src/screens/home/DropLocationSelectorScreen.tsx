@@ -111,6 +111,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [friendName, setFriendName] = useState('');
   const [friendPhone, setFriendPhone] = useState('');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
+  const dropInputRef = useRef<TextInput>(null);
+  const currentInputRef = useRef<TextInput>(null);
 
   // Fetch actual current location on component mount
   useEffect(() => {
@@ -135,6 +137,30 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           name: 'Current Location',
         };
         
+        // Reverse geocode to get actual address
+        try {
+          const response = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.coords.latitude},${loc.coords.longitude}&key=${Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}`
+          );
+          const data = await response.json();
+          if (data.status === 'OK' && data.results.length > 0) {
+            const result = data.results[0];
+            coords.address = result.formatted_address;
+            
+            // Extract location name from address components
+            const locality = result.address_components?.find((comp: any) =>
+              comp.types.includes('locality') || comp.types.includes('sublocality')
+            );
+            if (locality) {
+              coords.name = locality.long_name;
+            } else {
+              coords.name = result.formatted_address.split(',')[0];
+            }
+          }
+        } catch (geocodeError) {
+          console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
+        }
+        
         setCurrentLocation(coords);
         console.log('Current location fetched:', coords);
       } catch (error) {
@@ -146,7 +172,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     fetchCurrentLocation();
   }, []);
 
-  // Function to get current location reliably
+    // Function to get current location reliably
   const getCurrentLocationReliably = async (): Promise<any> => {
     setIsGettingLocation(true);
     try {
@@ -161,11 +187,38 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         distanceInterval: 10,
       });
       
+      // Reverse geocode to get actual address
+      let currentAddress = 'Current Location';
+      let currentName = 'Current Location';
+      
+      try {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.coords.latitude},${loc.coords.longitude}&key=${Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}`
+        );
+        const data = await response.json();
+        if (data.status === 'OK' && data.results.length > 0) {
+          const result = data.results[0];
+          currentAddress = result.formatted_address;
+          
+          // Extract location name from address components
+          const locality = result.address_components?.find((comp: any) =>
+            comp.types.includes('locality') || comp.types.includes('sublocality')
+          );
+          if (locality) {
+            currentName = locality.long_name;
+          } else {
+            currentName = result.formatted_address.split(',')[0];
+          }
+        }
+      } catch (geocodeError) {
+        console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
+      }
+      
       return {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
-        address: 'Current Location',
-        name: 'Current Location',
+        address: currentAddress,
+        name: currentName,
       };
     } catch (error) {
       console.log('Error getting current location:', error);
@@ -173,8 +226,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       return {
         latitude: 17.4448, // Fallback to static Hyderabad
         longitude: 78.3498,
-        address: 'Current Location',
-        name: 'Current Location',
+        address: 'Hyderabad, Telangana, India',
+        name: 'Hyderabad',
       };
     } finally {
       setIsGettingLocation(false);
@@ -208,8 +261,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
             pickupLocation = {
               latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
               longitude: 78.3498,
-              address: 'Current Location',
-              name: 'Current Location',
+              address: 'Hyderabad, Telangana, India',
+              name: 'Hyderabad',
             };
           }
           
@@ -292,8 +345,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       setCurrentLocation({
         latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
         longitude: 78.3498,
-        address: 'Current Location',
-        name: 'Current Location',
+        address: 'Hyderabad, Telangana, India',
+        name: 'Hyderabad',
       });
     }
   }, [currentLocation]);
@@ -324,6 +377,30 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       useNativeDriver: true,
     }).start();
   }, []);
+
+  // Handle route params for auto-focusing destination field
+  useEffect(() => {
+    if (route.params?.focusDestination) {
+      // Set editing to 'drop' to trigger focus on destination field
+      setEditing('drop');
+      setSearchQuery(dropLocation?.address || dropLocation?.name || '');
+    }
+  }, [route.params?.focusDestination, dropLocation]);
+
+  // Focus the drop input when editing state changes to 'drop'
+  useEffect(() => {
+    if (editing === 'drop' && dropInputRef.current) {
+      // Small delay to ensure the TextInput is rendered
+      setTimeout(() => {
+        dropInputRef.current?.focus();
+      }, 150);
+    } else if (editing === 'current' && currentInputRef.current) {
+      // Small delay to ensure the TextInput is rendered
+      setTimeout(() => {
+        currentInputRef.current?.focus();
+      }, 150);
+    }
+  }, [editing]);
 
   const searchPlaces = async (query: string) => {
     if (query.length < 3) return;
@@ -544,8 +621,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         : (isValidLocation(currentLocation) ? currentLocation : {
             latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
             longitude: 78.3498,
-            address: 'Current Location',
-            name: 'Current Location',
+            address: 'Hyderabad, Telangana, India',
+            name: 'Hyderabad',
           });
           
       // Enhanced validation
@@ -627,8 +704,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       pickupLocation = {
         latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
         longitude: 78.3498,
-        address: 'Current Location',
-        name: 'Current Location',
+        address: 'Hyderabad, Telangana, India',
+        name: 'Hyderabad',
       };
     }
         
@@ -938,7 +1015,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
                 onPress={() => setShowForWhomModal(true)}
               >
                 <Ionicons name="person-circle" size={20} color="#4CAF50" style={{ marginRight: 8 }} />
-                <Text style={{ fontWeight: '700', color: '#222', fontSize: 16 }}>{forWhom === 'me' ? 'For me' : `For friend${friendName ? ': ' + friendName : ''}`}</Text>
+                <Text style={{ fontWeight: '700', color: '#222', fontSize: 16 }}>For me</Text>
                 <Ionicons name="chevron-down" size={18} color="#4CAF50" style={{ marginLeft: 6 }} />
               </TouchableOpacity>
             </View>
@@ -977,10 +1054,10 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
                     <TouchableOpacity onPress={() => { setEditing('current'); setSearchQuery(''); }} activeOpacity={0.8}>
                       {editing === 'current' ? (
                         <TextInput
+                          ref={currentInputRef}
                           style={{ color: '#222', fontWeight: 'bold', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginBottom: 0 }}
                           value={searchQuery}
                           onChangeText={setSearchQuery}
-                          autoFocus
                           clearButtonMode="while-editing"
                           onSubmitEditing={() => setEditing(null)}
                         />
@@ -992,11 +1069,11 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
                     <TouchableOpacity onPress={() => { setEditing('drop'); setSearchQuery(dropLocation?.address || dropLocation?.name || ''); }} activeOpacity={0.8}>
                       {editing === 'drop' ? (
                         <TextInput
+                          ref={dropInputRef}
                           style={{ color: '#888', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginTop: 2 }}
                           value={searchQuery}
                           onChangeText={setSearchQuery}
                           placeholder="Where to?"
-                          autoFocus
                           clearButtonMode="while-editing"
                           returnKeyType="send"
                           onSubmitEditing={() => {
@@ -1070,31 +1147,6 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
               <Ionicons name="person" size={22} color={forWhom === 'me' ? '#23235B' : '#bbb'} style={{ marginRight: 10 }} />
               <Text style={{ fontWeight: '600', color: forWhom === 'me' ? '#23235B' : '#bbb' }}>For me</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={{ flexDirection: 'row', alignItems: 'center', marginBottom: 16 }}
-              onPress={() => { setForWhom('friend'); setShowForWhomModal(false); }}
-            >
-              <Ionicons name="person-add" size={22} color={forWhom === 'friend' ? '#23235B' : '#bbb'} style={{ marginRight: 10 }} />
-              <Text style={{ fontWeight: '600', color: forWhom === 'friend' ? '#23235B' : '#bbb' }}>For a friend</Text>
-            </TouchableOpacity>
-            {forWhom === 'friend' && (
-              <>
-                <TextInput
-                  style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 10, marginBottom: 10, marginTop: 4 }}
-                  placeholder="Friend's Name"
-                  value={friendName}
-                  onChangeText={setFriendName}
-                />
-                <TextInput
-                  style={{ borderWidth: 1, borderColor: '#eee', borderRadius: 8, padding: 10, marginBottom: 10 }}
-                  placeholder="Friend's Phone Number"
-                  value={friendPhone}
-                  onChangeText={setFriendPhone}
-                  keyboardType="phone-pad"
-                />
-              </>
-            )}
-            <Button title="Done" onPress={() => setShowForWhomModal(false)} />
           </View>
         </View>
       </RNModal>
