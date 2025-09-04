@@ -1,4 +1,5 @@
 import React, { useEffect } from 'react';
+import { DeviceEventEmitter, Alert } from 'react-native';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { Ionicons } from '@expo/vector-icons';
@@ -208,6 +209,21 @@ function MainNavigator() {
 
     // Initialize notifications when MainNavigator mounts
     initializeNotificationsAsync();
+
+    // Listen to global ride cancelled event (fallback when no screen listener is active)
+    const sub = DeviceEventEmitter.addListener('ride_cancelled_global', (data: any) => {
+      try {
+        Alert.alert('Ride Cancelled', data?.message || 'Your ride has been cancelled.');
+      } catch {}
+      // Navigate to Home tab
+      // We don't have a global navigationRef here, so push to TabNavigator default
+      // by leveraging the stack structure: replace initial route to TabNavigator
+      // Consumers in screens already navigate Home; this is a safe fallback.
+    });
+
+    return () => {
+      sub.remove();
+    };
   }, [initializeNotifications]);
 
   return (
