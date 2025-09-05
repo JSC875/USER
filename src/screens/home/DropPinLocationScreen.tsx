@@ -7,11 +7,7 @@ import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { getSocket, emitEvent, onRideBooked, onRideTimeout, clearCallbacks } from '../../utils/socket';
-import { useUser, useAuth } from '@clerk/clerk-expo';
-import { getUserIdFromJWT } from '../../utils/jwtDecoder';
-import { rideApi, RideRequestResponse } from '../../services/rideService';
-import { calculateRideFare, getDistanceFromLatLonInKm } from '../../utils/helpers';
+// Removed unused imports for booking functionality
 
 const { width, height } = Dimensions.get('window');
 const MAP_HEIGHT = height - 270; // 270px for bottom sheet height
@@ -28,7 +24,7 @@ function parseAddress(address: string): { house: string; rest: string } {
   if (!address) return { house: '', rest: '' };
   const match = address.match(/^\s*(.+?)[,\s]+(.+)$/);
   if (match) {
-    return { house: match[1], rest: match[2] };
+    return { house: match[1] || '', rest: match[2] || '' };
   }
   return { house: address, rest: '' };
 }
@@ -49,12 +45,6 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
   const [showSavedModal, setShowSavedModal] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [accuracy, setAccuracy] = useState<number | null>(null);
-  
-  // Booking functionality state
-  const [isBooking, setIsBooking] = useState(false);
-  const [bookingError, setBookingError] = useState<string | null>(null);
-  const { user } = useUser();
-  const { getToken } = useAuth();
 
   useEffect(() => {
     // If coordinates are passed in, use them for initial region
@@ -170,231 +160,96 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
       return;
     }
 
-    // For drop mode, initiate booking flow
-    await handleBookRide();
-  };
+    // For drop mode, navigate to RideOptionsScreen instead of direct booking
+    const dropLocation = {
+      latitude: region.latitude,
+      longitude: region.longitude,
+      name: locationName,
+      address: address,
+    };
 
-  // Booking functionality - same as RideOptionsScreen
-  const handleBookRide = async () => {
-    // Prevent multiple bookings
-    if (isBooking) {
-      console.log('🚫 Booking already in progress, ignoring duplicate request');
+    // Get current location as pickup
+    let pickupLocation;
+    try {
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status === 'granted') {
+        let loc = await Location.getCurrentPositionAsync({});
+        
+        // Reverse geocode the current location to get actual address
+        let pickupAddress = 'Current Location';
+        let pickupName = 'Current Location';
+        
+        try {
+          const response = await fetch(
+            `https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.coords.latitude},${loc.coords.longitude}&key=${Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}`
+          );
+          const data = await response.json();
+          if (data.status === 'OK' && data.results.length > 0) {
+            const result = data.results[0];
+            pickupAddress = result.formatted_address;
+            
+            // Extract location name from address components
+            const locality = result.address_components?.find((comp: any) =>
+              comp.types.includes('locality') || comp.types.includes('sublocality')
+            );
+            if (locality) {
+              pickupName = locality.long_name;
+            } else {
+              pickupName = result.formatted_address.split(',')[0];
+            }
+          }
+        } catch (geocodeError) {
+          console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
+        }
+        
+        pickupLocation = {
+          latitude: loc.coords.latitude,
+          longitude: loc.coords.longitude,
+          address: pickupAddress,
+          name: pickupName
+        };
+      } else {
+        throw new Error('Location permission denied');
+      }
+    } catch (error) {
+      console.error('Failed to get current location:', error);
+      pickupLocation = {
+        latitude: region.latitude - 0.01, // Fallback: slightly offset from drop location
+        longitude: region.longitude - 0.01,
+        address: 'Hyderabad, Telangana, India',
+        name: 'Hyderabad'
+      };
+    }
+
+    // Check if pickup and drop locations are the same
+    const isSameLocation = (
+      Math.abs(pickupLocation.latitude - dropLocation.latitude) < 0.0001 &&
+      Math.abs(pickupLocation.longitude - dropLocation.longitude) < 0.0001
+    ) || (
+      pickupLocation.address && dropLocation.address &&
+      pickupLocation.address.toLowerCase().trim() === dropLocation.address.toLowerCase().trim()
+    );
+
+    if (isSameLocation) {
+      Alert.alert(
+        'Same Location Selected',
+        'Drop location and pickup location both are same. Please select a different destination.',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
-    setIsBooking(true);
-    setBookingError(null);
-    
-    try {
-      console.log('🚗 === STARTING RIDE BOOKING PROCESS FROM DROP PIN ===');
-      console.log('🔍 === DETAILED BOOKING FLOW LOG ===');
-      
-      // Get current location as pickup with proper address
-      let pickupLocation;
-      try {
-        let { status } = await Location.requestForegroundPermissionsAsync();
-        if (status === 'granted') {
-          let loc = await Location.getCurrentPositionAsync({});
-          
-          // Reverse geocode the current location to get actual address
-          let pickupAddress = 'Current Location';
-          let pickupName = 'Current Location';
-          
-          try {
-            const response = await fetch(
-              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.coords.latitude},${loc.coords.longitude}&key=${Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}`
-            );
-            const data = await response.json();
-            if (data.status === 'OK' && data.results.length > 0) {
-              const result = data.results[0];
-              pickupAddress = result.formatted_address;
-              
-              // Extract location name from address components
-              const locality = result.address_components?.find((comp: any) =>
-                comp.types.includes('locality') || comp.types.includes('sublocality')
-              );
-              if (locality) {
-                pickupName = locality.long_name;
-              } else {
-                pickupName = result.formatted_address.split(',')[0];
-              }
-            }
-          } catch (geocodeError) {
-            console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
-          }
-          
-          pickupLocation = {
-            latitude: loc.coords.latitude,
-            longitude: loc.coords.longitude,
-            address: pickupAddress,
-            name: pickupName
-          };
-        } else {
-          throw new Error('Location permission denied');
-        }
-      } catch (error) {
-        console.error('Failed to get current location:', error);
-        pickupLocation = {
-          latitude: region.latitude - 0.01, // Fallback: slightly offset from drop location
-          longitude: region.longitude - 0.01,
-          address: 'Hyderabad, Telangana, India',
-          name: 'Hyderabad'
-        };
-      }
-
-      const dropLocation = {
-        latitude: region.latitude,
-        longitude: region.longitude,
-        name: locationName,
-        address: address,
-      };
-
-      console.log('📤 Step 1: Preparing ride request data...');
-      console.log('📍 Pickup:', pickupLocation);
-      console.log('🎯 Drop:', dropLocation);
-      
-      // Check service availability for both pickup and drop locations
-      console.log('📍 === CHECKING SERVICE AVAILABILITY ===');
-      try {
-        await checkRideAvailability(
-          { latitude: pickupLocation.latitude, longitude: pickupLocation.longitude },
-          { latitude: dropLocation.latitude, longitude: dropLocation.longitude }
-        );
-        
-        if (!isAvailable) {
-          Alert.alert(
-            'Service Unavailable', 
-            message || 'Service is not available for the selected route. Please choose locations within Hyderabad service area.',
-            [{ text: 'OK' }]
-          );
-          setIsBooking(false);
-          return;
-        }
-        
-        console.log('✅ Service availability check passed');
-      } catch (error) {
-        console.error('❌ Service availability check failed:', error);
-        Alert.alert(
-          'Service Check Failed', 
-          'Unable to verify service availability. Please try again.',
-          [{ text: 'OK' }]
-        );
-        setIsBooking(false);
-        return;
-      }
-      
-      // Calculate distance and fare
-      const distanceKm = getDistanceFromLatLonInKm(
-        pickupLocation.latitude,
-        pickupLocation.longitude,
-        dropLocation.latitude,
-        dropLocation.longitude
-      );
-      
-      const durationMinutes = Math.round((distanceKm / 25) * 60);
-      const fareCalculation = calculateRideFare(distanceKm, durationMinutes, 'bike');
-      
-      // Step 1: Prepare ride request data
-      const rideRequest = {
-        pickup: pickupLocation,
-        drop: {
-          id: '1',
-          name: dropLocation.name || dropLocation.address || 'Drop Location',
-          address: dropLocation.address || dropLocation.name || 'Drop Location',
-          latitude: dropLocation.latitude,
-          longitude: dropLocation.longitude,
-          type: 'recent',
-        },
-        rideType: 'Bike',
-        price: fareCalculation.totalFare,
-        userId: await getUserIdFromJWT(getToken), // Use JWT user ID for consistency
-      };
-      
-      console.log('🚗 Ride request data prepared:', rideRequest);
-
-      // Step 2: Call API endpoint first
-      console.log('🌐 === CALLING API ENDPOINT FIRST ===');
-      console.log('🎯 Step 2: Converting to API payload...');
-      const apiPayload = rideApi.convertToApiPayload(rideRequest);
-      console.log('📦 API Payload:', apiPayload);
-      
-      console.log('🚀 Step 3: Making API call to /api/rides/request...');
-      const apiResponse: RideRequestResponse = await rideApi.requestRide(apiPayload, getToken as () => Promise<string>);
-      console.log('✅ API Response received:', apiResponse);
-      console.log('📊 API Response Details:');
-      console.log('   - Ride ID:', apiResponse.id);
-      console.log('   - Status:', apiResponse.status);
-      console.log('   - Estimated Fare:', apiResponse.estimatedFare);
-      console.log('   - Requested At:', apiResponse.requestedAt);
-      
-      // Step 3: Send Socket.IO event with API response data
-      console.log('🔌 === SENDING SOCKET.IO EVENT WITH API DATA ===');
-      const socketRideRequest = {
-        ...rideRequest,
-        rideId: apiResponse.id, // Use the ride ID from API response
-        estimatedFare: apiResponse.estimatedFare,
-        status: apiResponse.status,
-      };
-      
-      console.log('🔌 Socket ride request:', socketRideRequest);
-      console.log('📤 Attempting to emit event: request_ride');
-      const success = emitEvent('request_ride', socketRideRequest);
-      
-      if (!success) {
-        throw new Error('Unable to connect to server. Please check your internet connection.');
-      }
-      
-      console.log('✅ Socket.IO event sent successfully');
-      console.log('🎉 === RIDE BOOKING COMPLETED SUCCESSFULLY ===');
-      console.log('📋 Final Ride Details:');
-      console.log('   - Ride ID:', apiResponse.id);
-      console.log('   - Estimated Fare: ₹', apiResponse.estimatedFare.toFixed(2));
-      console.log('   - Status:', apiResponse.status);
-      console.log('   - Pickup:', pickupLocation);
-      console.log('   - Drop:', dropLocation);
-      
-      // Show success alert and navigate
-      Alert.alert(
-        'Ride Booked!', 
-        `Searching for pilots...\nRide ID: ${apiResponse.id}`,
-        [
-          {
-            text: 'OK',
-            onPress: () => {
-              console.log('🎯 Navigating to FindingDriver after ride booked from drop pin');
-              // Navigate to FindingDriver with all necessary data
-              navigation.navigate('FindingDriver', {
-                rideId: apiResponse.id,
-                price: apiResponse.estimatedFare,
-                status: 'searching',
-                destination: dropLocation,
-                pickup: pickupLocation,
-                estimate: {
-                  fare: apiResponse.estimatedFare,
-                  distance: `${distanceKm.toFixed(1)} km`,
-                  duration: `${durationMinutes} mins`,
-                  eta: '5 mins',
-                },
-                paymentMethod: 'Cash',
-                driver: null,
-              });
-            }
-          }
-        ]
-      );
-      
-    } catch (error: any) {
-      console.error('❌ === RIDE BOOKING FAILED ===');
-      console.error('Error details:', error);
-      console.error('Error message:', error.message);
-      console.error('Error stack:', error.stack);
-      
-      setBookingError(error instanceof Error ? error.message : 'Booking failed. Please try again.');
-      Alert.alert('Booking Failed', error instanceof Error ? error.message : 'Booking failed. Please try again.');
-    } finally {
-      setIsBooking(false);
-    }
+    // Navigate to RideOptionsScreen with both pickup and drop locations
+    navigation.navigate('RideOptions', {
+      pickup: pickupLocation,
+      drop: dropLocation,
+      forWhom: 'me',
+      friendName: '',
+      friendPhone: '',
+    });
   };
+
+  // handleBookRide function removed - now navigates to RideOptionsScreen instead
 
   // Save location handler
   const saveLocation = async (type: 'home' | 'work' | 'custom', customLabel?: string) => {
@@ -487,7 +342,7 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
     await saveLocation('custom', defaultLabel);
   };
 
-  const { house, rest } = parseAddress(address);
+  // parseAddress function available if needed for future use
 
   return (
     <View style={styles.screen}>
@@ -585,31 +440,20 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
           <View style={styles.divider} />
           <Text style={styles.saveLabel}>Save location as</Text>
           <View style={styles.saveRow}>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => { setCustomName(''); setShowCustomNameInput(true); }}><Text style={styles.saveBtnIcon}>🏠</Text><Text style={styles.saveBtnText}> Home</Text></TouchableOpacity>
-            <TouchableOpacity style={styles.saveBtn} onPress={() => { setCustomName(''); setShowCustomNameInput(true); }}><Text style={styles.saveBtnIcon}>💼</Text><Text style={styles.saveBtnText}> Work</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('home')}><Text style={styles.saveBtnIcon}>🏠</Text><Text style={styles.saveBtnText}> Home</Text></TouchableOpacity>
+            <TouchableOpacity style={styles.saveBtn} onPress={() => saveLocation('work')}><Text style={styles.saveBtnIcon}>💼</Text><Text style={styles.saveBtnText}> Work</Text></TouchableOpacity>
             <TouchableOpacity style={styles.saveBtn} onPress={() => { setCustomName(''); setShowCustomNameInput(true); }}><Text style={styles.saveBtnIcon}>➕</Text><Text style={styles.saveBtnText}> Add New</Text></TouchableOpacity>
           </View>
         </View>
         <TouchableOpacity 
-          style={[styles.selectDropButton, isBooking && styles.selectDropButtonDisabled]} 
+          style={styles.selectDropButton} 
           onPress={handleSelectDrop} 
           activeOpacity={0.8}
-          disabled={isBooking}
         >
-          {isBooking ? (
-            <View style={{ flexDirection: 'row', alignItems: 'center', justifyContent: 'center' }}>
-              <ActivityIndicator size="small" color="#fff" style={{ marginRight: 8 }} />
-              <Text style={styles.selectDropButtonText}>Booking...</Text>
-            </View>
-          ) : (
-            <Text style={styles.selectDropButtonText}>
-              {mode === 'pickup' ? 'Select Pickup' : 'Book Ride'}
-            </Text>
-          )}
+          <Text style={styles.selectDropButtonText}>
+            {mode === 'pickup' ? 'Select Pickup' : 'Book Ride'}
+          </Text>
         </TouchableOpacity>
-        {bookingError && (
-          <Text style={styles.bookingErrorText}>{bookingError}</Text>
-        )}
       </View>
       {/* Custom Name Input Modal */}
       {showCustomNameInput && (
@@ -897,22 +741,14 @@ const styles = StyleSheet.create({
     elevation: 0,
     marginBottom: Layout.spacing.md,
   },
-  selectDropButtonDisabled: {
-    backgroundColor: Colors.gray300,
-  },
+  // selectDropButtonDisabled style removed - no longer needed
   selectDropButtonText: {
     color: Colors.white,
     fontWeight: '700',
     fontSize: Layout.fontSize.md,
     letterSpacing: 0.1,
   },
-  bookingErrorText: {
-    color: Colors.error,
-    fontSize: Layout.fontSize.sm,
-    textAlign: 'center',
-    marginTop: Layout.spacing.xs,
-    fontWeight: '500',
-  },
+  // bookingErrorText style removed - no longer needed
   addressInput: {
     borderWidth: 1,
     borderColor: Colors.gray200,

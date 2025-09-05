@@ -97,6 +97,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [currentLocation, setCurrentLocation] = useState<any>(null);
   const [editing, setEditing] = useState<'drop' | 'current' | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [currentLocationQuery, setCurrentLocationQuery] = useState('');
+  const [dropLocationQuery, setDropLocationQuery] = useState('');
   const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
   const [noResults, setNoResults] = useState(false);
@@ -237,22 +239,29 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   useEffect(() => {
     if (route.params?.pickup) {
       setCurrentLocation(route.params.pickup);
-      if (editing === 'current') setSearchQuery(route.params.pickup.address || route.params.pickup.name || '');
+      if (editing === 'current') {
+        setCurrentLocationQuery(route.params.pickup.address || route.params.pickup.name || '');
+        setSearchQuery(route.params.pickup.address || route.params.pickup.name || '');
+      }
     }
-    if (route.params?.destination) {
-      setDropLocation(route.params.destination);
-      if (editing === 'drop') setSearchQuery(route.params.destination.address || route.params.destination.name || '');
-      // Always auto-proceed to RideOptions if destination is set from map
-      if (!autoProceedHandled.current) {
+    if (route.params?.destination || route.params?.drop) {
+      const dropParam = route.params?.destination || route.params?.drop;
+      setDropLocation(dropParam);
+      if (editing === 'drop') {
+        setDropLocationQuery(dropParam.address || dropParam.name || '');
+        setSearchQuery(dropParam.address || dropParam.name || '');
+      }
+      // Always auto-proceed to RideOptions if destination is set from map (but not when editing drop)
+      if (!autoProceedHandled.current && route.params?.type !== 'pickup' && route.params?.type !== 'drop') {
         autoProceedHandled.current = true;
         setTimeout(async () => {
-          // For rebook scenarios, use the provided pickup location instead of current location
-          let pickupLocation = route.params?.isRebook && route.params?.pickup 
+          // For rebook scenarios or when editing drop, use the provided pickup location instead of current location
+          let pickupLocation = (route.params?.isRebook || route.params?.type === 'drop') && route.params?.pickup 
             ? route.params.pickup 
             : (isValidLocation(currentLocation) ? currentLocation : null);
           
-          // If we don't have a valid pickup location and it's not a rebook, try to get current location
-          if (!pickupLocation && !route.params?.isRebook) {
+          // If we don't have a valid pickup location and it's not a rebook or drop edit, try to get current location
+          if (!pickupLocation && !route.params?.isRebook && route.params?.type !== 'drop') {
             pickupLocation = await getCurrentLocationReliably();
           }
           
@@ -268,7 +277,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           
           // Enhanced validation for rebook scenarios
           const pickupValidation = validateLocationForRebook(pickupLocation, 'pickup');
-          const dropoffValidation = validateLocationForRebook(route.params.destination, 'dropoff');
+          const dropoffValidation = validateLocationForRebook(dropParam, 'dropoff');
           
           if (!pickupValidation.isValid) {
             Alert.alert(
@@ -309,7 +318,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           
           navigation.replace('RideOptions', {
             pickup: pickupLocation,
-            drop: route.params.destination,
+            drop: dropParam,
             forWhom,
             friendName,
             friendPhone,
@@ -319,7 +328,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     } else {
       autoProceedHandled.current = false;
     }
-  }, [route.params?.pickup, route.params?.destination, currentLocation, forWhom, friendName, friendPhone]);
+  }, [route.params?.pickup, route.params?.destination, route.params?.drop, currentLocation, forWhom, friendName, friendPhone]);
 
   useEffect(() => {
     if ((editing === 'drop' || editing === 'current') && searchQuery.length > 2) {
@@ -378,27 +387,71 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     }).start();
   }, []);
 
-  // Handle route params for auto-focusing destination field
+  // Handle route params for auto-focusing fields
   useEffect(() => {
+    console.log('🔍 DropLocationSelectorScreen - Route params:', route.params);
+    console.log('🔍 DropLocationSelectorScreen - Type:', route.params?.type);
+    
     if (route.params?.focusDestination) {
       // Set editing to 'drop' to trigger focus on destination field
       setEditing('drop');
+      setDropLocationQuery(dropLocation?.address || dropLocation?.name || '');
       setSearchQuery(dropLocation?.address || dropLocation?.name || '');
+      console.log('📍 Focused on destination field');
+    } else if (route.params?.type === 'pickup') {
+      // Set editing to 'current' to trigger focus on current location field
+      setEditing('current');
+      setCurrentLocationQuery(''); // Clear only the current location field
+      setSearchQuery(''); // Clear search query for current location
+      console.log('📍 Focused on current location field for pickup editing');
+    } else if (route.params?.type === 'drop') {
+      // Set editing to 'drop' to trigger focus on destination field
+      setEditing('drop');
+      setDropLocationQuery(''); // Clear the query to allow fresh input
+      setSearchQuery(''); // Clear the search query too
+      console.log('📍 Focused on destination field for drop editing');
     }
-  }, [route.params?.focusDestination, dropLocation]);
+  }, [route.params?.focusDestination, route.params?.type, route.params?.drop, dropLocation, currentLocation]);
 
   // Focus the drop input when editing state changes to 'drop'
   useEffect(() => {
-    if (editing === 'drop' && dropInputRef.current) {
-      // Small delay to ensure the TextInput is rendered
-      setTimeout(() => {
-        dropInputRef.current?.focus();
-      }, 150);
-    } else if (editing === 'current' && currentInputRef.current) {
-      // Small delay to ensure the TextInput is rendered
-      setTimeout(() => {
-        currentInputRef.current?.focus();
-      }, 150);
+    console.log('🔍 Focus useEffect - editing state:', editing);
+    if (editing === 'drop') {
+      console.log('🎯 Attempting to focus drop input');
+      // More aggressive focus attempts
+      const focusAttempts = [50, 100, 200, 400, 600];
+      focusAttempts.forEach((delay, index) => {
+        setTimeout(() => {
+          if (dropInputRef.current) {
+            try {
+              dropInputRef.current.focus();
+              console.log(`✅ Drop input focused successfully (attempt ${index + 1})`);
+            } catch (error) {
+              console.log(`❌ Drop input focus error (attempt ${index + 1}):`, error);
+            }
+          } else {
+            console.log(`❌ Drop input ref is null (attempt ${index + 1})`);
+          }
+        }, delay);
+      });
+    } else if (editing === 'current') {
+      console.log('🎯 Attempting to focus current input');
+      // More aggressive focus attempts
+      const focusAttempts = [50, 100, 200, 400, 600];
+      focusAttempts.forEach((delay, index) => {
+        setTimeout(() => {
+          if (currentInputRef.current) {
+            try {
+              currentInputRef.current.focus();
+              console.log(`✅ Current input focused successfully (attempt ${index + 1})`);
+            } catch (error) {
+              console.log(`❌ Current input focus error (attempt ${index + 1}):`, error);
+            }
+          } else {
+            console.log(`❌ Current input ref is null (attempt ${index + 1})`);
+          }
+        }, delay);
+      });
     }
   }, [editing]);
 
@@ -577,6 +630,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         return;
       }
       let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      setCurrentLocationQuery(item.address || item.name || 'Current Location'); // Ensure the text stays
       setSearchQuery(item.address || item.name || 'Current Location'); // Ensure the text stays
       // Instead of setting pickup immediately, navigate to DropPinLocationScreen for confirmation
       navigation.navigate('DropPinLocation', {
@@ -608,15 +662,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       location = item;
     }
     if (editing === 'drop' || autoProceed) {
-      setDropLocation(location);
-      setEditing(null);
-      setSearchQuery(location.address || location.name || '');
-      setSearchResults([]);
-      setNoResults(false);
-      Keyboard.dismiss();
-      
-      // For rebook scenarios, use the provided pickup location instead of current location
-      const pickupLocation = route.params?.isRebook && route.params?.pickup 
+      // For rebook scenarios or when editing drop, use the provided pickup location instead of current location
+      const pickupLocation = (route.params?.isRebook || route.params?.type === 'drop') && route.params?.pickup 
         ? route.params.pickup 
         : (isValidLocation(currentLocation) ? currentLocation : {
             latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
@@ -624,6 +671,34 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
             address: 'Hyderabad, Telangana, India',
             name: 'Hyderabad',
           });
+
+      // Check if pickup and drop locations are the same
+      if (pickupLocation && location) {
+        const isSameLocation = (
+          Math.abs(pickupLocation.latitude - location.latitude) < 0.0001 &&
+          Math.abs(pickupLocation.longitude - location.longitude) < 0.0001
+        ) || (
+          pickupLocation.address && location.address &&
+          pickupLocation.address.toLowerCase().trim() === location.address.toLowerCase().trim()
+        );
+
+        if (isSameLocation) {
+          Alert.alert(
+            'Same Location Selected',
+            'Drop location and pickup location both are same. Please select a different destination.',
+            [{ text: 'OK' }]
+          );
+          return;
+        }
+      }
+
+      setDropLocation(location);
+      setEditing(null);
+      setDropLocationQuery(location.address || location.name || '');
+      setSearchQuery(location.address || location.name || '');
+      setSearchResults([]);
+      setNoResults(false);
+      Keyboard.dismiss();
           
       // Enhanced validation
       const pickupValidation = validateLocationForRebook(pickupLocation, 'pickup');
@@ -676,7 +751,22 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       return;
     } else if (editing === 'current') {
       setCurrentLocation(location);
-      setSearchQuery(location.address || location.name || ''); // update input with selected value
+      setCurrentLocationQuery(location.address || location.name || ''); // update input with selected value
+      setSearchQuery(location.address || location.name || ''); // update search query
+      // If we came here to edit only the pickup (from RideOptions), return with updated pickup only
+      if (route.params?.type === 'pickup') {
+        console.log('🔄 Navigating back to RideOptions with updated pickup:', location);
+        console.log('📍 Original drop preserved:', route.params?.drop);
+        navigation.replace('RideOptions', {
+          pickup: location,
+          drop: route.params?.drop, // Use original drop from route params, don't change it
+          forWhom,
+          friendName,
+          friendPhone,
+        });
+        return;
+      }
+      // If editing both or just current location in normal flow, stay on screen
     }
     setEditing(null);
     setSearchResults([]);
@@ -689,13 +779,13 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   };
 
   const handleConfirmDrop = async () => {
-    // For rebook scenarios, use the provided pickup location instead of current location
-    let pickupLocation = route.params?.isRebook && route.params?.pickup 
+    // For rebook scenarios or when editing drop, use the provided pickup location instead of current location
+    let pickupLocation = (route.params?.isRebook || route.params?.type === 'drop') && route.params?.pickup 
       ? route.params.pickup 
       : (isValidLocation(currentLocation) ? currentLocation : null);
     
-    // If we don't have a valid pickup location and it's not a rebook, try to get current location
-    if (!pickupLocation && !route.params?.isRebook) {
+    // If we don't have a valid pickup location and it's not a rebook or drop edit, try to get current location
+    if (!pickupLocation && !route.params?.isRebook && route.params?.type !== 'drop') {
       pickupLocation = await getCurrentLocationReliably();
     }
     
@@ -707,6 +797,26 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         address: 'Hyderabad, Telangana, India',
         name: 'Hyderabad',
       };
+    }
+
+    // Check if pickup and drop locations are the same
+    if (pickupLocation && dropLocation) {
+      const isSameLocation = (
+        Math.abs(pickupLocation.latitude - dropLocation.latitude) < 0.0001 &&
+        Math.abs(pickupLocation.longitude - dropLocation.longitude) < 0.0001
+      ) || (
+        pickupLocation.address && dropLocation.address &&
+        pickupLocation.address.toLowerCase().trim() === dropLocation.address.toLowerCase().trim()
+      );
+
+      if (isSameLocation) {
+        Alert.alert(
+          'Same Location Selected',
+          'Drop location and pickup location both are same. Please select a different destination.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
     }
         
     // Enhanced validation
@@ -750,13 +860,25 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       return;
     }
     
-    navigation.replace('RideOptions', {
-      pickup: pickupLocation,
-      drop: dropLocation,
-      forWhom,
-      friendName,
-      friendPhone,
-    });
+    // If we came here to edit only the drop (from RideOptions), use original pickup
+    if (route.params?.type === 'drop') {
+      navigation.replace('RideOptions', {
+        pickup: route.params?.pickup, // Use original pickup from route params, don't change it
+        drop: dropLocation,
+        forWhom,
+        friendName,
+        friendPhone,
+      });
+    } else {
+      // Normal flow - use both pickup and drop
+      navigation.replace('RideOptions', {
+        pickup: pickupLocation,
+        drop: dropLocation,
+        forWhom,
+        friendName,
+        friendPhone,
+      });
+    }
   };
 
   // Update renderSearchResult to match the desired UI
@@ -836,6 +958,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           longitude: item.longitude,
         });
         setEditing('drop');
+        setDropLocationQuery(item.address || item.name || '');
         setSearchQuery(item.address || item.name || '');
         setSearchResults([]);
         setNoResults(false);
@@ -864,6 +987,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   return (
     <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
+      <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
       {/* Loading overlay when getting location */}
       {isGettingLocation && (
         <View style={{
@@ -1051,13 +1175,16 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
                     <Ionicons name="square" size={18} color={'#E53935'} style={{ marginTop: 2 }} />
                   </View>
                   <View style={{ flex: 1, justifyContent: 'center' }}>
-                    <TouchableOpacity onPress={() => { setEditing('current'); setSearchQuery(''); }} activeOpacity={0.8}>
+                    <TouchableOpacity onPress={() => { setEditing('current'); setCurrentLocationQuery(''); setSearchQuery(''); }} activeOpacity={0.8}>
                       {editing === 'current' ? (
                         <TextInput
                           ref={currentInputRef}
                           style={{ color: '#222', fontWeight: 'bold', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginBottom: 0 }}
-                          value={searchQuery}
-                          onChangeText={setSearchQuery}
+                          value={currentLocationQuery}
+                          onChangeText={(text) => {
+                            setCurrentLocationQuery(text);
+                            setSearchQuery(text);
+                          }}
                           clearButtonMode="while-editing"
                           onSubmitEditing={() => setEditing(null)}
                         />
@@ -1066,17 +1193,47 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
                       )}
                     </TouchableOpacity>
                     <View style={{ height: 20 }} />
-                    <TouchableOpacity onPress={() => { setEditing('drop'); setSearchQuery(dropLocation?.address || dropLocation?.name || ''); }} activeOpacity={0.8}>
+                    <TouchableOpacity onPress={() => { 
+                      console.log('🎯 Drop location TouchableOpacity pressed');
+                      console.log('📍 Current dropLocation:', dropLocation);
+                      console.log('📍 Current editing state before:', editing);
+                      setEditing('drop'); 
+                      setDropLocationQuery(''); // Clear the query to allow fresh input
+                      setSearchQuery(''); // Clear the search query too
+                      console.log('📍 Setting editing to drop, clearing query for fresh input');
+                      
+                      // Try to focus immediately after state change
+                      setTimeout(() => {
+                        console.log('🎯 Immediate focus attempt');
+                        if (dropInputRef.current) {
+                          dropInputRef.current.focus();
+                          console.log('✅ Immediate focus successful');
+                        } else {
+                          console.log('❌ Immediate focus failed - ref is null');
+                        }
+                      }, 50);
+                    }} activeOpacity={0.8}>
                       {editing === 'drop' ? (
                         <TextInput
-                          ref={dropInputRef}
+                          ref={(ref) => {
+                            console.log('🔗 Drop TextInput ref set:', !!ref);
+                            dropInputRef.current = ref;
+                          }}
                           style={{ color: '#888', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginTop: 2 }}
-                          value={searchQuery}
-                          onChangeText={setSearchQuery}
+                          value={dropLocationQuery}
+                          onChangeText={(text) => {
+                            console.log('📝 Drop input text changed:', text);
+                            setDropLocationQuery(text);
+                            setSearchQuery(text);
+                          }}
                           placeholder="Where to?"
                           clearButtonMode="while-editing"
                           returnKeyType="send"
+                          autoFocus={true}
+                          onFocus={() => console.log('🎯 Drop TextInput onFocus triggered')}
+                          onBlur={() => console.log('🎯 Drop TextInput onBlur triggered')}
                           onSubmitEditing={() => {
+                            console.log('📤 Drop input onSubmitEditing');
                             if (dropLocation) {
                               navigation.replace('RideOptions', {
                                 pickup: currentLocation,
@@ -1109,7 +1266,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
             </View>
           ) : null
         }
-        contentContainerStyle={{ paddingBottom: 100 }}
+        contentContainerStyle={{ paddingBottom: 200 }}
+        keyboardDismissMode="on-drag"
         keyboardShouldPersistTaps="handled"
       />
       {/* Set location on map button at the bottom */}
@@ -1150,6 +1308,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           </View>
         </View>
       </RNModal>
+      </KeyboardAvoidingView>
     </SafeAreaView>
   );
 }
