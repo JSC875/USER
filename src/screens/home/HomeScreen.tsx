@@ -557,16 +557,10 @@ export default function HomeScreen({ navigation, route }: any) {
         console.log('   - Pickup:', pickup);
         console.log('   - Drop:', dropLocation);
         
-        Alert.alert(
-          'Ride Booked Successfully! 🎉',
-          `Your ride has been requested!\n\nRide ID: ${apiResponse.id}\nEstimated Fare: ₹${apiResponse.estimatedFare.toFixed(2)}\nStatus: ${apiResponse.status}\n\nSearching for pilots...`
-        );
+        // Alert removed - direct navigation to FindingDriver
       } else {
         console.warn('⚠️ Socket.IO event failed, but API call succeeded');
-        Alert.alert(
-          'Ride Booked (Partial)',
-          `Your ride has been requested via API!\n\nRide ID: ${apiResponse.id}\nEstimated Fare: ₹${apiResponse.estimatedFare.toFixed(2)}\n\nNote: Real-time updates may be limited.`
-        );
+        // Alert removed - direct navigation to FindingDriver
       }
       
     } catch (error: any) {
