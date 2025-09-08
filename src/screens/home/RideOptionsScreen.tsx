@@ -29,9 +29,41 @@ export async function saveCompletedRide(ride: any) {
 }
 
 export default function RideOptionsScreen({ navigation, route }: any) {
-  // Use pickup as a state so it can be updated when using device location
+  // Use pickup and drop as state so they can be updated when route params change
   const [pickup, setPickup] = useState(route.params?.pickup || null);
-  const { drop, forWhom, friendName, friendPhone } = route.params;
+  const [drop, setDrop] = useState(route.params?.drop || null);
+  const [forWhom, setForWhom] = useState(route.params?.forWhom || 'me');
+  const [friendName, setFriendName] = useState(route.params?.friendName || '');
+  const [friendPhone, setFriendPhone] = useState(route.params?.friendPhone || '');
+
+  // Update all state when route params change (e.g., when returning from editing)
+  useEffect(() => {
+    if (route.params?.pickup) {
+      setPickup(route.params.pickup);
+      console.log('📍 Pickup updated from route params:', route.params.pickup);
+    }
+    if (route.params?.drop) {
+      setDrop(route.params.drop);
+      console.log('📍 Drop updated from route params:', route.params.drop);
+    }
+    if (route.params?.forWhom) {
+      setForWhom(route.params.forWhom);
+    }
+    if (route.params?.friendName) {
+      setFriendName(route.params.friendName);
+    }
+    if (route.params?.friendPhone) {
+      setFriendPhone(route.params.friendPhone);
+    }
+  }, [route.params]);
+
+  // Debug: Log current state
+  useEffect(() => {
+    console.log('🔍 RideOptionsScreen - Current state:');
+    console.log('   - Pickup:', pickup);
+    console.log('   - Drop:', drop);
+    console.log('   - Route params:', route.params);
+  }, [pickup, drop, route.params]);
   const [selected, setSelected] = useState('bike');
   const [isBooking, setIsBooking] = useState(false);
   const [bookingError, setBookingError] = useState<string | null>(null);
@@ -39,10 +71,13 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const { getToken } = useAuth();
   const [rideOptions, setRideOptions] = useState<any[]>([]);
 
+
   // Calculate real ride options based on distance and duration
   useEffect(() => {
     console.log('🔍 RideOptions - Pickup coordinates:', pickup);
     console.log('🔍 RideOptions - Drop coordinates:', drop);
+    console.log('🔍 RideOptions - Valid pickup?', pickup && pickup.latitude && pickup.longitude);
+    console.log('🔍 RideOptions - Valid drop?', drop && drop.latitude && drop.longitude);
     
     if (pickup && drop && pickup.latitude && pickup.longitude && drop.latitude && drop.longitude) {
       const distanceKm = getDistanceFromLatLonInKm(
@@ -80,9 +115,14 @@ export default function RideOptionsScreen({ navigation, route }: any) {
       ];
       
       setRideOptions(options);
-      console.log('Calculated ride options:', options);
+      console.log('✅ Calculated ride options:', options);
+    } else {
+      console.log('❌ Cannot calculate ride options - missing valid coordinates');
+      console.log('   - Pickup valid:', pickup && pickup.latitude && pickup.longitude);
+      console.log('   - Drop valid:', drop && drop.latitude && drop.longitude);
     }
   }, [pickup, drop]);
+
 
   const bottomSheetRef = useRef<BottomSheet>(null);
   const mapRef = useRef<MapView>(null);
@@ -120,10 +160,10 @@ export default function RideOptionsScreen({ navigation, route }: any) {
 
   // Handlers
   const handleEditPickup = () => {
-    navigation.navigate('DropLocationSelector', { type: 'pickup', currentLocation: pickup, dropLocation: drop });
+    navigation.navigate('DropLocationSelector', { type: 'pickup', pickup: pickup, drop: drop, forWhom, friendName, friendPhone });
   };
   const handleEditDrop = () => {
-    navigation.navigate('DropLocationSelector', { type: 'drop', currentLocation: pickup, dropLocation: drop });
+    navigation.navigate('DropLocationSelector', { type: 'drop', pickup: pickup, drop: drop, forWhom, friendName, friendPhone });
   };
   
   const handleBook = async () => {
@@ -138,6 +178,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
       Alert.alert('Select Destination', 'Please select a destination first.');
       return;
     }
+
 
     setIsBooking(true);
     setBookingError(null);
@@ -459,6 +500,8 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         </View>
        
       </View>
+
+
       {/* Bottom Sheet and rest of the UI */}
       <View style={{ flex: 1, justifyContent: 'flex-end', backgroundColor: '#fff' }}>
         <View style={{
@@ -517,17 +560,13 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           </View>
           {/* Divider */}
           <View style={{ height: 1, backgroundColor: '#f3f4f6', marginHorizontal: 16, marginTop: 8, marginBottom: 0, borderRadius: 1 }} />
-          {/* Sticky Bar */}
+          {/* Sticky Bar with Offers Button */}
           <View style={styles.stickyBar}>
-            <TouchableOpacity
-              style={[styles.stickyBtn, { flex: 1, borderRightWidth: 1, borderRightColor: '#e5e7eb', alignItems: 'center', justifyContent: 'center' }]}
+            <TouchableOpacity 
+              style={[styles.stickyBtn, { flex: 1, alignItems: 'center', justifyContent: 'center' }]} 
               activeOpacity={0.7}
-              onPress={() => navigation.navigate('Payment')}
+              onPress={() => navigation.navigate('Offers')}
             >
-              <Ionicons name="cash-outline" size={22} color="#222" style={{ marginRight: 8 }} />
-              <Text style={styles.stickyBtnText}>Cash</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={[styles.stickyBtn, { flex: 1, alignItems: 'center', justifyContent: 'center' }]} activeOpacity={0.7}>
               <Ionicons name="pricetag-outline" size={22} color="#22c55e" style={{ marginRight: 8 }} />
               <Text style={[styles.stickyBtnText, { color: '#22c55e' }]}>% Offers</Text>
             </TouchableOpacity>
@@ -597,6 +636,9 @@ const styles = StyleSheet.create({
     left: 0,
     right: 0,
     bottom: 0,
+    
+
+
     backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
@@ -685,7 +727,7 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     paddingVertical: 12,
     marginTop: 16,
-    marginBottom: 12,
+    marginBottom: 24,
     shadowColor: '#22c55e',
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.15,

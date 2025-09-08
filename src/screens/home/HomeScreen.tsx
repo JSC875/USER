@@ -12,6 +12,7 @@ import {
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { useUser, useAuth } from '@clerk/clerk-expo';
+import Constants from 'expo-constants';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { mockLocations } from '../../data/mockData';
@@ -38,6 +39,8 @@ import { getUserIdFromJWT, decodeJWT, logJWTDetails, logFullJWT } from "../../ut
 import ConnectionStatus from "../../components/common/ConnectionStatus";
 import { rideApi, RideRequestResponse } from "../../services/rideService";
 import { useTranslation } from 'react-i18next';
+import { useServiceAvailability } from '../../hooks/useServiceAvailability';
+import ServiceAvailabilityBanner from '../../components/ServiceAvailabilityBanner';
 // JWTLoggingTest import - REMOVED
 
 const { width } = Dimensions.get('window');
@@ -72,9 +75,34 @@ export default function HomeScreen({ navigation, route }: any) {
   const [driverLocation, setDriverLocation] = useState<any>(null);
   const [rideStatus, setRideStatus] = useState<string>('');
   const [showRideModal, setShowRideModal] = useState(false);
+
+  // Service availability check
+  const { checkRideAvailability, isAvailable, message, isChecking } = useServiceAvailability();
   // JWT Test state - REMOVED
 
   useAssignUserType('customer');
+
+  // Auto-check service availability when dropLocation changes
+  useEffect(() => {
+    if (dropLocation && dropLocation.latitude && dropLocation.longitude) {
+      console.log('📍 Auto-checking service availability for new drop location');
+      // Get current location for pickup
+      (async () => {
+        try {
+          let { status } = await Location.requestForegroundPermissionsAsync();
+          if (status === 'granted') {
+            let loc = await Location.getCurrentPositionAsync({});
+            checkRideAvailability(
+              { latitude: loc.coords.latitude, longitude: loc.coords.longitude },
+              { latitude: dropLocation.latitude, longitude: dropLocation.longitude }
+            );
+          }
+        } catch (error) {
+          console.error('Failed to check service availability:', error);
+        }
+      })();
+    }
+  }, [dropLocation, checkRideAvailability]);
 
   // On mount, get current location and set as pickup if not set
   useEffect(() => {
@@ -84,10 +112,39 @@ export default function HomeScreen({ navigation, route }: any) {
         return;
       }
       let loc = await Location.getCurrentPositionAsync({});
+      
+      // Reverse geocode to get actual address
+      let currentAddress = t('home.currentLocation');
+      let currentName = t('home.currentLocation');
+      
+      try {
+        const response = await fetch(
+          `https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.coords.latitude},${loc.coords.longitude}&key=${Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}`
+        );
+        const data = await response.json();
+        if (data.status === 'OK' && data.results.length > 0) {
+          const result = data.results[0];
+          currentAddress = result.formatted_address;
+          
+          // Extract location name from address components
+          const locality = result.address_components?.find((comp: any) =>
+            comp.types.includes('locality') || comp.types.includes('sublocality')
+          );
+          if (locality) {
+            currentName = locality.long_name;
+          } else {
+            currentName = result.formatted_address.split(',')[0];
+          }
+        }
+      } catch (geocodeError) {
+        console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
+      }
+      
       const coords = {
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
-        address: t('home.currentLocation'),
+        address: currentAddress,
+        name: currentName,
       };
       setCurrentLocation(coords);
       if (!pickupLocation) {
@@ -220,7 +277,7 @@ export default function HomeScreen({ navigation, route }: any) {
                   price: data.price,
                   status: 'searching',
                   destination: dropoffLocation || { address: 'Destination' },
-                  pickup: pickupLocation || { address: 'Current Location' },
+                  pickup: pickupLocation || { address: 'Hyderabad, Telangana, India' },
                   estimate: {
                     fare: data.price,
                     distance: '2.5 km',
@@ -334,6 +391,53 @@ export default function HomeScreen({ navigation, route }: any) {
   const handleBookRide = async () => {
     if (!dropLocation) {
       Alert.alert(t('home.selectDestination'), t('home.pleaseSelectDestination'));
+      return;
+    }
+
+    // Check service availability for both pickup and drop locations
+    console.log('📍 === CHECKING SERVICE AVAILABILITY ===');
+    
+    try {
+      // Get current location for pickup
+      let { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== 'granted') {
+        Alert.alert(t('home.locationPermissionRequired'));
+        return;
+      }
+      
+      let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
+      const pickup = {
+        latitude: loc.coords.latitude,
+        longitude: loc.coords.longitude,
+        address: t('home.currentLocation'),
+        name: t('home.currentLocation'),
+      };
+      
+      console.log('📍 Pickup location:', pickup);
+      console.log('🎯 Drop location:', dropLocation);
+      
+      await checkRideAvailability(
+        { latitude: pickup.latitude, longitude: pickup.longitude },
+        { latitude: dropLocation.latitude, longitude: dropLocation.longitude }
+      );
+      
+      if (!isAvailable) {
+        Alert.alert(
+          'Service Unavailable', 
+          message || 'Service is not available for the selected route. Please choose locations within Hyderabad service area.',
+          [{ text: 'OK' }]
+        );
+        return;
+      }
+      
+      console.log('✅ Service availability check passed');
+    } catch (error) {
+      console.error('❌ Service availability check failed:', error);
+      Alert.alert(
+        'Service Check Failed', 
+        'Unable to verify service availability. Please try again.',
+        [{ text: 'OK' }]
+      );
       return;
     }
 
@@ -453,16 +557,10 @@ export default function HomeScreen({ navigation, route }: any) {
         console.log('   - Pickup:', pickup);
         console.log('   - Drop:', dropLocation);
         
-        Alert.alert(
-          'Ride Booked Successfully! 🎉',
-          `Your ride has been requested!\n\nRide ID: ${apiResponse.id}\nEstimated Fare: ₹${apiResponse.estimatedFare.toFixed(2)}\nStatus: ${apiResponse.status}\n\nSearching for pilots...`
-        );
+        // Alert removed - direct navigation to FindingDriver
       } else {
         console.warn('⚠️ Socket.IO event failed, but API call succeeded');
-        Alert.alert(
-          'Ride Booked (Partial)',
-          `Your ride has been requested via API!\n\nRide ID: ${apiResponse.id}\nEstimated Fare: ₹${apiResponse.estimatedFare.toFixed(2)}\n\nNote: Real-time updates may be limited.`
-        );
+        // Alert removed - direct navigation to FindingDriver
       }
       
     } catch (error: any) {
@@ -577,40 +675,19 @@ export default function HomeScreen({ navigation, route }: any) {
             />
           )}
         </MapView>
-        {/* Current Location Button */}
-        <TouchableOpacity
-          style={[styles.currentLocationButton, { bottom: getFloatingBottom(Layout.spacing.md) }]}
-          onPress={async () => {
-            let loc = await Location.getCurrentPositionAsync({});
-            const coords = {
-              latitude: loc.coords.latitude,
-              longitude: loc.coords.longitude,
-              address: t('home.currentLocation'),
-            };
-            setCurrentLocation(coords);
-            setPickupLocation(coords);
-            setRegion({
-              latitude: coords.latitude,
-              longitude: coords.longitude,
-              latitudeDelta: 0.05,
-              longitudeDelta: 0.05,
-            });
-          }}
-        >
-          <Ionicons name="locate" size={20} color={Colors.primary} />
-        </TouchableOpacity>
+
         {/* Where to? Card Overlay */}
         <View style={[styles.whereToCard, { bottom: getFloatingBottom() }]}>
           <Text style={styles.whereToTitle}>{t('home.whereTo')}</Text>
           <TouchableOpacity style={styles.whereToRow} activeOpacity={0.7}>
             <View style={[styles.dot, { backgroundColor: 'green' }]} />
-            <Text style={styles.whereToText}>{t('home.currentLocation')}</Text>
+            <Text style={styles.whereToText}>{currentLocation?.address || currentLocation?.name || t('home.currentLocation')}</Text>
           </TouchableOpacity>
           <View style={styles.divider} />
           <TouchableOpacity
             style={styles.whereToRow}
             activeOpacity={0.7}
-            onPress={() => navigation.navigate('DropLocationSelector')}
+            onPress={() => navigation.navigate('DropLocationSelector', { focusDestination: true })}
           >
             <View style={[styles.dot, { backgroundColor: 'red' }]} />
             <Text style={styles.whereToText}>
@@ -620,8 +697,37 @@ export default function HomeScreen({ navigation, route }: any) {
           </TouchableOpacity>
         </View>
       </View>
-      
-     
+
+      {/* Service Availability Banner */}
+      {dropLocation && dropLocation.latitude && dropLocation.longitude && (
+        <ServiceAvailabilityBanner 
+          status={{ 
+            isAvailable: isAvailable, 
+            message: message || 'Checking service availability...',
+            nearestArea: 'Hyderabad'
+          }}
+          isLoading={isChecking}
+          onRetry={() => {
+            if (dropLocation) {
+              (async () => {
+                try {
+                  let { status } = await Location.requestForegroundPermissionsAsync();
+                  if (status === 'granted') {
+                    let loc = await Location.getCurrentPositionAsync({});
+                    checkRideAvailability(
+                      { latitude: loc.coords.latitude, longitude: loc.coords.longitude },
+                      { latitude: dropLocation.latitude, longitude: dropLocation.longitude }
+                    );
+                  }
+                } catch (error) {
+                  console.error('Failed to check service availability:', error);
+                }
+              })();
+            }
+          }}
+          showDetails={true}
+        />
+      )}
 
       {/* Ride Status Modal */}
       <Modal
@@ -706,22 +812,7 @@ const styles = StyleSheet.create({
     flex: 1,
     position: 'relative',
   },
-  currentLocationButton: {
-    position: 'absolute',
-    bottom: Layout.spacing.md,
-    right: Layout.spacing.md,
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.white,
-    alignItems: 'center',
-    justifyContent: 'center',
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 4,
-    elevation: 3,
-  },
+
   bookingCard: {
     backgroundColor: Colors.white,
     marginHorizontal: Layout.spacing.lg,

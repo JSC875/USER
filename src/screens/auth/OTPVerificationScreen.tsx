@@ -17,6 +17,7 @@ import { useSignIn, useSignUp, useUser, useAuth } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
+import OTPInput from '../../components/common/OTPInput';
 import { logJWTDetails } from '../../utils/jwtDecoder';
 import { useAssignUserType } from '../../utils/helpers';
 
@@ -31,8 +32,6 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
   const { signUp, setActive: setSignUpActive } = useSignUp();
   const { user } = useUser();
   const { getToken } = useAuth();
-
-  const inputRefs = useRef<(TextInput | null)[]>([]);
 
   // Assign customer type to user
   useAssignUserType('customer');
@@ -61,21 +60,14 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
     return () => clearInterval(interval);
   }, []);
 
-  const handleOtpChange = (value: string, index: number) => {
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    setOtp(newOtp);
-
-    // Auto-focus next input
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
+  const handleOtpChange = (value: string[]) => {
+    setOtp(value);
   };
 
-  const handleKeyPress = (key: string, index: number) => {
-    if (key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
-    }
+  const handleOtpComplete = (otpString: string) => {
+    console.log('OTP completed:', otpString);
+    // Optionally auto-verify when OTP is complete
+    // handleVerifyOTP();
   };
 
   const handleVerifyOTP = async () => {
@@ -115,44 +107,32 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
           console.log('OTPVerificationScreen - Created session ID:', completeSignIn.createdSessionId);
           
           // Set user type as customer
-          if (user) {
-            try {
-              await user.update({
-                unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
-              });
-              console.log('OTPVerificationScreen - User type set to customer');
-              
-              // Force new JWT with updated userType
-              if (typeof getToken === 'function') {
-                try {
-                  const newToken = await getToken({ template: 'my_app_token', skipCache: true });
-                  console.log('OTPVerificationScreen - New JWT with userType (sign-in):', newToken ? 'Generated' : 'Failed');
-                  
-                  // Log the JWT details to verify custom fields
-                  if (newToken) {
-                    await logJWTDetails(getToken, 'OTP Sign-In JWT Analysis');
-                  }
-                } catch (jwtError) {
-                  console.error('OTPVerificationScreen - Error generating new JWT:', jwtError);
-                  // Don't fail the sign-in process for JWT errors
-                }
-              }
-            } catch (updateError) {
-              console.error('OTPVerificationScreen - Error updating user metadata:', updateError);
-              // Don't fail the sign-in process for metadata update errors
-            }
-          }
-          
-          if (setSignInActive) {
+          if (completeSignIn.createdSessionId) {
             await setSignInActive({ session: completeSignIn.createdSessionId });
-            console.log('OTPVerificationScreen - Session activated successfully');
+            console.log('OTPVerificationScreen - Active session set successfully');
+            
+            // Get JWT token and log details
+            if (typeof getToken === 'function') {
+              try {
+                const token = await getToken({ template: 'my_app_token' });
+                if (token) {
+                  console.log('OTPVerificationScreen - JWT token obtained successfully');
+                  logJWTDetails(token);
+                }
+              } catch (tokenError) {
+                console.error('OTPVerificationScreen - Error getting JWT token:', tokenError);
+              }
+            }
+            
+            // Navigate to home screen
+            navigation.replace('Home');
           } else {
-            console.error('OTPVerificationScreen - setSignInActive is not available');
+            console.error('OTPVerificationScreen - No session ID in complete sign in');
+            Alert.alert('Error', 'Sign in completed but no session created. Please try again.');
           }
-          // Don't navigate manually - the auth state change will handle it
         } else {
-          console.log('OTPVerificationScreen - Sign in failed, status:', completeSignIn?.status);
-          console.log('OTPVerificationScreen - Complete signin object:', completeSignIn);
+          console.error('OTPVerificationScreen - Sign in not complete:', completeSignIn?.status);
+          Alert.alert('Error', 'Sign in failed. Please check your OTP and try again.');
         }
       } else {
         // Sign up flow
@@ -170,56 +150,79 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
         });
 
         console.log('OTPVerificationScreen - Sign up result:', completeSignUp);
+        console.log('OTPVerificationScreen - Sign up status:', completeSignUp?.status);
         console.log('OTPVerificationScreen - Phone verification status:', completeSignUp?.verifications?.phoneNumber?.status);
-
+        console.log('OTPVerificationScreen - Created session ID:', completeSignUp?.createdSessionId);
+        
         // Check if phone number is verified
         const isPhoneVerified = completeSignUp?.verifications?.phoneNumber?.status === 'verified';
         console.log('OTPVerificationScreen - Is phone verified:', isPhoneVerified);
-
+        
         if (isPhoneVerified) {
           console.log('OTPVerificationScreen - Phone verification successful!');
           console.log('OTPVerificationScreen - Missing fields:', completeSignUp?.missingFields);
           
-          // Set user type as customer
+          // Set userType in Clerk metadata immediately after phone verification
           if (user) {
             try {
               await user.update({
                 unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
               });
-              console.log('OTPVerificationScreen - User type set to customer');
-            } catch (updateError) {
-              console.error('OTPVerificationScreen - Error updating user metadata:', updateError);
-              // Don't fail the sign-up process for metadata update errors
+              console.log('OTPVerificationScreen - User type set to customer after phone verification');
+              
+              // Force new JWT with updated userType
+              if (typeof getToken === 'function') {
+                const newToken = await getToken({ template: 'my_app_token', skipCache: true });
+                console.log('OTPVerificationScreen - New JWT with userType after phone verification:', newToken ? 'Generated' : 'Failed');
+              }
+            } catch (metadataErr) {
+              console.error('OTPVerificationScreen - Error setting user type after phone verification:', metadataErr);
             }
           }
           
-          if (setSignUpActive && completeSignUp.createdSessionId) {
-            await setSignUpActive({ session: completeSignUp.createdSessionId });
-            console.log('OTPVerificationScreen - Session activated successfully');
+          // Check if we have all required fields (phone is verified, but we still need first_name and last_name)
+          if (completeSignUp?.missingFields?.length === 0) {
+            console.log('OTPVerificationScreen - All required fields completed, setting active session...');
+            
+            if (completeSignUp.createdSessionId) {
+              await setSignUpActive({ session: completeSignUp.createdSessionId });
+              console.log('OTPVerificationScreen - Active session set successfully');
+              
+              // Get JWT token and log details
+              if (typeof getToken === 'function') {
+                try {
+                  const token = await getToken({ template: 'my_app_token' });
+                  if (token) {
+                    console.log('OTPVerificationScreen - JWT token obtained successfully');
+                    logJWTDetails(token);
+                  }
+                } catch (tokenError) {
+                  console.error('OTPVerificationScreen - Error getting JWT token:', tokenError);
+                }
+              }
+              
+              // Navigate to home screen
+              navigation.replace('Home');
+            } else {
+              console.error('OTPVerificationScreen - No session ID in complete sign up');
+              Alert.alert('Error', 'Sign up completed but no session created. Please try again.');
+            }
           } else {
-            console.error('OTPVerificationScreen - setSignUpActive is not available or no session ID');
+            console.log('OTPVerificationScreen - Missing required fields, navigating to complete profile...');
+            // Navigate to complete profile screen
+            navigation.replace('CompleteProfile', {
+              phoneNumber,
+              isSignUp: true,
+            });
           }
-          // Navigate to profile setup for new users
-          navigation.replace('ProfileSetup');
         } else {
-          console.log('OTPVerificationScreen - Phone verification failed');
-          console.log('OTPVerificationScreen - Complete signup object:', completeSignUp);
+          console.error('OTPVerificationScreen - Phone verification failed:', completeSignUp?.verifications?.phoneNumber?.status);
+          Alert.alert('Error', 'Phone verification failed. Please check your OTP and try again.');
         }
       }
     } catch (err: any) {
-      console.error('OTPVerificationScreen - OTP Verification Error:', err);
-      console.error('OTPVerificationScreen - Error details:', err.errors);
-      console.error('OTPVerificationScreen - Error message:', err.message);
-      console.error('OTPVerificationScreen - Error code:', err.code);
-      
-      let errorMessage = 'Invalid OTP. Please try again.';
-      if (err?.errors?.[0]?.message) {
-        errorMessage = err.errors[0].message;
-      } else if (err?.message) {
-        errorMessage = err.message;
-      }
-      
-      Alert.alert('Error', errorMessage);
+      console.error('OTPVerificationScreen - Error during verification:', err);
+      Alert.alert('Error', err.errors?.[0]?.message || 'Failed to verify OTP. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -228,16 +231,14 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
   const handleResendOTP = async () => {
     try {
       if (isSignIn) {
-        // For sign in, we need to get the phone number factor again
+        // For sign in, we need to prepare the phone number verification again
         if (signIn) {
           const { supportedFirstFactors } = await signIn.create({
             identifier: phoneNumber,
           });
-
           const phoneNumberFactor = supportedFirstFactors?.find((factor: any) => {
             return factor.strategy === 'phone_code';
           }) as any;
-
           if (phoneNumberFactor) {
             await signIn.prepareFirstFactor({
               strategy: 'phone_code',
@@ -246,6 +247,7 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
           }
         }
       } else {
+        // For sign up, prepare phone number verification
         if (signUp) {
           await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' });
         }
@@ -254,7 +256,6 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
       setTimer(30);
       setCanResend(false);
       setOtp(['', '', '', '', '', '']);
-      inputRefs.current[0]?.focus();
       
       Alert.alert('Success', 'OTP sent successfully');
     } catch (err: any) {
@@ -281,28 +282,14 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
             </Text>
           </View>
 
-          <View style={styles.otpContainer}>
-            {otp.map((digit, index) => (
-              <TextInput
-                key={index}
-                ref={(ref) => {
-                  inputRefs.current[index] = ref;
-                }}
-                style={[
-                  styles.otpInput,
-                  digit && styles.otpInputFilled,
-                ]}
-                value={digit}
-                onChangeText={(value) => handleOtpChange(value, index)}
-                onKeyPress={({ nativeEvent }) =>
-                  handleKeyPress(nativeEvent.key, index)
-                }
-                keyboardType="number-pad"
-                maxLength={1}
-                textAlign="center"
-              />
-            ))}
-          </View>
+          <OTPInput
+            length={6}
+            value={otp}
+            onChange={handleOtpChange}
+            onComplete={handleOtpComplete}
+            autoFocus={true}
+            showPasteButton={true}
+          />
 
           <View style={styles.resendContainer}>
             {canResend ? (

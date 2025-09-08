@@ -40,6 +40,7 @@ export default function RideDetailsScreen({ navigation, route }: RideDetailsScre
   const getStatusColor = (status: string) => {
     switch (status) {
       case 'COMPLETED': return Colors.success;
+    
       case 'CANCELLED': return Colors.error;
       case 'STARTED': return Colors.accent;
       case 'REQUESTED': return Colors.warning;

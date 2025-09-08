@@ -584,6 +584,34 @@ export const connectSocket = (userId: string, userType: string = "customer"): Pr
       onRideStatusCallback?.(data);
     });
 
+    // When driver cancels from their app, some backends emit a distinct event
+    // Normalize it into our onRideStatus flow so all screens react consistently
+    socket.on("ride_cancelled", (data) => {
+      log("❌ Ride cancelled event:", data);
+      const normalized = {
+        rideId: data?.rideId,
+        status: "cancelled",
+        message: data?.message || data?.reason || "Ride cancelled by driver",
+        timestamp: Date.now(),
+      };
+      const hadListener = !!onRideStatusCallback;
+      onRideStatusCallback?.(normalized);
+
+      // Fallback: if no screen is listening, inform the user immediately
+      if (!hadListener) {
+        try {
+          Alert.alert('Ride Cancelled', normalized.message);
+          // Emit a global event so app-level code can navigate Home
+          // We avoid direct navigation here to keep this module UI-agnostic
+          // eslint-disable-next-line @typescript-eslint/no-var-requires
+          const { DeviceEventEmitter } = require('react-native');
+          DeviceEventEmitter.emit('ride_cancelled_global', normalized);
+        } catch (e) {
+          // no-op
+        }
+      }
+    });
+
     socket.on("driver_offline", (data) => {
       log("🔴 Driver went offline:", data);
       onDriverOfflineCallback?.(data);

@@ -116,7 +116,7 @@ export default function AboutScreen({ navigation }: any) {
     <View style={styles.container}>
       <View style={styles.header}>
         <Ionicons name="information-circle-outline" size={28} color={TITLE_COLOR} />
-        <Text style={styles.headerTitle}>About Roqet</Text>
+        <Text style={styles.headerTitle}>About RoQet</Text>
         <View style={{ width: 28 }} />
       </View>
       <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>

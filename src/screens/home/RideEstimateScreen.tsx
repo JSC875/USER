@@ -8,41 +8,109 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import Constants from 'expo-constants';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
 import { calculateRideFare, getDistanceFromLatLonInKm } from '../../utils/helpers';
+import * as Location from 'expo-location';
 
 export default function RideEstimateScreen({ navigation, route }: any) {
   const { destination } = route.params;
   const [selectedPayment, setSelectedPayment] = useState('cash');
   const [currentETA, setCurrentETA] = useState(route.params.driver?.eta || route.params.estimate?.eta || 'N/A');
   const [rideEstimate, setRideEstimate] = useState<any>(null);
+  const [currentLocation, setCurrentLocation] = useState<any>(null);
 
   // Calculate real fare based on distance and duration
   useEffect(() => {
     if (destination && destination.latitude && destination.longitude) {
-      // For demo, using a fixed pickup location (in real app, get from current location)
-      const pickupLocation = {
-        latitude: 17.4448, // Example: Hyderabad
-        longitude: 78.3498,
+      // Get current location for pickup
+      const getCurrentLocation = async () => {
+        try {
+          let { status } = await Location.requestForegroundPermissionsAsync();
+          if (status !== 'granted') {
+            throw new Error('Location permission denied');
+          }
+          
+          let loc = await Location.getCurrentPositionAsync({});
+          
+          // Reverse geocode to get actual address
+          let currentAddress = 'Current Location';
+          let currentName = 'Current Location';
+          
+          try {
+            const response = await fetch(
+              `https://maps.googleapis.com/maps/api/geocode/json?latlng=${loc.coords.latitude},${loc.coords.longitude}&key=${Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY}`
+            );
+            const data = await response.json();
+            if (data.status === 'OK' && data.results.length > 0) {
+              const result = data.results[0];
+              currentAddress = result.formatted_address;
+              
+              // Extract location name from address components
+              const locality = result.address_components?.find((comp: any) =>
+                comp.types.includes('locality') || comp.types.includes('sublocality')
+              );
+              if (locality) {
+                currentName = locality.long_name;
+              } else {
+                currentName = result.formatted_address.split(',')[0];
+              }
+            }
+          } catch (geocodeError) {
+            console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
+          }
+          
+          const pickupLocation = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+            address: currentAddress,
+            name: currentName,
+          };
+          
+          setCurrentLocation(pickupLocation);
+          
+          const distanceKm = getDistanceFromLatLonInKm(
+            pickupLocation.latitude,
+            pickupLocation.longitude,
+            destination.latitude,
+            destination.longitude
+          );
+          
+          // Estimate duration based on average speed (25 km/h)
+          const durationMinutes = Math.round((distanceKm / 25) * 60);
+          
+          // Calculate fare for bike (default ride type)
+          const fareBreakdown = calculateRideFare(distanceKm, durationMinutes, 'bike');
+          
+          setRideEstimate(fareBreakdown);
+          console.log('Calculated fare breakdown:', fareBreakdown);
+        } catch (error) {
+          console.error('Failed to get current location:', error);
+          // Fallback to static location
+          const pickupLocation = {
+            latitude: 17.4448, // Example: Hyderabad
+            longitude: 78.3498,
+            address: 'Hyderabad, Telangana, India',
+            name: 'Hyderabad',
+          };
+          
+          const distanceKm = getDistanceFromLatLonInKm(
+            pickupLocation.latitude,
+            pickupLocation.longitude,
+            destination.latitude,
+            destination.longitude
+          );
+          
+          const durationMinutes = Math.round((distanceKm / 25) * 60);
+          const fareBreakdown = calculateRideFare(distanceKm, durationMinutes, 'bike');
+          
+          setRideEstimate(fareBreakdown);
+        }
       };
       
-      const distanceKm = getDistanceFromLatLonInKm(
-        pickupLocation.latitude,
-        pickupLocation.longitude,
-        destination.latitude,
-        destination.longitude
-      );
-      
-      // Estimate duration based on average speed (25 km/h)
-      const durationMinutes = Math.round((distanceKm / 25) * 60);
-      
-      // Calculate fare for bike (default ride type)
-      const fareBreakdown = calculateRideFare(distanceKm, durationMinutes, 'bike');
-      
-      setRideEstimate(fareBreakdown);
-      console.log('Calculated fare breakdown:', fareBreakdown);
+      getCurrentLocation();
     }
   }, [destination]);
 
@@ -123,7 +191,7 @@ export default function RideEstimateScreen({ navigation, route }: any) {
               <View style={styles.pickupDot} />
               <View style={styles.routePointInfo}>
                 <Text style={styles.routePointLabel}>Pickup</Text>
-                <Text style={styles.routePointAddress}>Your current location</Text>
+                <Text style={styles.routePointAddress}>{currentLocation?.address || currentLocation?.name || 'Your current location'}</Text>
               </View>
             </View>
 
