@@ -4,13 +4,13 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors, TITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import * as ImagePicker from 'expo-image-picker';
-import { useUser, useAuth } from '@clerk/clerk-expo';
+import { useAuth, useUser } from '@clerk/clerk-expo';
 import { userApi, UserProfileUpdate } from '../../services/userService';
+import DateTimePicker from '@react-native-community/datetimepicker';
 
 export default function EditProfileScreen({ navigation, route }: any) {
   const params = route?.params || {};
   const { 
-    name: initialName = '', 
     email: initialEmail = '', 
     phone: initialPhone = '', 
     gender: initialGender = '', 
@@ -35,9 +35,10 @@ export default function EditProfileScreen({ navigation, route }: any) {
   const [errors, setErrors] = useState<{ [key: string]: string }>({});
   const [isLoading, setIsLoading] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [showDatePicker, setShowDatePicker] = useState(false);
   
-  const { user } = useUser();
   const { getToken } = useAuth();
+  const { user } = useUser();
 
   const pickImage = async () => {
     try {
@@ -58,6 +59,31 @@ export default function EditProfileScreen({ navigation, route }: any) {
       console.error('Error picking image:', error);
       Alert.alert('Error', 'Failed to pick image. Please try again.');
     }
+  };
+
+  const onDateChange = (_event: any, selectedDate?: Date) => {
+    setShowDatePicker(Platform.OS === 'ios');
+    if (selectedDate) {
+      // Format date as YYYY-MM-DD for API
+      const formattedDate = selectedDate.toISOString().split('T')[0];
+      setDateOfBirth(formattedDate || '');
+    }
+  };
+
+  // Helper function to get user's phone number for comparison
+  const getUserPhoneNumber = () => {
+    // Try to get from user profile first, then from Clerk
+    if (phone && phone.trim()) {
+      return phone.trim();
+    }
+    // Fallback to Clerk user phone number
+    return user?.primaryPhoneNumber?.phoneNumber || '';
+  };
+
+  // Helper function to normalize phone numbers for comparison
+  const normalizePhoneNumber = (phoneNum: string) => {
+    // Remove all non-digit characters and country codes
+    return phoneNum.replace(/\D/g, '').replace(/^91/, '').replace(/^1/, '');
   };
 
   const handleFieldChange = (field: string, value: string) => {
@@ -129,20 +155,20 @@ export default function EditProfileScreen({ navigation, route }: any) {
      
      if (!gender) newErrors.gender = 'Gender is required';
      
-     // Date of Birth validation
+     // Date of Birth validation (matching userService validation)
      if (dateOfBirth.trim()) {
        const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
        if (!dateRegex.test(dateOfBirth)) {
          newErrors.dateOfBirth = 'Date must be in YYYY-MM-DD format';
        } else {
-         const date = new Date(dateOfBirth);
-         const currentDate = new Date();
-         if (isNaN(date.getTime())) {
+         const dob = new Date(dateOfBirth);
+         const today = new Date();
+         const age = today.getFullYear() - dob.getFullYear();
+         
+         if (isNaN(dob.getTime())) {
            newErrors.dateOfBirth = 'Invalid date';
-         } else if (date > currentDate) {
-           newErrors.dateOfBirth = 'Date cannot be in the future';
-         } else if (date.getFullYear() < 1900) {
-           newErrors.dateOfBirth = 'Date cannot be before 1900';
+         } else if (age < 18 || age > 100) {
+           newErrors.dateOfBirth = 'Age must be between 18 and 100 years';
          }
        }
      }
@@ -152,6 +178,16 @@ export default function EditProfileScreen({ navigation, route }: any) {
      
      if (!emergencyPhone.trim()) newErrors.emergencyPhone = 'Emergency phone is required';
      else if (!/^[0-9]{10}$/.test(emergencyPhone.replace(/\D/g, ''))) newErrors.emergencyPhone = 'Emergency phone must be 10 digits';
+     else {
+       // Check if emergency contact phone matches user's phone number
+       const userPhone = getUserPhoneNumber();
+       const normalizedUserPhone = normalizePhoneNumber(userPhone);
+       const normalizedEmergencyPhone = normalizePhoneNumber(emergencyPhone);
+       
+       if (normalizedUserPhone && normalizedEmergencyPhone && normalizedUserPhone === normalizedEmergencyPhone) {
+         newErrors.emergencyPhone = 'Emergency contact phone cannot be the same as your phone number. Please provide a different number.';
+       }
+     }
      
      setErrors(newErrors);
      return Object.keys(newErrors).length === 0;
@@ -314,45 +350,45 @@ export default function EditProfileScreen({ navigation, route }: any) {
           
                                  {/* Date of Birth */}
             <Text style={styles.label}>Date of Birth</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="YYYY-MM-DD"
-              value={dateOfBirth}
-              onChangeText={(value) => handleFieldChange('dateOfBirth', value)}
-            />
+            <TouchableOpacity 
+              style={styles.input} 
+              onPress={() => setShowDatePicker(true)}
+            >
+              <Text style={[
+                styles.dateText, 
+                !dateOfBirth && styles.placeholderText
+              ]}>
+                {dateOfBirth ? new Date(dateOfBirth).toLocaleDateString() : 'Select your date of birth'}
+              </Text>
+              <Ionicons name="calendar-outline" size={20} color={Colors.gray400} style={styles.calendarIcon} />
+            </TouchableOpacity>
+            {showDatePicker && (
+              <DateTimePicker
+                value={dateOfBirth ? new Date(dateOfBirth) : new Date()}
+                mode="date"
+                display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                onChange={onDateChange}
+                maximumDate={new Date()}
+                minimumDate={new Date(1900, 0, 1)}
+              />
+            )}
             {errors.dateOfBirth && <Text style={{ color: Colors.error }}>{errors.dateOfBirth}</Text>}
            
                        {/* Gender */}
-            <Text style={styles.label}>
-              Gender 
-              {gender && gender.trim() !== '' && (
-                <Text style={{ color: Colors.gray500, fontSize: 12 }}> (Not Editable)</Text>
-              )}
-            </Text>
+            <Text style={styles.label}>Gender</Text>
             <View style={styles.genderRow}>
               {['Male', 'Female', 'Other'].map((g) => (
                 <TouchableOpacity
                   key={g}
                   style={[
                     styles.genderButton, 
-                    gender === g && styles.genderButtonSelected,
-                    gender && gender.trim() !== '' && gender !== g && styles.genderButtonDisabled
+                    gender === g && styles.genderButtonSelected
                   ]}
-                  onPress={() => {
-                    if (!gender || gender.trim() === '') {
-                      // Allow editing if gender is not set
-                      setGender(g);
-                    } else {
-                      // Gender field is disabled if already set
-                      console.log('Gender field is not editable - already set');
-                    }
-                  }}
-                                     disabled={Boolean(gender && gender.trim() !== '')}
+                  onPress={() => setGender(g)}
                 >
                   <Text style={[
                     styles.genderText, 
-                    gender === g && styles.genderTextSelected,
-                    gender && gender.trim() !== '' && gender !== g && styles.genderTextDisabled
+                    gender === g && styles.genderTextSelected
                   ]}>{g}</Text>
                 </TouchableOpacity>
               ))}
@@ -457,6 +493,9 @@ const styles = StyleSheet.create({
     marginBottom: Layout.spacing.md,
     borderWidth: 1,
     borderColor: Colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   disabledInput: {
     backgroundColor: Colors.gray100,
@@ -485,13 +524,6 @@ const styles = StyleSheet.create({
   genderTextSelected: {
     color: Colors.white,
     fontWeight: 'bold',
-  },
-  genderButtonDisabled: {
-    backgroundColor: Colors.gray200,
-    opacity: 0.6,
-  },
-  genderTextDisabled: {
-    color: Colors.gray500,
   },
   saveButton: {
     backgroundColor: Colors.primary,
@@ -522,5 +554,16 @@ const styles = StyleSheet.create({
     marginTop: Layout.spacing.md,
     fontSize: Layout.fontSize.md,
     color: Colors.textSecondary,
+  },
+  dateText: {
+    fontSize: Layout.fontSize.md,
+    color: Colors.text,
+    flex: 1,
+  },
+  placeholderText: {
+    color: Colors.gray400,
+  },
+  calendarIcon: {
+    marginLeft: Layout.spacing.sm,
   },
 }); 

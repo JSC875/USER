@@ -198,7 +198,7 @@ export const PersonalDetailsTest: React.FC = () => {
             </View>
             
             <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Date of Birth:</Text>
+              <Text style={styles.profileLabel}>4:</Text>
               <Text style={styles.profileValue}>
                 {userProfile.dateOfBirth ? new Date(userProfile.dateOfBirth).toLocaleDateString() : 'N/A'}
               </Text>
