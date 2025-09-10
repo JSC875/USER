@@ -10,6 +10,7 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -61,6 +62,17 @@ export default function ChatScreen({ navigation, route }: any) {
   const typingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const rideId = ride?.rideId || '';
+
+  // Prevent back navigation during ride chat
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Allow going back to the previous ride screen (LiveTracking or RideInProgress)
+      navigation.goBack();
+      return true; // Prevent default back behavior
+    });
+
+    return () => backHandler.remove();
+  }, [navigation]);
 
   // Get user ID from JWT when component mounts
   useEffect(() => {

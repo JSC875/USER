@@ -10,6 +10,7 @@ import {
   Modal,
   Share,
   StatusBar,
+  BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -75,6 +76,23 @@ export default function RideInProgressScreen({ navigation, route }: any) {
 
   // Animated driver location state
   const [animatedDriverLocation, setAnimatedDriverLocation] = useState<{latitude: number, longitude: number} | null>(null);
+
+  // Prevent back navigation during ride in progress
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      // Always prevent back navigation during ride in progress
+      Alert.alert(
+        'Ride in Progress',
+        'You cannot go back while your ride is in progress. Please wait for the ride to complete.',
+        [
+          { text: 'OK', style: 'default' }
+        ]
+      );
+      return true; // Prevent default back behavior
+    });
+
+    return () => backHandler.remove();
+  }, []);
 
   // Start pulse animation for driver marker
   useEffect(() => {

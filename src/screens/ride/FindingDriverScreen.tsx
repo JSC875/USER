@@ -196,37 +196,35 @@ export default function FindingDriverScreen({ navigation, route }: any) {
   const [showCancelModal, setShowCancelModal] = useState(false);
   const [cancelReason, setCancelReason] = useState<string | null>(null);
 
-  // Prevent going back during search
+  // Prevent going back during search - always show cancel confirmation
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
-      if (!isDriverFound) {
-        Alert.alert(
-          t('ride.cancelRideTitle'),
-          t('ride.cancelRideMessage'),
-          [
-            { text: t('common.continue'), style: 'cancel' },
-            { 
-              text: t('ride.cancelRide'), 
-              style: 'destructive',
-              onPress: () => {
-                // Emit cancel ride event to server
-                const socket = getSocket();
-                if (socket && rideId) {
-                  console.log('🚫 User cancelled ride search, emitting cancel_ride');
-                  socket.emit('cancel_ride', { rideId });
-                }
-                navigation.navigate('TabNavigator', { screen: 'Home' });
+      // Always prevent back navigation and show cancel confirmation
+      Alert.alert(
+        t('ride.cancelRideTitle'),
+        t('ride.cancelRideMessage'),
+        [
+          { text: t('common.continue'), style: 'cancel' },
+          { 
+            text: t('ride.cancelRide'), 
+            style: 'destructive',
+            onPress: () => {
+              // Emit cancel ride event to server
+              const socket = getSocket();
+              if (socket && rideId) {
+                console.log('🚫 User cancelled ride search, emitting cancel_ride');
+                socket.emit('cancel_ride', { rideId });
               }
+              navigation.navigate('TabNavigator', { screen: 'Home' });
             }
-          ]
-        );
-        return true; // Prevent default back behavior
-      }
-      return false; // Allow default back behavior
+          }
+        ]
+      );
+      return true; // Always prevent default back behavior
     });
 
     return () => backHandler.remove();
-  }, [isDriverFound, rideId, navigation]);
+  }, [rideId, navigation, t]);
 
   useEffect(() => {
     console.log('🔍 FindingDriverScreen mounted with params:', {
