@@ -8,8 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNotifications } from '../store/NotificationContext';
 
 // Auth Screens
+import AppSplashScreen from '../screens/auth/AppSplashScreen';
 import SplashScreen from '../screens/auth/SplashScreen';
-import OnboardingScreen from '../screens/auth/OnboardingScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
@@ -145,14 +145,14 @@ function AuthNavigator() {
     >
       <Stack.Screen 
         name="Splash" 
-        component={SplashScreen}
+        component={AppSplashScreen}
         options={{
           gestureEnabled: false,
         }}
       />
       <Stack.Screen 
         name="Onboarding" 
-        component={OnboardingScreen}
+        component={SplashScreen}
         options={{
           gestureEnabled: false,
         }}

@@ -1,6 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, Dimensions, TouchableOpacity, FlatList, Image, BackHandler } from 'react-native';
+import { View, Text, Dimensions, TouchableOpacity, FlatList, BackHandler } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import LottieView from 'lottie-react-native';
 import { Images } from '../../constants/Images';
 
 const { width, height } = Dimensions.get('window');
@@ -14,7 +15,12 @@ const screens = [
     key: 'booking',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={Images.SPLASH_5} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
+        <LottieView
+          source={require('../../../assets/lottie/easyBooking.json')}
+          autoPlay
+          loop
+          style={{ width: 300, height: 300 }}
+        />
       </View>
     ),
     title: 'Quick & Easy Booking',
@@ -24,7 +30,12 @@ const screens = [
     key: 'affordable',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={Images.SPLASH_14} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
+        <LottieView
+          source={require('../../../assets/lottie/yellowScooty.json')}
+          autoPlay
+          loop
+          style={{ width: 300, height: 300 }}
+        />
       </View>
     ),
     title: 'Affordable Rides',
@@ -34,21 +45,32 @@ const screens = [
     key: 'safe',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={Images.SAFE_AND_RELIABLE} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
+        <LottieView
+          source={require('../../../assets/lottie/ridesafe.json')}
+          autoPlay
+          loop
+          style={{ width: 300, height: 300 }}
+        />
       </View>
     ),
     title: 'Safe & Reliable',
     subtitle: 'Verified pilots, tracked rides, and 24/7 support. Your safety is our top priority on every journey.',
   },
+ 
   {
-    key: 'eco',
+    key: 'premium',
     illustration: (
       <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
-        <Image source={Images.SPLASH_12} style={{ width: 350, height: 1200, resizeMode: 'contain' }} />
+        <LottieView
+          source={require('../../../assets/lottie/quickride.json')}
+          autoPlay
+          loop
+          style={{ width: 300, height: 300 }}
+        />
       </View>
     ),
-    title: 'she-to-she',
-    subtitle: 'Reduce your carbon footprint while getting around the city. Choose sustainable transportation for a greener future.',
+    title: 'Premium Experience',
+    subtitle: 'Enjoy a premium ride experience with our top-rated drivers and comfortable vehicles.',
   },
 ];
 

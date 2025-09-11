@@ -10,18 +10,16 @@ import {
   ScrollView,
   Dimensions,
 } from 'react-native';
-import { SafeAreaView, useSafeAreaInsets } from 'react-native-safe-area-context';
+import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
-import { Video, ResizeMode } from 'expo-av';
+import LottieView from 'lottie-react-native';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { 
   getSocket, 
   onRideAccepted, 
   onRideStatus, 
   clearCallbacks,
-  listenToEvent,
   isConnected,
   onDriverOffline,
   onRideTimeout
@@ -35,10 +33,74 @@ import BackendNotificationService from '../../services/backendNotificationServic
 
 const { width } = Dimensions.get('window');
 
+function TimelineLoader({ searchTime }: { searchTime: number }) {
+  const progressAnim = useRef(new Animated.Value(0)).current;
+  
+  // Define breakpoints (in seconds)
+  const breakpoints = [
+    { time: 0, label: 'Searching...' },
+    { time: 30, label: 'Finding pilots' },
+    { time: 60, label: 'Almost there' },
+    { time: 90, label: 'Finalizing' }
+  ];
+  
+  // Calculate current progress (0-1)
+  const maxTime = 90; // 90 seconds max
+  const progress = Math.min(searchTime / maxTime, 1);
+  
+  // Update animation
+  useEffect(() => {
+    Animated.timing(progressAnim, {
+      toValue: progress,
+      duration: 300,
+      useNativeDriver: false,
+    }).start();
+  }, [progress]);
+  
+  // Calculate which segments are completed and current
+  const getSegmentStatus = (index: number) => {
+    const segmentProgress = (index + 1) / breakpoints.length;
+    if (progress >= segmentProgress) return 'completed';
+    if (progress >= segmentProgress - 0.25) return 'current';
+    return 'pending';
+  };
+  
+  console.log('TimelineLoader rendering with searchTime:', searchTime, 'progress:', progress);
+  
+  return (
+    <View style={styles.timelineContainer}>
+      <Text style={{ textAlign: 'center', marginBottom: 8, fontSize: 12, color: '#666' }}>
+        Progress: {Math.round(progress * 100)}% ({searchTime}s)
+      </Text>
+      <View style={styles.segmentedProgressContainer}>
+        {breakpoints.map((_, index) => {
+          const status = getSegmentStatus(index);
+          const segmentProgress = Math.min(Math.max((progress - (index / breakpoints.length)) * breakpoints.length, 0), 1);
+          
+          return (
+            <View key={index} style={styles.segmentContainer}>
+              <View style={styles.segmentBackground}>
+                <Animated.View 
+                  style={[
+                    styles.segmentFill,
+                    {
+                      width: status === 'completed' ? '100%' : 
+                             status === 'current' ? `${segmentProgress * 100}%` : '0%',
+                    }
+                  ]}
+                />
+              </View>
+            </View>
+          );
+        })}
+      </View>
+    </View>
+  );
+}
+
 function CancelRideModal({ visible, onClose, onConfirm }: { visible: boolean; onClose: () => void; onConfirm: (reason: string) => void }) {
   const [selectedReason, setSelectedReason] = useState<string>('');
   const anim = useRef(new Animated.Value(0)).current;
-  const insets = useSafeAreaInsets();
   const { t } = useTranslation();
 
   const cancelReasons = [
@@ -174,13 +236,12 @@ function CancelRideModal({ visible, onClose, onConfirm }: { visible: boolean; on
 }
 
 export default function FindingDriverScreen({ navigation, route }: any) {
-  const { destination, estimate, paymentMethod, driver, rideId, pickup } = route.params;
+  const { destination, estimate, paymentMethod, rideId, pickup } = route.params;
   const { getToken } = useAuth();
   const { t } = useTranslation();
   const { getStoredToken } = useNotifications();
   const [searchText, setSearchText] = useState(t('ride.findingDriver'));
   const [isDriverFound, setIsDriverFound] = useState(false);
-  const [driverInfo, setDriverInfo] = useState<any>(null);
   
   // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
   const transformDriverName = (name: string) => {
@@ -194,7 +255,6 @@ export default function FindingDriverScreen({ navigation, route }: any) {
   const [hasNavigated, setHasNavigated] = useState(false);
   const searchTimer = useRef<ReturnType<typeof setInterval> | null>(null);
   const [showCancelModal, setShowCancelModal] = useState(false);
-  const [cancelReason, setCancelReason] = useState<string | null>(null);
 
   // Prevent going back during search - always show cancel confirmation
   useEffect(() => {
@@ -298,7 +358,6 @@ export default function FindingDriverScreen({ navigation, route }: any) {
         
         console.log('✅ Processing ride acceptance for correct ride');
         setIsDriverFound(true);
-        setDriverInfo(data);
         setSearchText('Driver found! Confirming ride...');
         
         console.log('🚗 Navigating to LiveTracking from callback with driver data:', {
@@ -420,7 +479,6 @@ export default function FindingDriverScreen({ navigation, route }: any) {
           
           console.log('✅ Processing ride acceptance for correct ride (direct)');
           setIsDriverFound(true);
-          setDriverInfo(data);
           setSearchText('Pilot found! Confirming ride...');
           
           console.log('🚗 Navigating to LiveTracking from direct event with driver data:', {
@@ -530,11 +588,6 @@ export default function FindingDriverScreen({ navigation, route }: any) {
     }
   };
 
-  const formatSearchTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -554,16 +607,11 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
         {/* Map Container */}
         <View style={styles.mapContainer}>
-          <Video
-            style={styles.videoPlayer}
-            source={require('../../../assets/images/findingDriverGif.mp4')}
-            shouldPlay
-            isLooping
-            isMuted
-            resizeMode={ResizeMode.COVER}
-            onError={(error) => {
-              console.log('Video error:', error);
-            }}
+          <LottieView
+            source={require('../../../assets/lottie/map search.json')}
+            autoPlay
+            loop
+            style={styles.lottieAnimation}
           />
         </View>
 
@@ -576,10 +624,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
           {!isDriverFound && (
             <View style={styles.searchInfo}>
-              <LoadingSpinner size="large" color={Colors.primary} />
-              <Text style={styles.searchTimeText}>
-                Searching for {formatSearchTime(searchTime)}
-              </Text>
+              <TimelineLoader searchTime={searchTime} />
             </View>
           )}
         </View>
@@ -642,7 +687,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.background,
+    backgroundColor: 'white',
   },
   content: {
     flex: 1,
@@ -668,14 +713,14 @@ const styles = StyleSheet.create({
   },
   mapContainer: {
     height: 250,
-    backgroundColor: Colors.gray100,
+
     margin: Layout.spacing.lg,
     borderRadius: Layout.borderRadius.lg,
     overflow: 'hidden',
   },
-  videoPlayer: {
-    width: '110%',
-    height: '110%',
+  lottieAnimation: {
+    width: '100%',
+    height: '100%',
   },
   statusContainer: {
     alignItems: 'center',
@@ -825,5 +870,36 @@ const styles = StyleSheet.create({
     marginTop: Layout.spacing.sm,
     fontSize: Layout.fontSize.md,
     color: Colors.textSecondary,
+  },
+  timelineContainer: {
+    marginTop: Layout.spacing.lg,
+    paddingHorizontal: Layout.spacing.lg,
+    backgroundColor: '#F8F9FA',
+    paddingVertical: 20,
+    borderRadius: 12,
+    marginHorizontal: '5%',
+    width: '100%',
+    alignSelf: 'center',
+  },
+  segmentedProgressContainer: {
+    flexDirection: 'row',
+    height: 20,
+    justifyContent: 'space-between',
+    padding: 2,
+  },
+  segmentContainer: {
+    flex: 1,
+    marginHorizontal: 4,
+  },
+  segmentBackground: {
+    height: '100%',
+    backgroundColor: '#E5E5E5',
+    borderRadius: 8,
+    overflow: 'hidden',
+  },
+  segmentFill: {
+    height: '100%',
+    backgroundColor: '#1877F2',
+    borderRadius: 8,
   },
 });
