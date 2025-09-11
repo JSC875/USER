@@ -7,12 +7,14 @@ import {
   TouchableOpacity,
   Alert,
   Platform,
+  Animated,
+  Vibration,
 } from 'react-native';
 import * as Clipboard from 'expo-clipboard';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import { extractBestOTP, clipboardContainsOTP } from '../../utils/otpUtils';
+import { extractBestOTP, clipboardContainsOTP, isValidOTP } from '../../utils/otpUtils';
 
 interface OTPInputProps {
   length: number;
@@ -21,6 +23,9 @@ interface OTPInputProps {
   onComplete?: (value: string) => void;
   autoFocus?: boolean;
   showPasteButton?: boolean;
+  error?: boolean;
+  disabled?: boolean;
+  manualOnly?: boolean; // When true, disable clipboard/paste and force manual entry
 }
 
 export default function OTPInput({
@@ -30,9 +35,60 @@ export default function OTPInput({
   onComplete,
   autoFocus = true,
   showPasteButton = true,
+  error = false,
+  disabled = false,
+  manualOnly = false,
 }: OTPInputProps) {
   const inputRefs = useRef<(TextInput | null)[]>([]);
   const [isListening, setIsListening] = useState(false);
+  const [shakeAnimation] = useState(new Animated.Value(0));
+  const [successAnimation] = useState(new Animated.Value(0));
+
+  // Animation functions
+  const triggerShakeAnimation = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: -10,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 10,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(shakeAnimation, {
+        toValue: 0,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+    
+    // Haptic feedback
+    if (Platform.OS === 'ios') {
+      Vibration.vibrate(100);
+    }
+  }, [shakeAnimation]);
+
+  const triggerSuccessAnimation = useCallback(() => {
+    Animated.sequence([
+      Animated.timing(successAnimation, {
+        toValue: 1,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(successAnimation, {
+        toValue: 0,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [successAnimation]);
 
   // Auto-focus first input on mount
   useEffect(() => {
@@ -43,11 +99,11 @@ export default function OTPInput({
     }
   }, [autoFocus]);
 
-  // Listen for clipboard changes to detect OTP
+  // Listen for clipboard changes to detect OTP (disabled in manualOnly mode)
   useEffect(() => {
     let interval: NodeJS.Timeout;
     
-    if (Platform.OS === 'android') {
+    if (!manualOnly && Platform.OS === 'android') {
       // On Android, we'll check clipboard periodically since we can't listen to changes directly
       interval = setInterval(async () => {
         try {
@@ -90,29 +146,42 @@ export default function OTPInput({
         clearInterval(interval);
       }
     };
-  }, [length, onChange, onComplete, isListening]);
+  }, [length, onChange, onComplete, isListening, manualOnly]);
 
-  const handleOtpChange = useCallback((value: string, index: number) => {
+  const handleOtpChange = useCallback((inputValue: string, index: number) => {
+    if (disabled) return;
+    
     const newOtp = [...value];
     
     // Handle single digit input
-    if (value.length === 1) {
-      newOtp[index] = value;
+    if (inputValue.length === 1) {
+      // Validate that it's a digit
+      if (!/^\d$/.test(inputValue)) {
+        triggerShakeAnimation();
+        return;
+      }
+      
+      newOtp[index] = inputValue;
       
       // Auto-focus next input
-      if (value && index < length - 1) {
+      if (inputValue && index < length - 1) {
         inputRefs.current[index + 1]?.focus();
       }
-    } else if (value.length > 1) {
-      // Handle paste operation - extract digits only
-      const digits = value.replace(/\D/g, '').split('');
-      
-      // Fill the current and subsequent inputs
+    } else if (inputValue.length > 1) {
+      // Prevent paste in manual-only mode
+      if (manualOnly) {
+        triggerShakeAnimation();
+        return;
+      }
+      // Handle paste operation - extract digits only (allowed when not manualOnly)
+      const digits = inputValue.replace(/\D/g, '').split('');
+      if (digits.length === 0) {
+        triggerShakeAnimation();
+        return;
+      }
       for (let i = 0; i < Math.min(digits.length, length - index); i++) {
         newOtp[index + i] = digits[i];
       }
-      
-      // Focus the next empty input or the last one
       const nextEmptyIndex = newOtp.findIndex(digit => !digit);
       const focusIndex = nextEmptyIndex >= 0 ? nextEmptyIndex : length - 1;
       inputRefs.current[focusIndex]?.focus();
@@ -120,11 +189,15 @@ export default function OTPInput({
     
     onChange(newOtp);
     
-    // Call onComplete if all digits are filled
+    // Call onComplete if all digits are filled and valid
     if (newOtp.every(digit => digit !== '')) {
-      onComplete?.(newOtp.join(''));
+      const otpString = newOtp.join('');
+      if (isValidOTP(otpString, length)) {
+        triggerSuccessAnimation();
+        onComplete?.(otpString);
+      }
     }
-  }, [length, onChange, onComplete]);
+  }, [length, onChange, onComplete, value, disabled, triggerShakeAnimation, triggerSuccessAnimation, manualOnly]);
 
   const handleKeyPress = useCallback((key: string, index: number) => {
     if (key === 'Backspace' && !value[index] && index > 0) {
@@ -133,11 +206,13 @@ export default function OTPInput({
   }, [value]);
 
   const handlePasteOTP = async () => {
+    if (disabled) return;
+    
     try {
       const clipboardContent = await Clipboard.getStringAsync();
       if (clipboardContent) {
         const otpCode = extractBestOTP(clipboardContent, length);
-        if (otpCode) {
+        if (otpCode && isValidOTP(otpCode, length)) {
           console.log('Pasting OTP from clipboard:', otpCode);
           
           // Fill the OTP inputs
@@ -156,21 +231,30 @@ export default function OTPInput({
           // Clear clipboard after paste
           await Clipboard.setStringAsync('');
           
+          // Trigger success animation
+          triggerSuccessAnimation();
+          
           // Call onComplete if all digits are filled
           if (newOtp.every(digit => digit !== '')) {
             onComplete?.(newOtp.join(''));
           }
           
-          Alert.alert('Success', 'OTP pasted successfully!');
+          // Show success feedback without blocking UI
+          setTimeout(() => {
+            Alert.alert('✅ Success', 'OTP pasted successfully!');
+          }, 100);
         } else {
-          Alert.alert('No OTP Found', `No ${length}-digit OTP code found in clipboard. Please copy the OTP from your SMS and try again.`);
+          triggerShakeAnimation();
+          Alert.alert('❌ No Valid OTP', `No valid ${length}-digit OTP code found in clipboard.\n\nPlease copy the OTP from your SMS and try again.`);
         }
       } else {
-        Alert.alert('Clipboard Empty', 'Clipboard is empty. Please copy the OTP from your SMS and try again.');
+        triggerShakeAnimation();
+        Alert.alert('📋 Clipboard Empty', 'Clipboard is empty.\n\nPlease copy the OTP from your SMS and try again.');
       }
     } catch (error) {
       console.error('Error pasting OTP:', error);
-      Alert.alert('Error', 'Failed to paste OTP. Please try again.');
+      triggerShakeAnimation();
+      Alert.alert('❌ Error', 'Failed to paste OTP. Please try again.');
     }
   };
 
@@ -190,44 +274,96 @@ export default function OTPInput({
 
   return (
     <View style={styles.container}>
-      <View style={styles.otpContainer}>
+      <Animated.View 
+        style={[
+          styles.otpContainer,
+          {
+            transform: [
+              { translateX: shakeAnimation },
+              { scale: successAnimation.interpolate({
+                inputRange: [0, 1],
+                outputRange: [1, 1.05]
+              })}
+            ]
+          }
+        ]}
+      >
         {Array.from({ length }, (_, index) => (
-          <TextInput
+          <Animated.View
             key={index}
-            ref={(ref) => {
-              inputRefs.current[index] = ref;
-            }}
             style={[
-              styles.otpInput,
-              value[index] && styles.otpInputFilled,
+              styles.inputWrapper,
+              {
+                transform: [
+                  { scale: successAnimation.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [1, 1.1]
+                  })}
+                ]
+              }
             ]}
-            value={value[index]}
-            onChangeText={(text) => handleOtpChange(text, index)}
-            onKeyPress={({ nativeEvent }) =>
-              handleKeyPress(nativeEvent.key, index)
-            }
-            onFocus={() => handleInputFocus(index)}
-            onBlur={() => handleInputBlur(index)}
-            keyboardType="number-pad"
-            maxLength={length}
-            textAlign="center"
-            selectTextOnFocus
-            autoComplete="one-time-code"
-            textContentType="oneTimeCode"
-          />
+          >
+            <TextInput
+              ref={(ref) => {
+                inputRefs.current[index] = ref;
+              }}
+              style={[
+                styles.otpInput,
+                value[index] && styles.otpInputFilled,
+                error && styles.otpInputError,
+                disabled && styles.otpInputDisabled,
+              ]}
+              value={value[index]}
+              onChangeText={(text) => handleOtpChange(text, index)}
+              onKeyPress={({ nativeEvent }) =>
+                handleKeyPress(nativeEvent.key, index)
+              }
+              onFocus={() => handleInputFocus(index)}
+              onBlur={() => handleInputBlur(index)}
+              keyboardType="number-pad"
+              maxLength={length}
+              textAlign="center"
+              selectTextOnFocus
+              autoComplete="one-time-code"
+              textContentType="oneTimeCode"
+              editable={!disabled}
+              placeholder="•"
+              placeholderTextColor={Colors.gray300}
+            />
+            {value[index] && (
+              <Animated.View
+                style={[
+                  styles.checkmark,
+                  {
+                    opacity: successAnimation.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [0, 1]
+                    })
+                  }
+                ]}
+              >
+                <Ionicons name="checkmark" size={16} color={Colors.success} />
+              </Animated.View>
+            )}
+          </Animated.View>
         ))}
-      </View>
+      </Animated.View>
       
-      {showPasteButton && (
-        <TouchableOpacity style={styles.pasteButton} onPress={handlePasteOTP}>
-          <Ionicons name="clipboard-outline" size={20} color={Colors.primary} />
-          <Text style={styles.pasteButtonText}>Paste OTP</Text>
+      {showPasteButton && !manualOnly && (
+        <TouchableOpacity 
+          style={[styles.pasteButton, disabled && styles.pasteButtonDisabled]} 
+          onPress={handlePasteOTP}
+          disabled={disabled}
+        >
+          <Ionicons 
+            name="clipboard-outline" 
+            size={20} 
+            color={disabled ? Colors.gray400 : Colors.primary} 
+          />
         </TouchableOpacity>
       )}
       
-      <Text style={styles.helpText}>
-        💡 Tip: Copy the {length}-digit OTP from your SMS and tap "Paste OTP" or it will auto-fill automatically
-      </Text>
+      {/* Help tip removed as requested */}
     </View>
   );
 }
@@ -242,20 +378,66 @@ const styles = StyleSheet.create({
     marginBottom: Layout.spacing.lg,
     width: '100%',
   },
+  inputWrapper: {
+    position: 'relative',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
   otpInput: {
     width: 50,
     height: 50,
-    borderWidth: 1,
+    borderWidth: 2,
     borderColor: Colors.border,
     borderRadius: Layout.borderRadius.md,
     fontSize: Layout.fontSize.lg,
     fontWeight: '600',
     color: Colors.text,
     backgroundColor: Colors.gray50,
+    shadowColor: Colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
   },
   otpInputFilled: {
     borderColor: Colors.primary,
     backgroundColor: Colors.white,
+    shadowColor: Colors.primary,
+    shadowOpacity: 0.2,
+    elevation: 4,
+  },
+  otpInputError: {
+    borderColor: Colors.error,
+    backgroundColor: Colors.errorLight || '#FEF2F2',
+  },
+  otpInputDisabled: {
+    backgroundColor: Colors.gray100,
+    borderColor: Colors.gray300,
+    opacity: 0.6,
+  },
+  checkmark: {
+    position: 'absolute',
+    top: -8,
+    right: -8,
+    backgroundColor: Colors.white,
+    borderRadius: 10,
+    width: 20,
+    height: 20,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderColor: Colors.success,
+    shadowColor: Colors.success,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 2,
+    elevation: 3,
   },
   pasteButton: {
     flexDirection: 'row',
@@ -267,12 +449,28 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: Colors.border,
     marginBottom: Layout.spacing.md,
+    shadowColor: Colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 1,
+    },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  pasteButtonDisabled: {
+    backgroundColor: Colors.gray100,
+    borderColor: Colors.gray300,
+    opacity: 0.6,
   },
   pasteButtonText: {
     fontSize: Layout.fontSize.md,
     color: Colors.primary,
     fontWeight: '600',
     marginLeft: Layout.spacing.xs,
+  },
+  pasteButtonTextDisabled: {
+    color: Colors.gray400,
   },
   helpText: {
     fontSize: Layout.fontSize.sm,
