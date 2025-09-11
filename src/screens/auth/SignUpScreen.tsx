@@ -278,6 +278,8 @@ function OtpStep({
         }}
         autoFocus={true}
         showPasteButton={true}
+        error={!!error}
+        disabled={isLoading}
       />
       
       {error ? (

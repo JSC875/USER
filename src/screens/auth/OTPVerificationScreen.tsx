@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,8 +6,6 @@ import {
   TouchableOpacity,
   KeyboardAvoidingView,
   Platform,
-  ScrollView,
-  TextInput,
   Alert,
   BackHandler,
 } from 'react-native';
@@ -27,6 +25,8 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
   const [isLoading, setIsLoading] = useState(false);
   const [timer, setTimer] = useState(30);
   const [canResend, setCanResend] = useState(false);
+  const [error, setError] = useState('');
+  const [attempts, setAttempts] = useState(0);
   
   const { signIn, setActive: setSignInActive } = useSignIn();
   const { signUp, setActive: setSignUpActive } = useSignUp();
@@ -62,12 +62,22 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
 
   const handleOtpChange = (value: string[]) => {
     setOtp(value);
+    // Clear error when user starts typing
+    if (error) {
+      setError('');
+    }
   };
 
   const handleOtpComplete = (otpString: string) => {
     console.log('OTP completed:', otpString);
     // Optionally auto-verify when OTP is complete
     // handleVerifyOTP();
+  };
+
+  const handleClearOTP = () => {
+    setOtp(['', '', '', '', '', '']);
+    setError('');
+    setAttempts(0);
   };
 
   const handleVerifyOTP = async () => {
@@ -77,11 +87,12 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
     console.log('OTPVerificationScreen - Phone Number:', phoneNumber);
     
     if (otpString.length !== 6) {
-      Alert.alert('Error', 'Please enter complete OTP');
+      setError('Please enter complete 6-digit OTP');
       return;
     }
 
     setIsLoading(true);
+    setError('');
 
     try {
       if (isSignIn) {
@@ -132,7 +143,8 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
           }
         } else {
           console.error('OTPVerificationScreen - Sign in not complete:', completeSignIn?.status);
-          Alert.alert('Error', 'Sign in failed. Please check your OTP and try again.');
+          setAttempts(prev => prev + 1);
+          setError(`Invalid OTP. Please check the code and try again. (Attempt ${attempts + 1}/3)`);
         }
       } else {
         // Sign up flow
@@ -217,12 +229,14 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
           }
         } else {
           console.error('OTPVerificationScreen - Phone verification failed:', completeSignUp?.verifications?.phoneNumber?.status);
-          Alert.alert('Error', 'Phone verification failed. Please check your OTP and try again.');
+          setAttempts(prev => prev + 1);
+          setError(`Invalid OTP. Please check the code and try again. (Attempt ${attempts + 1}/3)`);
         }
       }
     } catch (err: any) {
       console.error('OTPVerificationScreen - Error during verification:', err);
-      Alert.alert('Error', err.errors?.[0]?.message || 'Failed to verify OTP. Please try again.');
+      setAttempts(prev => prev + 1);
+      setError(`Verification failed. ${err.errors?.[0]?.message || 'Please check your OTP and try again.'} (Attempt ${attempts + 1}/3)`);
     } finally {
       setIsLoading(false);
     }
@@ -256,6 +270,8 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
       setTimer(30);
       setCanResend(false);
       setOtp(['', '', '', '', '', '']);
+      setError('');
+      setAttempts(0);
       
       Alert.alert('Success', 'OTP sent successfully');
     } catch (err: any) {
@@ -280,6 +296,9 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
               We've sent a 6-digit code to{'\n'}
               <Text style={styles.phoneNumber}>{phoneNumber}</Text>
             </Text>
+            <Text style={styles.instructionText}>
+              Enter the code manually or use the number pad
+            </Text>
           </View>
 
           <OTPInput
@@ -288,19 +307,40 @@ export default function OTPVerificationScreen({ navigation, route }: any) {
             onChange={handleOtpChange}
             onComplete={handleOtpComplete}
             autoFocus={true}
-            showPasteButton={true}
+            showPasteButton={false}
+            manualOnly={false}
+            error={!!error}
+            disabled={isLoading}
           />
 
-          <View style={styles.resendContainer}>
-            {canResend ? (
-              <TouchableOpacity onPress={handleResendOTP}>
-                <Text style={styles.resendText}>Resend OTP</Text>
-              </TouchableOpacity>
-            ) : (
-              <Text style={styles.timerText}>
-                Resend OTP in {timer}s
-              </Text>
-            )}
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Ionicons name="alert-circle" size={20} color={Colors.error} />
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.actionButtonsContainer}>
+            <TouchableOpacity 
+              style={styles.clearButton} 
+              onPress={handleClearOTP}
+              disabled={isLoading}
+            >
+              <Ionicons name="refresh" size={18} color={Colors.textSecondary} />
+              <Text style={styles.clearButtonText}>Clear</Text>
+            </TouchableOpacity>
+
+            <View style={styles.resendContainer}>
+              {canResend ? (
+                <TouchableOpacity onPress={handleResendOTP} disabled={isLoading}>
+                  <Text style={styles.resendText}>Resend OTP</Text>
+                </TouchableOpacity>
+              ) : (
+                <Text style={styles.timerText}>
+                  Resend OTP in {timer}s
+                </Text>
+              )}
+            </View>
           </View>
 
           <Button
@@ -357,6 +397,54 @@ const styles = StyleSheet.create({
   phoneNumber: {
     fontWeight: '600',
     color: Colors.text,
+  },
+  instructionText: {
+    fontSize: Layout.fontSize.sm,
+    color: Colors.textSecondary,
+    textAlign: 'center',
+    marginTop: Layout.spacing.sm,
+    fontStyle: 'italic',
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: Colors.errorLight || '#FEF2F2',
+    paddingHorizontal: Layout.spacing.md,
+    paddingVertical: Layout.spacing.sm,
+    borderRadius: Layout.borderRadius.md,
+    marginBottom: Layout.spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.error,
+  },
+  errorText: {
+    fontSize: Layout.fontSize.sm,
+    color: Colors.error,
+    marginLeft: Layout.spacing.xs,
+    textAlign: 'center',
+    flex: 1,
+  },
+  actionButtonsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: Layout.spacing.xl,
+  },
+  clearButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Layout.spacing.md,
+    paddingVertical: Layout.spacing.sm,
+    backgroundColor: Colors.gray50,
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  clearButtonText: {
+    fontSize: Layout.fontSize.sm,
+    color: Colors.textSecondary,
+    marginLeft: Layout.spacing.xs,
+    fontWeight: '500',
   },
   otpContainer: {
     flexDirection: 'row',
