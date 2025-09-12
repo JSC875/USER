@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
-import { TouchableOpacity, Text, StyleSheet, Alert, ActivityIndicator } from 'react-native';
+import { TouchableOpacity, Text, StyleSheet, Alert } from 'react-native';
 import { initializePayment, PaymentOptions } from '../../utils/razorpay';
 import { isUsingLiveKeys, getPaymentWarningMessage } from '../../config/razorpay';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import LoadingSpinner from './LoadingSpinner';
 
 interface RazorpayTestButtonProps {
   onSuccess?: (data: any) => void;
@@ -111,7 +112,7 @@ export default function RazorpayTestButton({ onSuccess, onError }: RazorpayTestB
       disabled={isLoading}
     >
       {isLoading ? (
-        <ActivityIndicator size="small" color={Colors.white} />
+        <LoadingSpinner size="small" />
       ) : (
         <Text style={styles.buttonText}>
           {isUsingLiveKeys() ? '🔥 Test Live Payment' : 'Test Payment'}

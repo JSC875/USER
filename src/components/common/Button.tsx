@@ -4,12 +4,12 @@ import {
   TouchableOpacity,
   Text,
   StyleSheet,
-  ActivityIndicator,
   ViewStyle,
   TextStyle,
 } from 'react-native';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import LoadingSpinner from './LoadingSpinner';
 
 interface ButtonProps {
   title: string;
@@ -131,9 +131,8 @@ export default function Button({
       activeOpacity={0.8}
     >
       {loading && (
-        <ActivityIndicator
+        <LoadingSpinner
           size="small"
-          color={variant === 'outline' || variant === 'ghost' ? Colors.primary : Colors.white}
           style={{ marginRight: Layout.spacing.sm }}
         />
       )}

@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, Alert, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, Alert, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, TITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
@@ -7,6 +7,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { userApi, UserProfile } from '../../services/userService';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../i18n/LanguageContext';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function PersonalDetailsScreen({ route, navigation }: any) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -107,8 +108,7 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
           <View style={{ width: 32 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>{t('common.loading')}</Text>
+          <LoadingSpinner size="large" text={t('common.loading')} />
         </View>
       </View>
     );

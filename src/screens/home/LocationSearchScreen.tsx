@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   TextInput,
   FlatList,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
@@ -14,6 +13,7 @@ import Constants from 'expo-constants';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useLocationStore } from '../../store/useLocationStore';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 import LocationPickerMap from '../../components/common/LocationPickerMap';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
 
@@ -332,7 +332,7 @@ export default function LocationSearchScreen({ navigation, route }: any) {
           />
         ) : isSearching ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator color={Colors.primary} />
+            <LoadingSpinner size="small" />
           </View>
         ) : noResults ? (
           <View style={styles.loadingContainer}>

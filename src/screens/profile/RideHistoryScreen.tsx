@@ -6,7 +6,6 @@ import {
   TouchableOpacity,
   FlatList,
   Modal,
-  ActivityIndicator,
   RefreshControl,
   Alert,
 } from 'react-native';
@@ -15,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useAuth } from '@clerk/clerk-expo';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { userApi, RideHistory, RideHistoryFilters } from '../../services/userService';
 import { useTranslation } from 'react-i18next';
 
@@ -305,8 +305,7 @@ export default function RideHistoryScreen({ navigation }: any) {
       {/* Loading State */}
       {isLoading && (
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>{t('ride.loadingRideHistory')}</Text>
+          <LoadingSpinner size="large" text={t('ride.loadingRideHistory')} />
         </View>
       )}
 

@@ -22,7 +22,7 @@ export default function AppSplashScreen({ navigation }: AppSplashScreenProps) {
     <SafeAreaView style={styles.container}>
       <View style={styles.animationContainer}>
         <LottieView
-          source={require('../../../assets/lottie/redScooty.json')}
+          source={require('../../../assets/lottie/Roqetlogo.json')}
           autoPlay
           loop
           style={styles.animation}
@@ -35,7 +35,7 @@ export default function AppSplashScreen({ navigation }: AppSplashScreenProps) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#ffffff',
+    backgroundColor: 'white',
     justifyContent: 'center',
     alignItems: 'center',
   },

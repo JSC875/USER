@@ -7,7 +7,6 @@ import {
   TouchableOpacity,
   ScrollView,
   Alert,
-  ActivityIndicator,
   Image,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -15,6 +14,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 import { initializePayment, PaymentOptions, PaymentResult, formatAmount, ensureAmountInPaise, convertPaiseToRupees, debugAmountConversion, formatAmountForDisplay } from '../../utils/razorpay';
 import { useAuth, useUser } from '@clerk/clerk-expo';
@@ -360,8 +360,7 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
 
           {paymentStatus === 'processing' && (
             <View style={styles.statusCard}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.statusTitle}>Processing Payment</Text>
+              <LoadingSpinner size="large" text="Processing Payment" />
               <Text style={styles.statusSubtitle}>
                 Please wait while we process your payment...
               </Text>
@@ -517,7 +516,7 @@ export default function PaymentScreen({ navigation, route }: PaymentScreenProps)
 
         {isLoading && (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="small" color={Colors.white} />
+            <LoadingSpinner size="small" />
             <Text style={styles.loadingText}>Processing...</Text>
           </View>
         )}

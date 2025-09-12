@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ScrollView, KeyboardAvoidingView, Platform, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, TITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
@@ -7,6 +7,7 @@ import * as ImagePicker from 'expo-image-picker';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { userApi, UserProfileUpdate } from '../../services/userService';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function EditProfileScreen({ navigation, route }: any) {
   const params = route?.params || {};
@@ -512,8 +513,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
            {errors.emergencyPhone && <Text style={{ color: Colors.error }}>{errors.emergencyPhone}</Text>}
           {isLoading ? (
             <View style={styles.loadingContainer}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>Loading profile...</Text>
+              <LoadingSpinner size="large" text="Loading profile..." />
             </View>
           ) : (
             <TouchableOpacity
@@ -523,7 +523,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
             >
               {isSaving ? (
                 <View style={styles.saveButtonContent}>
-                  <ActivityIndicator size="small" color={Colors.white} />
+                  <LoadingSpinner size="small" />
                   <Text style={styles.saveButtonText}>Saving...</Text>
                 </View>
               ) : (

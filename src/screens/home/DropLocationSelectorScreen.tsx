@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, ActivityIndicator, Keyboard, KeyboardAvoidingView, Platform, Animated, Modal, Button, Alert, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, Keyboard, KeyboardAvoidingView, Platform, Animated, Modal, Button, Alert, ScrollView } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
@@ -8,6 +8,7 @@ import MapView, { Marker } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { Modal as RNModal } from 'react-native';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { getDistanceFromLatLonInKm, formatDistance } from '../../utils/helpers';
 import * as Location from 'expo-location';
 
@@ -1007,10 +1008,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
             padding: 24,
             alignItems: 'center',
           }}>
-            <ActivityIndicator size="large" color={Colors.primary} />
-            <Text style={{ marginTop: 12, fontSize: 16, fontWeight: '600', color: Colors.text }}>
-              Getting your location...
-            </Text>
+            <LoadingSpinner size="large" text="Getting your location..." />
           </View>
         </View>
       )}
@@ -1258,7 +1256,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         ListEmptyComponent={
           isSearching ? (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>
-              <ActivityIndicator color={Colors.primary} />
+              <LoadingSpinner size="small" />
             </View>
           ) : noResults ? (
             <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>

@@ -1,8 +1,9 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../constants/Colors';
 import { ServiceAvailabilityStatus } from '../constants/ServiceArea';
+import LoadingSpinner from './common/LoadingSpinner';
 
 interface ServiceAvailabilityBannerProps {
   status: ServiceAvailabilityStatus;
@@ -39,7 +40,7 @@ export const ServiceAvailabilityBanner: React.FC<ServiceAvailabilityBannerProps>
       <View style={styles.header}>
         <View style={styles.statusContainer}>
           {isLoading ? (
-            <ActivityIndicator size="small" color={getStatusColor()} />
+            <LoadingSpinner size="small" />
           ) : (
             <Ionicons name={getStatusIcon()} size={20} color={getStatusColor()} />
           )}

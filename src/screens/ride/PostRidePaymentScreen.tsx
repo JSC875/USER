@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Alert,
-  ActivityIndicator,
   TouchableOpacity,
   ScrollView,
 } from 'react-native';
@@ -14,6 +13,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { paymentService } from '../../services/paymentService';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 import RazorpayWebView from '../../components/payment/RazorpayWebView';
 import { isDevelopment } from '../../config/environment';
 
@@ -376,8 +376,7 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
     return (
       <SafeAreaView style={styles.container}>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Initializing payment...</Text>
+          <LoadingSpinner size="large" text="Initializing payment..." />
         </View>
       </SafeAreaView>
     );

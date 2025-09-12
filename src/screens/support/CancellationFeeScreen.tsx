@@ -1,8 +1,9 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, TextInput, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, PRIMARY_GREEN, TITLE_COLOR, SUBTITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 const mockRide = {
   pickup: '123 Main St',
@@ -161,8 +162,7 @@ export default function CancellationFeeScreen({ navigation }: any) {
       {/* Loading */}
       {step === 'loading' && (
         <View style={styles.section}>
-          <ActivityIndicator size="large" color={PRIMARY_GREEN} />
-          <Text style={styles.sectionTitle}>Cancelling your ride...</Text>
+          <LoadingSpinner size="large" text="Cancelling your ride..." />
         </View>
       )}
       {/* Success */}
