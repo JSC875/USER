@@ -60,10 +60,10 @@ export default function HomeScreen({ navigation, route }: any) {
   const { getToken } = useAuth();
 
   const [region, setRegion] = useState({
-    latitude: 28.6139, // Default: New Delhi
-    longitude: 77.2090,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
+    latitude: 17.3850, // Default: Hyderabad
+    longitude: 78.4867,
+    latitudeDelta: 0.0054, // Approximately 600 meters
+    longitudeDelta: 0.0054, // Approximately 600 meters
   });
 
   const [dropLocation, setDropLocation] = useState<any>(null);
@@ -153,8 +153,8 @@ export default function HomeScreen({ navigation, route }: any) {
       setRegion({
         latitude: coords.latitude,
         longitude: coords.longitude,
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
+        latitudeDelta: 0.0054, // Approximately 600 meters
+        longitudeDelta: 0.0054, // Approximately 600 meters
       });
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -167,12 +167,16 @@ export default function HomeScreen({ navigation, route }: any) {
         ...prev,
         latitude: dropoffLocation.latitude,
         longitude: dropoffLocation.longitude,
+        latitudeDelta: 0.0054, // Maintain 600-meter zoom
+        longitudeDelta: 0.0054, // Maintain 600-meter zoom
       }));
     } else if (pickupLocation && pickupLocation.latitude && pickupLocation.longitude) {
       setRegion((prev) => ({
         ...prev,
         latitude: pickupLocation.latitude,
         longitude: pickupLocation.longitude,
+        latitudeDelta: 0.0054, // Maintain 600-meter zoom
+        longitudeDelta: 0.0054, // Maintain 600-meter zoom
       }));
     }
   }, [pickupLocation, dropoffLocation]);

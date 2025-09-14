@@ -305,7 +305,7 @@ export default function RideHistoryScreen({ navigation }: any) {
       {/* Loading State */}
       {isLoading && (
         <View style={styles.loadingContainer}>
-          <LoadingSpinner size="large" text={t('ride.loadingRideHistory')} />
+          <LoadingSpinner size="large" text={t('notifications.loadingRideHistory')} />
         </View>
       )}
 
@@ -323,12 +323,12 @@ export default function RideHistoryScreen({ navigation }: any) {
       {/* Empty State */}
       {!isLoading && !error && filteredHistory.length === 0 && (
         <View style={styles.emptyContainer}>
-          <Ionicons name="car-outline" size={48} color={Colors.gray400} />
-          <Text style={styles.emptyText}>{t('ride.noRidesFound')}</Text>
+          <Ionicons name="time-outline" size={48} color={Colors.gray400} />
+          <Text style={styles.emptyText}>{t('notifications.noRidesFound')}</Text>
           <Text style={styles.emptySubtext}>
             {filter === 'all' 
-              ? t('ride.emptyStateAll') 
-              : t('ride.emptyStateFiltered', { filter: filter })
+              ? t('notifications.emptyStateAll') 
+              : t('notifications.emptyStateFiltered', { filter: filter })
             }
           </Text>
         </View>

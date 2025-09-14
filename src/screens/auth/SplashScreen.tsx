@@ -14,12 +14,12 @@ const screens = [
   {
     key: 'booking',
     illustration: (
-      <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+      <View style={{ width: 300, height: 250, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
         <LottieView
           source={require('../../../assets/lottie/easyBooking.json')}
           autoPlay
           loop
-          style={{ width: 300, height: 300 }}
+          style={{ width: 400, height: 350 }}
         />
       </View>
     ),
@@ -29,12 +29,12 @@ const screens = [
   {
     key: 'affordable',
     illustration: (
-      <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+      <View style={{ width: 300, height: 250, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
         <LottieView
           source={require('../../../assets/lottie/yellowScooty.json')}
           autoPlay
           loop
-          style={{ width: 300, height: 300 }}
+          style={{ width: 400, height: 300 }}
         />
       </View>
     ),
@@ -44,12 +44,12 @@ const screens = [
   {
     key: 'safe',
     illustration: (
-      <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+      <View style={{ width: 300, height: 250, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
         <LottieView
           source={require('../../../assets/lottie/ridesafe.json')}
           autoPlay
           loop
-          style={{ width: 300, height: 300 }}
+          style={{ width: 400, height: 300 }}
         />
       </View>
     ),
@@ -60,12 +60,12 @@ const screens = [
   {
     key: 'premium',
     illustration: (
-      <View style={{ width: 300, height: 300, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+      <View style={{ width: 300, height: 250, alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
         <LottieView
           source={require('../../../assets/lottie/quickride.json')}
           autoPlay
           loop
-          style={{ width: 300, height: 300 }}
+          style={{ width: 400, height: 300 }}
         />
       </View>
     ),
@@ -113,9 +113,9 @@ export default function OnboardingSwiper({ navigation }: { navigation?: any }) {
           setIndex(newIndex);
         }}
         renderItem={({ item }) => (
-          <View style={{ width, height, alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+          <View style={{ width, height, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 24}}>
             {item.illustration}
-            <Text style={{ fontSize: 24, fontWeight: 'bold', color: TITLE_COLOR, marginTop: 32, textAlign: 'center' }}>{item.title}</Text>
+            <Text style={{ fontSize: 24, fontWeight: 'bold', color: TITLE_COLOR, textAlign: 'center' }}>{item.title}</Text>
             <Text style={{ fontSize: 16, color: SUBTITLE_COLOR, marginTop: 16, textAlign: 'center' }}>{item.subtitle}</Text>
           </View>
         )}

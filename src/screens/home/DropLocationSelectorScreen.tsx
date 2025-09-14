@@ -1,64 +1,18 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, FlatList, Dimensions, TextInput, Keyboard, KeyboardAvoidingView, Platform, Animated, Modal, Button, Alert, ScrollView } from 'react-native';
+import { View, Text, TouchableOpacity, FlatList, TextInput, Keyboard, KeyboardAvoidingView, Platform, Animated, Alert } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Ionicons, MaterialIcons, MaterialCommunityIcons } from '@expo/vector-icons';
+import { Ionicons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Colors } from '../../constants/Colors';
-import MapView, { Marker } from 'react-native-maps';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useIsFocused } from '@react-navigation/native';
 import { Modal as RNModal } from 'react-native';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
-import { getDistanceFromLatLonInKm, formatDistance } from '../../utils/helpers';
 import * as Location from 'expo-location';
-
-const { width } = Dimensions.get('window');
-
-const RECENT_LOCATIONS = [
-  {
-    id: '1',
-    name: 'DSR Tranquil',
-    address: '901, KTR Colony, Mega Hills, Madhapur…',
-    latitude: 17.4497,
-    longitude: 78.3802,
-  },
-  {
-    id: '2',
-    name: 'Durgam Cheruvu Metro Station',
-    address: 'Hitech City Road, Sri Sai Nagar, Madhapur…',
-    latitude: 17.4369,
-    longitude: 78.4031,
-  },
-  {
-    id: '3',
-    name: 'MIG-59',
-    address: 'Dharma Reddy Colony Phase I, Kukatpally…',
-    latitude: 17.4945,
-    longitude: 78.3996,
-  },
-  
-  
-  
-];
+import { HYDERABAD_POPULAR_PLACES, getCategoryIcon, getCategoryColor } from '../../constants/HyderabadPopularPlaces';
+import CategorizedLocationList from '../../components/common/CategorizedLocationList';
 
 const GOOGLE_MAPS_API_KEY = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
-
-// Add a helper to get icon and color for each location type
-const getLocationIcon = (name: string) => {
-  if (name.toLowerCase().includes('home')) {
-    return { icon: <MaterialIcons name="home" size={24} color="#fff" />, bg: '#E53935' };
-  }
-  if (name.toLowerCase().includes('work') || name.toLowerCase().includes('office')) {
-    return { icon: <MaterialIcons name="work" size={24} color="#fff" />, bg: '#F57C00' };
-  }
-  if (name.toLowerCase().includes('all saved')) {
-    return { icon: <MaterialIcons name="bookmark" size={24} color="#fff" />, bg: '#23235B' };
-  }
-  if (name.toLowerCase().includes('recent') || name.toLowerCase().includes('kfc')) {
-    return { icon: <MaterialIcons name="history" size={24} color="#fff" />, bg: '#BDBDBD' };
-  }
-  return { icon: <MaterialIcons name="bookmark" size={24} color="#fff" />, bg: '#BDBDBD' };
-};
 
 function isValidLocation(loc: any) {
   return (
@@ -100,19 +54,16 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const [searchQuery, setSearchQuery] = useState('');
   const [currentLocationQuery, setCurrentLocationQuery] = useState('');
   const [dropLocationQuery, setDropLocationQuery] = useState('');
-  const [isSearching, setIsSearching] = useState(false);
   const [searchResults, setSearchResults] = useState<any[]>([]);
-  const [noResults, setNoResults] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const [savedLocations, setSavedLocations] = useState<{ home?: any; work?: any; custom?: any[] }>({});
   const isFocused = useIsFocused();
   const [fadeAnim] = useState(new Animated.Value(0));
-  const [showSavedModal, setShowSavedModal] = useState(false);
   const autoProceedHandled = useRef(false);
   const [forWhom, setForWhom] = useState<'me' | 'friend'>('me');
   const [showForWhomModal, setShowForWhomModal] = useState(false);
-  const [friendName, setFriendName] = useState('');
-  const [friendPhone, setFriendPhone] = useState('');
+  const [friendName] = useState('');
+  const [friendPhone] = useState('');
   const [isGettingLocation, setIsGettingLocation] = useState(false);
   const dropInputRef = useRef<TextInput>(null);
   const currentInputRef = useRef<TextInput>(null);
@@ -339,7 +290,6 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       }, 300);
     } else {
       setSearchResults([]);
-      setNoResults(false);
     }
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current);
@@ -456,16 +406,104 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     }
   }, [editing]);
 
+  // Helper function to check if location is in Hyderabad area
+  const isInHyderabadArea = (lat: number, lng: number) => {
+    // Hyderabad approximate bounds: 17.2 to 17.6 latitude, 78.2 to 78.7 longitude
+    return lat >= 17.2 && lat <= 17.6 && lng >= 78.2 && lng <= 78.7;
+  };
+
+  // Helper function to search saved locations
+  const getSavedLocationMatches = (query: string) => {
+    const lowercaseQuery = query.toLowerCase();
+    const matches: any[] = [];
+    
+    // Search in home location
+    if (savedLocations.home) {
+      const home = savedLocations.home;
+      if (
+        home.name?.toLowerCase().includes(lowercaseQuery) ||
+        home.address?.toLowerCase().includes(lowercaseQuery)
+      ) {
+        matches.push({
+          place_id: 'saved_home',
+          description: home.address,
+          structured_formatting: {
+            main_text: 'Home',
+            secondary_text: home.address
+          },
+          latitude: home.latitude,
+          longitude: home.longitude,
+          address: home.address,
+          name: 'Home',
+          isSaved: true,
+          savedType: 'home'
+        });
+      }
+    }
+    
+    // Search in work location
+    if (savedLocations.work) {
+      const work = savedLocations.work;
+      if (
+        work.name?.toLowerCase().includes(lowercaseQuery) ||
+        work.address?.toLowerCase().includes(lowercaseQuery)
+      ) {
+        matches.push({
+          place_id: 'saved_work',
+          description: work.address,
+          structured_formatting: {
+            main_text: 'Work',
+            secondary_text: work.address
+          },
+          latitude: work.latitude,
+          longitude: work.longitude,
+          address: work.address,
+          name: 'Work',
+          isSaved: true,
+          savedType: 'work'
+        });
+      }
+    }
+    
+    // Search in custom locations
+    if (savedLocations.custom && Array.isArray(savedLocations.custom)) {
+      savedLocations.custom.forEach((loc, index) => {
+        if (
+          loc.name?.toLowerCase().includes(lowercaseQuery) ||
+          loc.address?.toLowerCase().includes(lowercaseQuery)
+        ) {
+          matches.push({
+            place_id: `saved_custom_${index}`,
+            description: loc.address,
+            structured_formatting: {
+              main_text: loc.name || 'Custom Location',
+              secondary_text: loc.address
+            },
+            latitude: loc.latitude,
+            longitude: loc.longitude,
+            address: loc.address,
+            name: loc.name || 'Custom Location',
+            isSaved: true,
+            savedType: 'custom'
+          });
+        }
+      });
+    }
+    
+    return matches;
+  };
+
   const searchPlaces = async (query: string) => {
     if (query.length < 3) return;
-    setIsSearching(true);
-    setNoResults(false);
     try {
-      let location = '28.6139,77.2090'; // Default: Delhi
-      const radius = 50000;
+      let location = '17.3850,78.4867'; // Hyderabad coordinates
+      const radius = 30000; // 30km radius around Hyderabad
       
       console.log('🔍 Searching places for:', query);
       console.log('🔑 Using API key:', GOOGLE_MAPS_API_KEY ? 'Present' : 'Missing');
+      
+      // First, search in saved locations
+      const savedMatches = getSavedLocationMatches(query);
       
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=${location}&radius=${radius}&components=country:in&key=${GOOGLE_MAPS_API_KEY}`
@@ -475,47 +513,55 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       
       if (data.status === 'OK' && data.predictions && data.predictions.length > 0) {
         console.log('✅ Found', data.predictions.length, 'places');
-        // Fetch coordinates for each result
+        // Fetch coordinates for each result and filter for Hyderabad area
         const resultsWithCoords = await Promise.all(
-          data.predictions.slice(0, 5).map(async (prediction: any) => {
+          data.predictions.slice(0, 10).map(async (prediction: any) => {
             try {
               const details = await getPlaceDetails(prediction.place_id);
               if (details && details.geometry) {
+                const lat = details.geometry.location.lat;
+                const lng = details.geometry.location.lng;
+                
+                // Only include results within Hyderabad area
+                if (isInHyderabadArea(lat, lng)) {
                 return {
                   ...prediction,
-                  latitude: details.geometry.location.lat,
-                  longitude: details.geometry.location.lng,
+                    latitude: lat,
+                    longitude: lng,
                   address: details.formatted_address
                 };
               }
-              return prediction;
+              }
+              return null;
             } catch (error) {
               console.log('Failed to get details for:', prediction.place_id);
-              return prediction;
+              return null;
             }
           })
         );
-        setSearchResults(resultsWithCoords);
-        setNoResults(false);
+        
+        // Filter out null results and combine with saved locations
+        const validResults = resultsWithCoords.filter(result => result !== null);
+        const combinedResults = [...savedMatches, ...validResults];
+        setSearchResults(combinedResults);
       } else if (data.status === 'REQUEST_DENIED') {
         console.error('❌ Places API access denied:', data.error_message);
         // Fallback to basic search
         await searchPlacesFallback(query);
       } else if (data.status === 'ZERO_RESULTS') {
         console.log('📭 No results found');
-        setSearchResults([]);
-        setNoResults(true);
+        // Still show saved location matches if any
+        setSearchResults(savedMatches);
       } else {
         console.error('❌ Places API error:', data.status, data.error_message);
-        setSearchResults([]);
-        setNoResults(true);
+        // Still show saved location matches if any
+        setSearchResults(savedMatches);
       }
     } catch (error) {
       console.error('❌ Network error:', error);
-      setSearchResults([]);
-      setNoResults(true);
-    } finally {
-      setIsSearching(false);
+      // Still show saved location matches if any
+      const savedMatches = getSavedLocationMatches(query);
+      setSearchResults(savedMatches);
     }
   };
 
@@ -523,13 +569,22 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   const searchPlacesFallback = async (query: string) => {
     try {
       console.log('🔄 Using fallback geocoding search');
+      const savedMatches = getSavedLocationMatches(query);
+      
       const response = await fetch(
-        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&components=country:in&key=${GOOGLE_MAPS_API_KEY}`
+        `https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(query)}&components=country:in|administrative_area:Telangana&key=${GOOGLE_MAPS_API_KEY}`
       );
       const data = await response.json();
       
       if (data.status === 'OK' && data.results && data.results.length > 0) {
-        const fallbackResults = data.results.slice(0, 5).map((result: any) => ({
+        const fallbackResults = data.results
+          .filter((result: any) => {
+            const lat = result.geometry.location.lat;
+            const lng = result.geometry.location.lng;
+            return isInHyderabadArea(lat, lng);
+          })
+          .slice(0, 5)
+          .map((result: any) => ({
           place_id: result.place_id,
           description: result.formatted_address,
           structured_formatting: {
@@ -540,8 +595,9 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           longitude: result.geometry.location.lng,
           address: result.formatted_address
         }));
-        setSearchResults(fallbackResults);
-        setNoResults(false);
+        // Combine saved locations with fallback results
+        const combinedResults = [...savedMatches, ...fallbackResults];
+        setSearchResults(combinedResults);
       } else {
         // Try offline fallback
         await searchPlacesOffline(query);
@@ -553,46 +609,44 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     }
   };
 
-  // Offline fallback with common locations
+  // Enhanced offline fallback with Hyderabad-specific locations
   const searchPlacesOffline = async (query: string) => {
-    console.log('📱 Using offline fallback search');
+    console.log('📱 Using enhanced offline fallback search');
     
-    const commonLocations = [
-      { name: 'Delhi', address: 'Delhi, India', lat: 28.6139, lng: 77.2090 },
-      { name: 'Mumbai', address: 'Mumbai, Maharashtra, India', lat: 19.0760, lng: 72.8777 },
-      { name: 'Bangalore', address: 'Bangalore, Karnataka, India', lat: 12.9716, lng: 77.5946 },
-      { name: 'Hyderabad', address: 'Hyderabad, Telangana, India', lat: 17.3850, lng: 78.4867 },
-      { name: 'Chennai', address: 'Chennai, Tamil Nadu, India', lat: 13.0827, lng: 80.2707 },
-      { name: 'Kolkata', address: 'Kolkata, West Bengal, India', lat: 22.5726, lng: 88.3639 },
-      { name: 'Pune', address: 'Pune, Maharashtra, India', lat: 18.5204, lng: 73.8567 },
-      { name: 'Ahmedabad', address: 'Ahmedabad, Gujarat, India', lat: 23.0225, lng: 72.5714 },
-      { name: 'Jaipur', address: 'Jaipur, Rajasthan, India', lat: 26.9124, lng: 75.7873 },
-      { name: 'Surat', address: 'Surat, Gujarat, India', lat: 21.1702, lng: 72.8311 }
-    ];
+    const lowercaseQuery = query.toLowerCase();
+    const savedMatches = getSavedLocationMatches(query);
     
-    const filteredLocations = commonLocations.filter(location =>
-      location.name.toLowerCase().includes(query.toLowerCase()) ||
-      location.address.toLowerCase().includes(query.toLowerCase())
+    // First, search in our popular places data
+    const popularMatches = HYDERABAD_POPULAR_PLACES.filter(place =>
+      place.name.toLowerCase().includes(lowercaseQuery) ||
+      place.address.toLowerCase().includes(lowercaseQuery) ||
+      place.subcategory?.toLowerCase().includes(lowercaseQuery) ||
+      place.description?.toLowerCase().includes(lowercaseQuery)
     );
     
-    if (filteredLocations.length > 0) {
-      const offlineResults = filteredLocations.slice(0, 5).map((location, index) => ({
-        place_id: `offline_${index}`,
-        description: location.address,
+    // If we found matches in popular places, use those
+    if (popularMatches.length > 0) {
+      const offlineResults = popularMatches.slice(0, 8).map((place, index) => ({
+        place_id: `offline_popular_${index}`,
+        description: place.address,
         structured_formatting: {
-          main_text: location.name,
-          secondary_text: location.address.replace(location.name + ', ', '')
+          main_text: place.name,
+          secondary_text: place.subcategory || place.address.split(',')[1]?.trim() || ''
         },
-        latitude: location.lat,
-        longitude: location.lng,
-        address: location.address
+        latitude: place.latitude,
+        longitude: place.longitude,
+        address: place.address,
+        category: place.category,
+        subcategory: place.subcategory
       }));
-      setSearchResults(offlineResults);
-      setNoResults(false);
-    } else {
-      setSearchResults([]);
-      setNoResults(true);
+      // Combine saved locations with popular places
+      const combinedResults = [...savedMatches, ...offlineResults];
+      setSearchResults(combinedResults);
+      return;
     }
+    
+    // Only show saved location matches if no Hyderabad popular places found
+    setSearchResults(savedMatches);
   };
 
   const getPlaceDetails = async (placeId: string) => {
@@ -642,8 +696,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       });
       return;
     }
-    // Handle offline results (they already have coordinates)
-    if (item.place_id && item.place_id.startsWith('offline_')) {
+    // Handle saved locations and offline results (they already have coordinates)
+    if (item.place_id && (item.place_id.startsWith('offline_') || item.place_id.startsWith('saved_'))) {
       location = {
         latitude: item.latitude,
         longitude: item.longitude,
@@ -698,7 +752,6 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       setDropLocationQuery(location.address || location.name || '');
       setSearchQuery(location.address || location.name || '');
       setSearchResults([]);
-      setNoResults(false);
       Keyboard.dismiss();
           
       // Enhanced validation
@@ -771,223 +824,13 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     }
     setEditing(null);
     setSearchResults([]);
-    setNoResults(false);
     Keyboard.dismiss();
   };
 
-  const handleSelectOnMap = () => {
-    navigation.navigate('DropPinLocation');
-  };
 
-  const handleConfirmDrop = async () => {
-    // For rebook scenarios or when editing drop, use the provided pickup location instead of current location
-    let pickupLocation = (route.params?.isRebook || route.params?.type === 'drop') && route.params?.pickup 
-      ? route.params.pickup 
-      : (isValidLocation(currentLocation) ? currentLocation : null);
-    
-    // If we don't have a valid pickup location and it's not a rebook or drop edit, try to get current location
-    if (!pickupLocation && !route.params?.isRebook && route.params?.type !== 'drop') {
-      pickupLocation = await getCurrentLocationReliably();
-    }
-    
-    // If still no pickup location, use fallback
-    if (!pickupLocation) {
-      pickupLocation = {
-        latitude: 17.4448, // Fallback to static Hyderabad if dynamic fails
-        longitude: 78.3498,
-        address: 'Hyderabad, Telangana, India',
-        name: 'Hyderabad',
-      };
-    }
-
-    // Check if pickup and drop locations are the same
-    if (pickupLocation && dropLocation) {
-      const isSameLocation = (
-        Math.abs(pickupLocation.latitude - dropLocation.latitude) < 0.0001 &&
-        Math.abs(pickupLocation.longitude - dropLocation.longitude) < 0.0001
-      ) || (
-        pickupLocation.address && dropLocation.address &&
-        pickupLocation.address.toLowerCase().trim() === dropLocation.address.toLowerCase().trim()
-      );
-
-      if (isSameLocation) {
-        Alert.alert(
-          'Same Location Selected',
-          'Drop location and pickup location both are same. Please select a different destination.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
-    }
-        
-    // Enhanced validation
-    const pickupValidation = validateLocationForRebook(pickupLocation, 'pickup');
-    const dropoffValidation = validateLocationForRebook(dropLocation, 'dropoff');
-    
-    if (!pickupValidation.isValid) {
-      Alert.alert(
-        'Location Error', 
-        pickupValidation.error || 'Pickup location is not available. Please try again.',
-        [
-          { text: 'Cancel', style: 'cancel' },
-          { 
-            text: 'Retry', 
-            onPress: async () => {
-              const newLocation = await getCurrentLocationReliably();
-              if (newLocation && validateLocationForRebook(newLocation, 'pickup').isValid) {
-                navigation.replace('RideOptions', {
-                  pickup: newLocation,
-                  drop: dropLocation,
-                  forWhom,
-                  friendName,
-                  friendPhone,
-                });
-              } else {
-                Alert.alert('Error', 'Still unable to get your location. Please try again later.');
-              }
-            }
-          }
-        ]
-      );
-      return;
-    }
-    
-    if (!dropoffValidation.isValid) {
-      Alert.alert(
-        'Location Error', 
-        dropoffValidation.error || 'Dropoff location is not available. Please try again.',
-        [{ text: 'OK' }]
-      );
-      return;
-    }
-    
-    // If we came here to edit only the drop (from RideOptions), use original pickup
-    if (route.params?.type === 'drop') {
-      navigation.replace('RideOptions', {
-        pickup: route.params?.pickup, // Use original pickup from route params, don't change it
-        drop: dropLocation,
-        forWhom,
-        friendName,
-        friendPhone,
-      });
-    } else {
-      // Normal flow - use both pickup and drop
-      navigation.replace('RideOptions', {
-        pickup: pickupLocation,
-        drop: dropLocation,
-        forWhom,
-        friendName,
-        friendPhone,
-      });
-    }
-  };
-
-  // Update renderSearchResult to match the desired UI
-  const renderSearchResult = ({ item, index }: { item: any, index: number }) => {
-    // Debug: log what data we have
-    console.log('Search result item:', item);
-    console.log('Current location:', currentLocation);
-    
-    // Calculate real distance if possible
-    let realDistance = null;
-    if (
-      currentLocation &&
-      typeof currentLocation.latitude === 'number' &&
-      typeof currentLocation.longitude === 'number' &&
-      typeof item.latitude === 'number' &&
-      typeof item.longitude === 'number'
-    ) {
-      realDistance = getDistanceFromLatLonInKm(
-        currentLocation.latitude,
-        currentLocation.longitude,
-        item.latitude,
-        item.longitude
-      );
-      console.log('Calculated distance:', realDistance);
-    } else {
-      console.log('Cannot calculate distance - missing coordinates');
-    }
-    
-    return (
-      <TouchableOpacity
-        style={{
-          flexDirection: 'row',
-          alignItems: 'center',
-          backgroundColor: '#fff',
-          borderRadius: 16,
-          paddingVertical: 14,
-          paddingHorizontal: 16,
-          marginHorizontal: 16,
-          marginBottom: 10,
-          elevation: 2,
-          shadowColor: '#000',
-          shadowOffset: { width: 0, height: 2 },
-          shadowOpacity: 0.06,
-          shadowRadius: 4,
-        }}
-        onPress={() => handleLocationSelect(item)}
-      >
-        {/* Location pin and distance */}
-        <View style={{ alignItems: 'center', width: 40 }}>
-          <Ionicons name="location-outline" size={20} color="#888" />
-          <Text style={{ fontSize: 13, color: '#888', marginTop: 2 }}>
-            {realDistance !== null ? formatDistance(realDistance) : '...'}
-          </Text>
-        </View>
-        {/* Main content */}
-        <View style={{ flex: 1, marginLeft: 10 }}>
-          <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#222' }}>
-            {item.structured_formatting?.main_text || item.name || item.description}
-          </Text>
-          <Text style={{ fontSize: 14, color: '#888' }} numberOfLines={1}>
-            {item.structured_formatting?.secondary_text || item.address}
-          </Text>
-        </View>
-        {/* Heart icon */}
-        <Ionicons name="heart-outline" size={20} color="#bbb" style={{ marginLeft: 10 }} />
-      </TouchableOpacity>
-    );
-  };
-
-  const renderLocation = ({ item }: { item: any }) => (
-    <TouchableOpacity
-      style={styles.locationItemModern}
-      onPress={() => {
-        setDropLocation({
-          ...item,
-          latitude: item.latitude,
-          longitude: item.longitude,
-        });
-        setEditing('drop');
-        setDropLocationQuery(item.address || item.name || '');
-        setSearchQuery(item.address || item.name || '');
-        setSearchResults([]);
-        setNoResults(false);
-        Keyboard.dismiss();
-      }}
-    >
-      <Ionicons name="time-outline" size={22} color={Colors.gray400} style={{ marginRight: 14 }} />
-      <View style={{ flex: 1 }}>
-        <Text style={styles.locationNameModern}>{item.name}</Text>
-        <Text style={styles.locationAddressModern} numberOfLines={1}>{item.address}</Text>
-      </View>
-      <Ionicons name="heart-outline" size={22} color={Colors.gray400} />
-    </TouchableOpacity>
-  );
-
-  const getListData = () => {
-    let data: any[] = [];
-    if (savedLocations.home) data.push({ ...savedLocations.home, id: 'home' });
-    if (savedLocations.work) data.push({ ...savedLocations.work, id: 'work' });
-    if (savedLocations.custom && Array.isArray(savedLocations.custom)) {
-      data = data.concat(savedLocations.custom.map((loc, idx) => ({ ...loc, id: `custom_${idx}` })));
-    }
-    // Removed dummy recents/hardcoded
-    return data;
-  };
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F7F7' }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#F7F7F7' }} edges={['top', 'left', 'right']}>
       <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'} keyboardVerticalOffset={Platform.OS === 'ios' ? 80 : 0}>
       {/* Loading overlay when getting location */}
       {isGettingLocation && (
@@ -1017,275 +860,390 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       <TouchableOpacity onPress={() => navigation.goBack()} style={{ position: 'absolute', top: 20, left: 20, zIndex: 10 }}>
         <Ionicons name="arrow-back" size={28} color={Colors.text} />
       </TouchableOpacity>
-      <FlatList
-        data={(() => {
-          // Sectioned data: recents first, then saved
-          let flatListData = [];
-          // Add recents (avoid duplicates with saved)
-          RECENT_LOCATIONS.forEach((loc) => {
-            const isDuplicate = (savedLocations.home && loc.address === savedLocations.home.address) ||
-              (savedLocations.work && loc.address === savedLocations.work.address) ||
-              (savedLocations.custom && savedLocations.custom.some((c) => c.address === loc.address));
-            if (!isDuplicate) flatListData.push({ ...loc, type: 'recent' });
-          });
-          // Add saved locations
-          if (savedLocations.home) flatListData.push({ ...savedLocations.home, type: 'saved', id: 'home' });
-          if (savedLocations.work) flatListData.push({ ...savedLocations.work, type: 'saved', id: 'work' });
-          if (savedLocations.custom && Array.isArray(savedLocations.custom)) {
-            savedLocations.custom.forEach((loc, idx) => flatListData.push({ ...loc, type: 'saved', id: `custom_${idx}` }));
-          }
-          return (editing === 'drop' || editing === 'current') && searchQuery.length > 2 ? searchResults : flatListData;
-        })()}
-        keyExtractor={(item, index) => {
-          if (item.place_id) return item.place_id;
-          if (item.id) return String(item.id);
-          return `${item.address || ''}_${item.name || ''}_${index}`;
-        }}
-        renderItem={({ item, index }) => {
-          // Section heading logic
-          let showRecentHeading = false;
-          let showSavedHeading = false;
-          const flatListData = (() => {
-            let d = [];
-            RECENT_LOCATIONS.forEach((loc) => {
-              const isDuplicate = (savedLocations.home && loc.address === savedLocations.home.address) ||
-                (savedLocations.work && loc.address === savedLocations.work.address) ||
-                (savedLocations.custom && savedLocations.custom.some((c) => c.address === loc.address));
-              if (!isDuplicate) d.push({ ...loc, type: 'recent' });
-            });
-            if (savedLocations.home) d.push({ ...savedLocations.home, type: 'saved', id: 'home' });
-            if (savedLocations.work) d.push({ ...savedLocations.work, type: 'saved', id: 'work' });
-            if (savedLocations.custom && Array.isArray(savedLocations.custom)) {
-              savedLocations.custom.forEach((loc, idx) => d.push({ ...loc, type: 'saved', id: `custom_${idx}` }));
-            }
-            return d;
-          })();
-          if (item.type === 'recent') {
-            showRecentHeading =
-              index === 0 || (flatListData[index - 1] && flatListData[index - 1].type !== 'recent');
-          }
-          if (item.type === 'saved') {
-            showSavedHeading =
-              index === 0 || (flatListData[index - 1] && flatListData[index - 1].type !== 'saved');
-          }
-          return (
-            <View>
-              {showRecentHeading && (
-                <Text style={{ marginLeft: 16, marginTop: 12, fontWeight: '700', color: '#23235B', fontSize: 15 }}>Recent</Text>
-              )}
-              {showSavedHeading && (
-                <Text style={{ marginLeft: 16, marginTop: 12, fontWeight: '700', color: '#23235B', fontSize: 15 }}>Saved</Text>
-              )}
-              <TouchableOpacity style={{ padding: 16, flexDirection: 'row', alignItems: 'center' }} onPress={() => handleLocationSelect(item)}>
-                <Ionicons name="location-sharp" size={20} color="#4CAF50" style={{ marginRight: 12 }} />
-                <View>
-                  <Text style={{ fontWeight: '600', color: '#222', fontSize: 15 }}>{item.name || item.address}</Text>
-                  {item.address && <Text style={{ color: '#888', fontSize: 13 }}>{item.address}</Text>}
-                </View>
-              </TouchableOpacity>
-            </View>
-          );
-        }}
-        ListHeaderComponent={
-          <>
-            {/* Rebook indicator */}
-            {route.params?.isRebook && (
+      
+      
+      {/* Minimalist Search Card */}
+      <View style={{ marginHorizontal: 16, marginTop: 60, marginBottom: 12 }}>
+        <View style={{
+          backgroundColor: '#fff',
+          borderRadius: 12,
+          shadowColor: '#000',
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.06,
+          shadowRadius: 4,
+          elevation: 2,
+          borderWidth: 1,
+          borderColor: 'rgba(0,0,0,0.04)',
+        }}>
+          <View style={{ 
+            flexDirection: 'row', 
+            alignItems: 'stretch',
+            paddingVertical: 12,
+            paddingHorizontal: 12,
+          }}>
+            <View style={{ alignItems: 'center', marginRight: 10, width: 16 }}>
               <View style={{
-                marginHorizontal: 16,
-                marginTop: 24,
-                marginBottom: 8,
-                backgroundColor: Colors.primary + '15',
-                borderRadius: 12,
-                paddingHorizontal: 16,
-                paddingVertical: 12,
-                flexDirection: 'row',
-                alignItems: 'center',
-              }}>
-                <Ionicons name="refresh" size={20} color={Colors.primary} style={{ marginRight: 8 }} />
-                <Text style={{ color: Colors.primary, fontWeight: '600', fontSize: 14 }}>
-                  Rebooking previous ride
-                </Text>
-              </View>
-            )}
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: '#10b981',
+                marginBottom: 3,
+              }} />
+              <View style={{ 
+                width: 1.5, 
+                flex: 1, 
+                backgroundColor: '#E0E0E0', 
+                marginVertical: 3,
+              }} />
+              <View style={{
+                width: 8,
+                height: 8,
+                borderRadius: 4,
+                backgroundColor: '#ef4444',
+                marginTop: 3,
+              }} />
+            </View>
             
-            {/* Top selectors and editing indicator */}
-            <View style={{
-              marginHorizontal: 16,
-              marginTop: route.params?.isRebook ? 8 : 24,
-              marginBottom: 18,
-              borderRadius: 20,
-              backgroundColor: '#fff',
-              shadowColor: '#000',
-              shadowOffset: { width: 0, height: 2 },
-              shadowOpacity: 0.08,
-              shadowRadius: 8,
-              elevation: 4,
-              paddingVertical: 18,
-              paddingHorizontal: 18,
-              flexDirection: 'row',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-            }}>
-              <TouchableOpacity style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, marginRight: 8, flex: 1 }}>
-                <Ionicons name="location-sharp" size={20} color="#4CAF50" style={{ marginRight: 8 }} />
-                <Text style={{ fontWeight: '700', color: '#222', fontSize: 16 }}>Pick-up now</Text>
-                <Ionicons name="chevron-down" size={18} color="#4CAF50" style={{ marginLeft: 6 }} />
-              </TouchableOpacity>
-              <View style={{ width: 12 }} />
-              <TouchableOpacity
-                style={{ flexDirection: 'row', alignItems: 'center', backgroundColor: '#F5F5F5', borderRadius: 22, paddingHorizontal: 16, paddingVertical: 10, flex: 1 }}
-                onPress={() => setShowForWhomModal(true)}
-              >
-                <Ionicons name="person-circle" size={20} color="#4CAF50" style={{ marginRight: 8 }} />
-                <Text style={{ fontWeight: '700', color: '#222', fontSize: 16 }}>For me</Text>
-                <Ionicons name="chevron-down" size={18} color="#4CAF50" style={{ marginLeft: 6 }} />
-              </TouchableOpacity>
-            </View>
-            {editing && (
-              <View style={{ marginHorizontal: 16, marginBottom: 8 }}>
-                <Text style={{
-                  fontSize: 14,
-                  color: editing === 'current' ? '#E53935' : '#23235B',
-                  fontWeight: '600',
-                  textAlign: 'center'
-                }}>
-                  {editing === 'current' ? 'Editing pickup location...' : 'Editing drop location...'}
-                </Text>
-              </View>
-            )}
-            {/* Location Card - Outlined, rounded, vertical icon style */}
-            <View style={{ flexDirection: 'row', alignItems: 'center', marginHorizontal: 16, marginBottom: 16 }}>
-              <View style={{ flex: 1 }}>
-                <View style={{
-                  flexDirection: 'row',
-                  alignItems: 'stretch',
-                  backgroundColor: '#fff',
-                  borderRadius: 16,
-                  borderWidth: 2,
-                  borderColor: editing === 'current' ? '#E53935' : editing === 'drop' ? '#23235B' : '#222',
+            <View style={{ flex: 1, justifyContent: 'center' }}>
+              {/* Pickup Location */}
+              <TouchableOpacity 
+                onPress={() => { setEditing('current'); setCurrentLocationQuery(''); setSearchQuery(''); }} 
+                activeOpacity={0.7}
+                style={{
                   paddingVertical: 10,
-                  paddingHorizontal: 14,
-                  minHeight: 64,
-                }}>
-                  <View style={{ alignItems: 'center', marginRight: 10, width: 20 }}>
-                    <Ionicons name="ellipse" size={18} color={'#22c55e'} style={{ marginBottom: 2 }} />
-                    <View style={{ width: 2, flex: 1, backgroundColor: '#E0E0E0', marginVertical: 2 }} />
-                    <Ionicons name="square" size={18} color={'#E53935'} style={{ marginTop: 2 }} />
+                  paddingHorizontal: 10,
+                  borderRadius: 8,
+                  backgroundColor: editing === 'current' ? 'rgba(102, 126, 234, 0.05)' : 'transparent',
+                  borderWidth: editing === 'current' ? 1 : 0,
+                  borderColor: 'rgba(102, 126, 234, 0.2)',
+                  marginBottom: 6,
+                }}
+              >
+                {editing === 'current' ? (
+                  <TextInput
+                    ref={currentInputRef}
+                    style={{ 
+                      color: '#1a1a1a', 
+                      fontWeight: '600', 
+                      fontSize: 15, 
+                      paddingVertical: 0, 
+                      paddingHorizontal: 0,
+                    }}
+                    value={currentLocationQuery}
+                    onChangeText={(text) => {
+                      setCurrentLocationQuery(text);
+                      setSearchQuery(text);
+                    }}
+                    placeholder="Enter pickup location"
+                    placeholderTextColor="#999"
+                    clearButtonMode="while-editing"
+                    onSubmitEditing={() => setEditing(null)}
+                  />
+                ) : (
+                  <View>
+                    <Text style={{ 
+                      color: '#1a1a1a', 
+                      fontWeight: '600', 
+                      fontSize: 15,
+                      marginBottom: 2,
+                    }}>
+                      {currentLocation?.address || currentLocation?.name || 'Current Location'}
+                    </Text>
+                    <Text style={{ 
+                      color: '#10b981', 
+                      fontSize: 11, 
+                      fontWeight: '500',
+                    }}>
+                      Pickup point
+                    </Text>
                   </View>
-                  <View style={{ flex: 1, justifyContent: 'center' }}>
-                    <TouchableOpacity onPress={() => { setEditing('current'); setCurrentLocationQuery(''); setSearchQuery(''); }} activeOpacity={0.8}>
-                      {editing === 'current' ? (
-                        <TextInput
-                          ref={currentInputRef}
-                          style={{ color: '#222', fontWeight: 'bold', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginBottom: 0 }}
-                          value={currentLocationQuery}
-                          onChangeText={(text) => {
-                            setCurrentLocationQuery(text);
-                            setSearchQuery(text);
-                          }}
-                          clearButtonMode="while-editing"
-                          onSubmitEditing={() => setEditing(null)}
-                        />
-                      ) : (
-                        <Text style={{ color: '#222', fontWeight: 'bold', fontSize: 15 }}>{currentLocation?.address || currentLocation?.name || 'Current Location'}</Text>
-                      )}
-                    </TouchableOpacity>
-                    <View style={{ height: 20 }} />
-                    <TouchableOpacity onPress={() => { 
-                      console.log('🎯 Drop location TouchableOpacity pressed');
-                      console.log('📍 Current dropLocation:', dropLocation);
-                      console.log('📍 Current editing state before:', editing);
-                      setEditing('drop'); 
-                      setDropLocationQuery(''); // Clear the query to allow fresh input
-                      setSearchQuery(''); // Clear the search query too
-                      console.log('📍 Setting editing to drop, clearing query for fresh input');
-                      
-                      // Try to focus immediately after state change
-                      setTimeout(() => {
-                        console.log('🎯 Immediate focus attempt');
-                        if (dropInputRef.current) {
-                          dropInputRef.current.focus();
-                          console.log('✅ Immediate focus successful');
-                        } else {
-                          console.log('❌ Immediate focus failed - ref is null');
-                        }
-                      }, 50);
-                    }} activeOpacity={0.8}>
-                      {editing === 'drop' ? (
-                        <TextInput
-                          ref={(ref) => {
-                            console.log('🔗 Drop TextInput ref set:', !!ref);
-                            dropInputRef.current = ref;
-                          }}
-                          style={{ color: '#888', fontSize: 15, paddingVertical: 0, paddingHorizontal: 0, marginTop: 2 }}
-                          value={dropLocationQuery}
-                          onChangeText={(text) => {
-                            console.log('📝 Drop input text changed:', text);
-                            setDropLocationQuery(text);
-                            setSearchQuery(text);
-                          }}
-                          placeholder="Where to?"
-                          clearButtonMode="while-editing"
-                          returnKeyType="send"
-                          autoFocus={true}
-                          onFocus={() => console.log('🎯 Drop TextInput onFocus triggered')}
-                          onBlur={() => console.log('🎯 Drop TextInput onBlur triggered')}
-                          onSubmitEditing={() => {
-                            console.log('📤 Drop input onSubmitEditing');
-                            if (dropLocation) {
-                              navigation.replace('RideOptions', {
-                                pickup: currentLocation,
-                                drop: dropLocation,
-                                forWhom,
-                                friendName,
-                                friendPhone,
-                              });
-                            }
-                          }}
-                        />
-                      ) : (
-                        <Text style={{ color: '#888', fontSize: 15, marginTop: 2 }}>{dropLocation ? dropLocation.address || dropLocation.name : 'Where to?'}</Text>
-                      )}
-                    </TouchableOpacity>
+                )}
+              </TouchableOpacity>
+              
+              {/* Dropoff Location */}
+              <TouchableOpacity 
+                onPress={() => { 
+                  setEditing('drop'); 
+                  setDropLocationQuery('');
+                  setSearchQuery('');
+                  
+                  setTimeout(() => {
+                    if (dropInputRef.current) {
+                      dropInputRef.current.focus();
+                    }
+                  }, 50);
+                }} 
+                activeOpacity={0.7}
+                style={{
+                  paddingVertical: 10,
+                  paddingHorizontal: 10,
+                  borderRadius: 8,
+                  backgroundColor: editing === 'drop' ? 'rgba(239, 68, 68, 0.05)' : 'transparent',
+                  borderWidth: editing === 'drop' ? 1 : 0,
+                  borderColor: 'rgba(239, 68, 68, 0.2)',
+                }}
+              >
+                {editing === 'drop' ? (
+                  <TextInput
+                    ref={(ref) => {
+                      dropInputRef.current = ref;
+                    }}
+                    style={{ 
+                      color: '#1a1a1a', 
+                      fontWeight: '600', 
+                      fontSize: 15, 
+                      paddingVertical: 0, 
+                      paddingHorizontal: 0,
+                    }}
+                    value={dropLocationQuery}
+                    onChangeText={(text) => {
+                      setDropLocationQuery(text);
+                      setSearchQuery(text);
+                    }}
+                    placeholder="Where do you want to go?"
+                    placeholderTextColor="#999"
+                    clearButtonMode="while-editing"
+                    returnKeyType="send"
+                    autoFocus={true}
+                    onSubmitEditing={() => {
+                      if (dropLocation) {
+                        navigation.replace('RideOptions', {
+                          pickup: currentLocation,
+                          drop: dropLocation,
+                          forWhom,
+                          friendName,
+                          friendPhone,
+                        });
+                      }
+                    }}
+                  />
+                ) : (
+                  <View>
+                    <Text style={{ 
+                      color: dropLocation ? '#1a1a1a' : '#999', 
+                      fontWeight: '600', 
+                      fontSize: 15,
+                      marginBottom: 2,
+                    }}>
+                      {dropLocation ? (dropLocation.address || dropLocation.name) : 'Where do you want to go?'}
+                    </Text>
+                    <Text style={{ 
+                      color: '#ef4444', 
+                      fontSize: 11, 
+                      fontWeight: '500',
+                    }}>
+                      Destination
+                    </Text>
                   </View>
-                </View>
-              </View>
+                )}
+              </TouchableOpacity>
             </View>
-          </>
-        }
-        ListEmptyComponent={
-          isSearching ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>
-              <LoadingSpinner size="small" />
-            </View>
-          ) : noResults ? (
-            <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', marginTop: 40 }}>
-              <Text style={{ color: Colors.textLight }}>No suggestions found</Text>
-            </View>
-          ) : null
-        }
-        contentContainerStyle={{ paddingBottom: 200 }}
-        keyboardDismissMode="on-drag"
-        keyboardShouldPersistTaps="handled"
-      />
-      {/* Set location on map button at the bottom */}
-      <View style={{ position: 'absolute', left: 0, right: 0, bottom: 0, backgroundColor: '#fff', paddingBottom: 16, paddingTop: 8, alignItems: 'center', borderTopWidth: 1, borderTopColor: '#eee', zIndex: 100 }}>
-        <TouchableOpacity
-          style={{ flexDirection: 'row', alignItems: 'center', paddingHorizontal: 16, paddingVertical: 16, width: '92%', borderRadius: 18, justifyContent: 'center' }}
-          onPress={() => {
-            if (editing === 'current') {
-              navigation.navigate('DropPinLocation', { mode: 'pickup' });
-            } else if (editing === 'drop') {
-              navigation.navigate('DropPinLocation', { mode: 'drop' });
-            } else {
-              navigation.navigate('DropPinLocation', { mode: 'drop' });
-            }
-          }}
-        >
-          <Ionicons name="location-sharp" size={22} color="#23235B" style={{ marginRight: 16 }} />
-          <Text style={{ color: '#23235B', fontSize: 16, fontWeight: '700' }}>Set location on map</Text>
-        </TouchableOpacity>
+          </View>
+        </View>
       </View>
+      
+      {/* Conditional rendering based on search state */}
+      {(editing === 'drop' || editing === 'current') && searchQuery.length > 2 ? (
+        // Clean Search Results
+        <View style={{ flex: 1, marginHorizontal: 16, paddingBottom: 100 }}>
+          <View style={{
+            backgroundColor: '#fff',
+            borderRadius: 16,
+            shadowColor: '#000',
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.1,
+            shadowRadius: 8,
+            elevation: 4,
+            marginBottom: 16,
+          }}>
+            <View style={{
+              paddingHorizontal: 16,
+              paddingVertical: 12,
+              borderBottomWidth: 1,
+              borderBottomColor: 'rgba(0,0,0,0.05)',
+            }}>
+              <Text style={{
+                fontSize: 16,
+                fontWeight: '600',
+                color: '#1a1a1a',
+                textAlign: 'center',
+              }}>
+                Search Results ({searchResults.length})
+              </Text>
+            </View>
+            
+            <FlatList
+              data={searchResults}
+              keyExtractor={(item, index) => item.place_id ? item.place_id : `${item.address || ''}_${index}`}
+              renderItem={({ item, index }) => (
+                <TouchableOpacity 
+                  style={{ 
+                    paddingHorizontal: 16,
+                    paddingVertical: 16,
+                    flexDirection: 'row', 
+                    alignItems: 'center',
+                    borderBottomWidth: index < searchResults.length - 1 ? 1 : 0,
+                    borderBottomColor: 'rgba(0,0,0,0.05)',
+                    backgroundColor: '#fff',
+                  }} 
+                  onPress={() => handleLocationSelect(item)}
+                  activeOpacity={0.7}
+                >
+                  {item.place_id && item.place_id.startsWith('offline_popular_') ? (
+                    <View style={{ 
+                      width: 40, 
+                      height: 40, 
+                      borderRadius: 20, 
+                      backgroundColor: getCategoryColor(item.category) + '15',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginRight: 12,
+                    }}>
+                      <Text style={{ fontSize: 18 }}>{getCategoryIcon(item.category)}</Text>
+                    </View>
+                  ) : item.isSaved ? (
+                    <View style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: item.savedType === 'home' ? 'rgba(76, 175, 80, 0.1)' : 
+                                      item.savedType === 'work' ? 'rgba(255, 152, 0, 0.1)' : 
+                                      'rgba(156, 39, 176, 0.1)',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginRight: 12,
+                    }}>
+                      <Ionicons 
+                        name={item.savedType === 'home' ? 'home' : 
+                              item.savedType === 'work' ? 'briefcase' : 'bookmark'} 
+                        size={20} 
+                        color={item.savedType === 'home' ? '#4CAF50' : 
+                               item.savedType === 'work' ? '#FF9800' : '#9C27B0'} 
+                      />
+                    </View>
+                  ) : (
+                    <View style={{
+                      width: 40,
+                      height: 40,
+                      borderRadius: 20,
+                      backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                      justifyContent: 'center',
+                      alignItems: 'center',
+                      marginRight: 12,
+                    }}>
+                      <Ionicons name="location" size={20} color="#10b981" />
+                    </View>
+                  )}
+                  
+                  <View style={{ flex: 1 }}>
+                    <Text style={{ 
+                      fontWeight: '600', 
+                      color: '#1a1a1a', 
+                      fontSize: 16,
+                      marginBottom: 4,
+                    }}>
+                      {item.structured_formatting?.main_text || item.name}
+                    </Text>
+                    <Text style={{ 
+                      color: '#666', 
+                      fontSize: 14,
+                      marginBottom: 2,
+                    }}>
+                      {item.structured_formatting?.secondary_text || item.address}
+                    </Text>
+                    {item.subcategory && (
+                      <View style={{
+                        alignSelf: 'flex-start',
+                        backgroundColor: getCategoryColor(item.category) + '10',
+                        paddingHorizontal: 8,
+                        paddingVertical: 2,
+                        borderRadius: 8,
+                        marginTop: 4,
+                      }}>
+                        <Text style={{ 
+                          color: getCategoryColor(item.category), 
+                          fontSize: 11, 
+                          fontWeight: '600',
+                        }}>
+                          {item.subcategory}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                  
+                  <Ionicons name="chevron-forward" size={16} color="#999" />
+                </TouchableOpacity>
+              )}
+              showsVerticalScrollIndicator={false}
+            />
+          </View>
+        </View>
+      ) : (
+        // Show categorized popular places and saved locations
+        <View style={{ flex: 1, paddingBottom: 100 }}>
+          <CategorizedLocationList
+            onLocationSelect={(location) => handleLocationSelect(location)}
+            showAllCategories={true}
+            maxItemsPerCategory={4}
+          />
+        </View>
+      )}
+       {/* Clean Set location on map button */}
+       <View style={{ 
+         position: 'absolute', 
+         left: 0, 
+         right: 0, 
+         bottom: 0, 
+         backgroundColor: '#fff', 
+         paddingBottom: 8, 
+         paddingTop: 12, 
+         alignItems: 'center', 
+         borderTopWidth: 1, 
+         borderTopColor: 'rgba(0,0,0,0.05)', 
+         zIndex: 100,
+         shadowColor: '#000',
+         shadowOffset: { width: 0, height: -4 },
+         shadowOpacity: 0.1,
+         shadowRadius: 8,
+         elevation: 4,
+       }}>
+         <TouchableOpacity
+           style={{ 
+             flexDirection: 'row', 
+             alignItems: 'center', 
+             paddingHorizontal: 20, 
+             paddingVertical: 16, 
+             width: '90%', 
+             borderRadius: 16, 
+             justifyContent: 'center',
+             backgroundColor: '#23235B',
+             shadowColor: '#23235B',
+             shadowOffset: { width: 0, height: 4 },
+             shadowOpacity: 0.2,
+             shadowRadius: 8,
+             elevation: 4,
+           }}
+           onPress={() => {
+             if (editing === 'current') {
+               navigation.navigate('DropPinLocation', { mode: 'pickup' });
+             } else if (editing === 'drop') {
+               navigation.navigate('DropPinLocation', { mode: 'drop' });
+             } else {
+               navigation.navigate('DropPinLocation', { mode: 'drop' });
+             }
+           }}
+           activeOpacity={0.8}
+         >
+           <Ionicons name="map" size={20} color="#fff" style={{ marginRight: 12 }} />
+           <Text style={{ 
+             color: '#fff', 
+             fontSize: 16, 
+             fontWeight: '600',
+           }}>
+             Set location on map
+           </Text>
+         </TouchableOpacity>
+       </View>
       {/* For Whom Modal (unchanged) */}
       <RNModal
         visible={showForWhomModal}
@@ -1310,211 +1268,3 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
     </SafeAreaView>
   );
 }
-
-const styles = StyleSheet.create({
-  safeArea: {
-    flex: 1,
-    backgroundColor: Colors.background,
-  },
-  navBar: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingHorizontal: 16,
-    paddingTop: 8,
-    paddingBottom: 10,
-    backgroundColor: Colors.background,
-  },
-  navIcon: {
-    padding: 4,
-  },
-  navTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: Colors.text,
-  },
-  navDropdown: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.gray50,
-    borderRadius: 16,
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-  },
-  navDropdownText: {
-    fontSize: 15,
-    color: Colors.text,
-    fontWeight: '500',
-  },
-  summaryCardModern: {
-    flexDirection: 'row',
-    backgroundColor: '#fff',
-    borderRadius: 24,
-    marginHorizontal: 16,
-    marginTop: 16,
-    padding: 20,
-    alignItems: 'center',
-    elevation: 4,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-  },
-  summaryIcons: {
-    alignItems: 'center',
-    marginRight: 14,
-    height: 60,
-    justifyContent: 'space-between',
-  },
-  iconShadow: {
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.08,
-    shadowRadius: 2,
-  },
-  dottedLine: {
-    width: 2,
-    flex: 1,
-    borderStyle: 'dotted',
-    borderWidth: 1,
-    borderColor: Colors.gray300,
-    marginVertical: 2,
-    borderRadius: 1,
-  },
-  summaryTextCol: {
-    flex: 1,
-    justifyContent: 'space-between',
-  },
-  summaryTitleModern: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 8,
-  },
-  summaryDivider: {
-    height: 1,
-    backgroundColor: Colors.gray200,
-    marginVertical: 2,
-    borderRadius: 1,
-  },
-  summarySubtitleModern: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: Colors.coral,
-    marginTop: 8,
-  },
-  inputModern: {
-    color: Colors.text,
-    backgroundColor: Colors.gray50,
-    borderRadius: 12,
-    paddingHorizontal: 12,
-    fontSize: 16,
-    height: 40,
-    marginVertical: 4,
-  },
-  listContentModern: {
-    paddingHorizontal: 8,
-    paddingBottom: 24,
-    marginTop: 8,
-  },
-  locationItemModern: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-    borderRadius: 18,
-    paddingVertical: 18,
-    paddingHorizontal: 18,
-    marginBottom: 10,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-  },
-  locationNameModern: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: Colors.text,
-    marginBottom: 2,
-  },
-  locationAddressModern: {
-    fontSize: 14,
-    color: Colors.gray400,
-    fontWeight: '400',
-  },
-  iconCircleModern: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 18,
-  },
-  allSavedModern: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 18,
-    paddingVertical: 18,
-    backgroundColor: '#fff',
-    marginTop: 10,
-    borderRadius: 18,
-    elevation: 2,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.06,
-    shadowRadius: 4,
-  },
-  allSavedTextModern: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#23235B',
-    flex: 1,
-  },
-  searchBarModern: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#F5F5F7',
-    borderRadius: 16,
-    marginHorizontal: 16,
-    paddingHorizontal: 16,
-    height: 48,
-    marginBottom: 12,
-    marginTop: 8,
-  },
-  searchInputModern: {
-    flex: 1,
-    fontSize: 16,
-    color: Colors.text,
-    backgroundColor: 'transparent',
-    borderWidth: 0,
-  },
-  floatingButtonModern: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    zIndex: 100,
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingBottom: 12,
-  },
-  setOnMapButtonModern: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#23235B',
-    paddingVertical: 18,
-    width: '92%',
-    borderRadius: 18,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.10,
-    shadowRadius: 8,
-  },
-  setOnMapButtonTextModern: {
-    color: '#fff',
-    fontWeight: '700',
-    fontSize: 16,
-    letterSpacing: 0.2,
-  },
-}); 

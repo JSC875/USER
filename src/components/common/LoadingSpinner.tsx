@@ -1,22 +1,36 @@
 
 import React from 'react';
-import { View, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
 import LottieView from 'lottie-react-native';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 
 interface LoadingSpinnerProps {
-  size?: 'small' | 'large';
+  size?: 'small' | 'large' | 'tiny';
   text?: string;
   overlay?: boolean;
+  color?: string;
 }
 
 export default function LoadingSpinner({
   size = 'large',
   text,
   overlay = false,
+  color = Colors.primary,
 }: LoadingSpinnerProps) {
   const containerStyle = overlay ? styles.overlayContainer : styles.container;
+  
+  // For tiny size, use ActivityIndicator instead of Lottie
+  if (size === 'tiny') {
+    return (
+      <ActivityIndicator 
+        size="small" 
+        color={color} 
+        style={styles.tinySpinner}
+      />
+    );
+  }
+
   const animationSize = size === 'small' ? 60 : 120;
 
   return (
@@ -57,5 +71,8 @@ const styles = StyleSheet.create({
     fontSize: Layout.fontSize.md,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+  tinySpinner: {
+    margin: 0,
   },
 });
