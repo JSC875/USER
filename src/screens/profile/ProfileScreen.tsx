@@ -222,15 +222,9 @@ export default function ProfileScreen({ navigation, route }: any) {
                <Text style={styles.statLabel}>{t('ride.rideHistory')}</Text>
              </TouchableOpacity>
              <View style={styles.statDivider} />
-             <View style={styles.statItem}>
-               <Text style={styles.statValue}>{userProfile?.rating ? userProfile.rating.toFixed(1) : '0.0'}</Text>
-               <Text style={styles.statLabel}>{t('common.rating')}</Text>
-             </View>
+             
              <View style={styles.statDivider} />
-             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Payment', { initialTab: 'history' })}>
-               <Text style={styles.statValue}>₹{userProfile?.walletBalance || 0}</Text>
-               <Text style={styles.statLabel}>{t('payment.walletBalance')}</Text>
-             </TouchableOpacity>
+             
            </View>
         </View>
 

@@ -60,32 +60,6 @@ export default function SettingsScreen({ navigation }: any) {
 
   const settingSections = [
     {
-      title: t('profile.account', 'Account'),
-      items: [
-        {
-          icon: 'person-outline',
-          title: t('common.personalInformation'),
-          subtitle: t('common.updateProfileDetails'),
-          action: () => navigation.navigate('PersonalDetails', {
-            name: getUserName(),
-            email: getUserEmail(),
-            phone: getUserPhone(),
-            gender: '',
-            emergencyName: '',
-            emergencyPhone: '',
-            photo: getUserPhoto(),
-          }),
-        },
-        {
-          icon: 'shield-checkmark-outline',
-          title: t('common.privacySecurity'),
-          subtitle: t('common.managePrivacySettings'),
-          action: () => navigation.navigate('PrivacySecurity'),
-        },
-        
-      ],
-    },
-    {
       title: t('profile.preferences', 'Preferences'),
       items: [
         {
