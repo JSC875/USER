@@ -267,34 +267,24 @@ export default function HomeScreen({ navigation, route }: any) {
           status: 'searching'
         });
         setIsBookingRide(true);
-        Alert.alert(
-          t('home.rideBooked'), 
-          `${t('home.searchingForPilots')}\nRide ID: ${data.rideId}`,
-          [
-            {
-              text: t('common.ok'),
-              onPress: () => {
-                console.log('🎯 Navigating to FindingDriver after ride booked');
-                // Navigate to FindingDriver screen with ride details
-                navigation.navigate('FindingDriver', {
-                  rideId: data.rideId,
-                  price: data.price,
-                  status: 'searching',
-                  destination: dropoffLocation || { address: 'Destination' },
-                  pickup: pickupLocation || { address: 'Hyderabad, Telangana, India' },
-                  estimate: {
-                    fare: data.price,
-                    distance: '2.5 km',
-                    duration: '8 mins',
-                    eta: '5 mins',
-                  },
-                  paymentMethod: 'Cash',
-                  driver: null,
-                });
-              }
-            }
-          ]
-        );
+        
+        // Navigate directly to FindingDriver screen without showing popup
+        console.log('🎯 Navigating to FindingDriver after ride booked');
+        navigation.navigate('FindingDriver', {
+          rideId: data.rideId,
+          price: data.price,
+          status: 'searching',
+          destination: dropoffLocation || { address: 'Destination' },
+          pickup: pickupLocation || { address: 'Hyderabad, Telangana, India' },
+          estimate: {
+            fare: data.price,
+            distance: '2.5 km',
+            duration: '8 mins',
+            eta: '5 mins',
+          },
+          paymentMethod: 'Cash',
+          driver: null,
+        });
       });
 
       onRideAccepted((data) => {
