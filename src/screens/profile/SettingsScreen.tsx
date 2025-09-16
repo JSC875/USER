@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,6 +6,7 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
@@ -14,15 +15,74 @@ import { Layout } from '../../constants/Layout';
 import { useUser } from '@clerk/clerk-expo';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../i18n/LanguageContext';
+import NotificationPreferencesService, { NotificationPreferences } from '../../services/notificationPreferencesService';
+import NotificationService from '../../services/notificationService';
+import NotificationTestButton from '../../components/common/NotificationTestButton';
 
 export default function SettingsScreen({ navigation }: any) {
   const { user } = useUser();
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
-  const [notifications, setNotifications] = useState(true);
-  const [locationServices, setLocationServices] = useState(true);
-  const [autoPayment, setAutoPayment] = useState(false);
-  const [shareData, setShareData] = useState(true);
+  const [preferences, setPreferences] = useState<NotificationPreferences>({
+    pushNotifications: true,
+    locationServices: true,
+    autoPayment: false,
+    shareData: true,
+    lastUpdated: Date.now(),
+  });
+  const [loading, setLoading] = useState(true);
+
+  const preferencesService = NotificationPreferencesService.getInstance();
+  const notificationService = NotificationService.getInstance();
+
+  // Load preferences on component mount
+  useEffect(() => {
+    loadPreferences();
+  }, []);
+
+  const loadPreferences = async () => {
+    try {
+      const currentPreferences = await preferencesService.getPreferences();
+      setPreferences(currentPreferences);
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePreferenceChange = async (key: keyof NotificationPreferences, value: boolean) => {
+    try {
+      const updatedPreferences = await preferencesService.updatePreference(key, value);
+      setPreferences(updatedPreferences);
+
+      // Handle notification service changes
+      if (key === 'pushNotifications') {
+        await notificationService.onNotificationPreferenceChanged(value);
+        
+        if (value) {
+          Alert.alert(
+            t('common.success', 'Success'),
+            t('common.notificationsEnabled', 'Notifications have been enabled. You will now receive ride updates and important alerts.'),
+            [{ text: t('common.ok', 'OK') }]
+          );
+        } else {
+          Alert.alert(
+            t('common.notificationsDisabled', 'Notifications Disabled'),
+            t('common.notificationsDisabledMessage', 'You will no longer receive push notifications. You can re-enable them anytime in settings.'),
+            [{ text: t('common.ok', 'OK') }]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error updating preference:', error);
+      Alert.alert(
+        t('common.error', 'Error'),
+        t('common.errorUpdatingSettings', 'Failed to update settings. Please try again.'),
+        [{ text: t('common.ok', 'OK') }]
+      );
+    }
+  };
 
   const getUserName = () => {
     if (user?.firstName && user?.lastName) {
@@ -73,24 +133,24 @@ export default function SettingsScreen({ navigation }: any) {
           title: t('common.pushNotifications'),
           subtitle: t('common.receiveRideUpdates'),
           toggle: true,
-          value: notifications,
-          onToggle: setNotifications,
+          value: preferences.pushNotifications,
+          onToggle: (value: boolean) => handlePreferenceChange('pushNotifications', value),
         },
         {
           icon: 'location-outline',
           title: t('common.locationServices'),
           subtitle: t('common.allowLocationAccess'),
           toggle: true,
-          value: locationServices,
-          onToggle: setLocationServices,
+          value: preferences.locationServices,
+          onToggle: (value: boolean) => handlePreferenceChange('locationServices', value),
         },
         {
           icon: 'card-outline',
           title: t('common.autoPayment'),
           subtitle: t('common.automaticallyPayForRides'),
           toggle: true,
-          value: autoPayment,
-          onToggle: setAutoPayment,
+          value: preferences.autoPayment,
+          onToggle: (value: boolean) => handlePreferenceChange('autoPayment', value),
         },
       ],
     },
@@ -137,8 +197,8 @@ export default function SettingsScreen({ navigation }: any) {
           title: t('common.dataSharing'),
           subtitle: t('common.controlDataSharing'),
           toggle: true,
-          value: shareData,
-          onToggle: setShareData,
+          value: preferences.shareData,
+          onToggle: (value: boolean) => handlePreferenceChange('shareData', value),
         },
       ],
     },
@@ -175,6 +235,26 @@ export default function SettingsScreen({ navigation }: any) {
     </TouchableOpacity>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t('navigation.settings')}</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>{t('common.loading', 'Loading...')}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -198,6 +278,15 @@ export default function SettingsScreen({ navigation }: any) {
             </View>
           </View>
         ))}
+
+        {/* Test Notification Button */}
+        <View style={styles.testSection}>
+          <Text style={styles.testSectionTitle}>Test Notifications</Text>
+          <NotificationTestButton 
+            title="Send Test Notification"
+            style={styles.testButton}
+          />
+        </View>
 
         {/* Bottom Margin */}
         <View style={styles.bottomMargin} />
@@ -309,5 +398,27 @@ const styles = StyleSheet.create({
   },
   bottomMargin: {
     height: Layout.spacing.xl,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: Layout.fontSize.md,
+    color: Colors.textSecondary,
+  },
+  testSection: {
+    marginTop: Layout.spacing.lg,
+    marginHorizontal: Layout.spacing.lg,
+  },
+  testSectionTitle: {
+    fontSize: Layout.fontSize.md,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Layout.spacing.sm,
+  },
+  testButton: {
+    backgroundColor: Colors.primary,
   },
 });

@@ -4,6 +4,7 @@ import { Platform, Alert } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { config } from '../config/environment';
+import NotificationPreferencesService from './notificationPreferencesService';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -38,8 +39,11 @@ class NotificationService {
   private tokenRefreshInterval?: NodeJS.Timeout;
   private notificationListener?: Notifications.Subscription;
   private responseListener?: Notifications.Subscription;
+  private preferencesService: NotificationPreferencesService;
 
-  private constructor() {}
+  private constructor() {
+    this.preferencesService = NotificationPreferencesService.getInstance();
+  }
 
   static getInstance(): NotificationService {
     if (!NotificationService.instance) {
@@ -55,6 +59,18 @@ class NotificationService {
     if (this.isInitialized) return;
 
     try {
+      // Initialize preferences service first
+      await this.preferencesService.initialize();
+      
+      // Check if notifications are enabled by user
+      const notificationsEnabled = await this.preferencesService.areNotificationsEnabled();
+      
+      if (!notificationsEnabled) {
+        console.log('📵 Notifications disabled by user preference');
+        this.isInitialized = true;
+        return;
+      }
+
       // Set up notification channels for better performance
       await this.setupNotificationChannels();
       
@@ -413,6 +429,14 @@ class NotificationService {
     priority: 'high' | 'normal' | 'low' = 'normal'
   ): Promise<string> {
     try {
+      // Check if notifications are enabled by user
+      const notificationsEnabled = await this.preferencesService.areNotificationsEnabled();
+      
+      if (!notificationsEnabled) {
+        console.log('📵 Notification not scheduled - disabled by user preference');
+        return '';
+      }
+
       const identifier = await Notifications.scheduleNotificationAsync({
         content: {
           title,
@@ -497,6 +521,39 @@ class NotificationService {
     // This would typically use Linking to open app settings
     // For now, we'll just log it
     console.log('Should open app settings');
+  }
+
+  /**
+   * Handle notification preference changes
+   */
+  async onNotificationPreferenceChanged(enabled: boolean): Promise<void> {
+    try {
+      if (enabled) {
+        // Re-initialize the service if notifications are enabled
+        if (!this.isInitialized) {
+          await this.initialize();
+        }
+      } else {
+        // Cancel all scheduled notifications if disabled
+        await this.cancelAllScheduledNotifications();
+      }
+    } catch (error) {
+      console.error('Error handling notification preference change:', error);
+    }
+  }
+
+  /**
+   * Get notification preferences
+   */
+  async getNotificationPreferences() {
+    return this.preferencesService.getPreferences();
+  }
+
+  /**
+   * Update notification preferences
+   */
+  async updateNotificationPreferences(updates: Partial<import('./notificationPreferencesService').NotificationPreferences>) {
+    return this.preferencesService.updatePreferences(updates);
   }
 
   /**

@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useRef } from 'react';
 import { NavigationContainerRef } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import NotificationService, { NotificationData } from '../services/notificationService';
+import NotificationPreferencesService from '../services/notificationPreferencesService';
 
 interface NotificationContextType {
   initializeNotifications: () => Promise<void>;
@@ -12,6 +13,8 @@ interface NotificationContextType {
   ) => Promise<string>;
   updateUserId: (userId: string) => Promise<void>;
   getStoredToken: () => Promise<any>;
+  getNotificationPreferences: () => Promise<any>;
+  updateNotificationPreferences: (updates: any) => Promise<any>;
 }
 
 const NotificationContext = createContext<NotificationContextType | undefined>(undefined);
@@ -26,6 +29,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   navigationRef,
 }) => {
   const notificationService = useRef(NotificationService.getInstance());
+  const preferencesService = useRef(NotificationPreferencesService.getInstance());
   const notificationListener = useRef<Notifications.Subscription | undefined>(undefined);
   const responseListener = useRef<Notifications.Subscription | undefined>(undefined);
 
@@ -126,11 +130,31 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     }
   };
 
+  const getNotificationPreferences = async () => {
+    try {
+      return await preferencesService.current.getPreferences();
+    } catch (error) {
+      console.error('Failed to get notification preferences:', error);
+      return null;
+    }
+  };
+
+  const updateNotificationPreferences = async (updates: any) => {
+    try {
+      return await preferencesService.current.updatePreferences(updates);
+    } catch (error) {
+      console.error('Failed to update notification preferences:', error);
+      throw error;
+    }
+  };
+
   const value: NotificationContextType = {
     initializeNotifications,
     scheduleLocalNotification,
     updateUserId,
     getStoredToken,
+    getNotificationPreferences,
+    updateNotificationPreferences,
   };
 
   return (
