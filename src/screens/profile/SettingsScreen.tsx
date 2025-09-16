@@ -25,7 +25,6 @@ export default function SettingsScreen({ navigation }: any) {
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     pushNotifications: true,
     locationServices: true,
-    shareData: true,
     lastUpdated: Date.now(),
   });
   const [loading, setLoading] = useState(true);
@@ -134,14 +133,6 @@ export default function SettingsScreen({ navigation }: any) {
           value: preferences.pushNotifications,
           onToggle: (value: boolean) => handlePreferenceChange('pushNotifications', value),
         },
-        {
-          icon: 'location-outline',
-          title: t('common.locationServices'),
-          subtitle: t('common.allowLocationAccess'),
-          toggle: true,
-          value: preferences.locationServices,
-          onToggle: (value: boolean) => handlePreferenceChange('locationServices', value),
-        },
       ],
     },
     {
@@ -168,9 +159,7 @@ export default function SettingsScreen({ navigation }: any) {
           icon: 'share-outline',
           title: t('common.dataSharing'),
           subtitle: t('common.controlDataSharing'),
-          toggle: true,
-          value: preferences.shareData,
-          onToggle: (value: boolean) => handlePreferenceChange('shareData', value),
+          action: () => console.log('Data Sharing'),
         },
       ],
     },
