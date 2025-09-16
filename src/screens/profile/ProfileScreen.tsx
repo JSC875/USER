@@ -136,17 +136,17 @@ export default function ProfileScreen({ navigation, route }: any) {
   const handleSignOut = async () => {
     Alert.alert(
       'Sign Out',
-      'Are you sure you want to sign out?',
+      'Are you sure you want to Logout?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: 'Log Out',
           style: 'destructive',
           onPress: async () => {
             try {
               await signOut();
             } catch (error) {
-              console.error('Error signing out:', error);
+              console.error('Error log out:', error);
             }
           },
         },
