@@ -19,11 +19,18 @@ export const RideHistoryTest: React.FC = () => {
       const rides = await userApi.getUserRideHistory(getToken, filters);
       
       console.log('✅ Ride history loaded:', rides);
+      console.log('📍 Sample ride locations:');
+      rides.slice(0, 3).forEach((ride, index) => {
+        console.log(`Ride ${index + 1}:`);
+        console.log(`  Pickup: ${ride.pickupLocation?.address} (${ride.pickupLocation?.latitude}, ${ride.pickupLocation?.longitude})`);
+        console.log(`  Drop: ${ride.dropLocation?.address} (${ride.dropLocation?.latitude}, ${ride.dropLocation?.longitude})`);
+      });
+      
       setRideHistory(rides);
       
       Alert.alert(
         'Ride History',
-        `Successfully loaded ${rides.length} rides!\n\nCheck the console for detailed data.`,
+        `Successfully loaded ${rides.length} rides!\n\nCheck the console for detailed data including pickup and destination addresses.`,
         [{ text: 'OK' }]
       );
       
@@ -162,10 +169,16 @@ export const RideHistoryTest: React.FC = () => {
           {rideHistory.slice(0, 3).map((ride) => (
             <View key={ride.id} style={styles.rideItem}>
               <Text style={styles.rideText}>
-                {ride.pickupLocation?.address?.substring(0, 30)}... → {ride.dropLocation?.address?.substring(0, 30)}...
+                {ride.pickupLocation?.address || 'Pickup Location'} → {ride.dropLocation?.address || 'Destination'}
               </Text>
               <Text style={styles.rideSubtext}>
                 ₹{ride.fare} • {ride.status} • {new Date(ride.createdAt).toLocaleDateString()}
+              </Text>
+              <Text style={styles.rideSubtext}>
+                📍 Pickup: {ride.pickupLocation?.latitude}, {ride.pickupLocation?.longitude}
+              </Text>
+              <Text style={styles.rideSubtext}>
+                🎯 Drop: {ride.dropLocation?.latitude}, {ride.dropLocation?.longitude}
               </Text>
               
               <View style={styles.rideActions}>
