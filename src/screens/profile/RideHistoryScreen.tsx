@@ -13,6 +13,7 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import { logger } from '../../utils/logger';
 import { useAuth } from '@clerk/clerk-expo';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { userApi, RideHistory, RideHistoryFilters } from '../../services/userService';
@@ -79,11 +80,7 @@ export default function RideHistoryScreen({ navigation }: any) {
         // No need to add backend filter as we want to fetch all rides and filter them
       }
 
-      console.log('🔄 Loading ride history with filters:', filters);
-      
       const rides = await userApi.getUserRideHistory(getToken, filters);
-      
-             console.log('✅ Ride history loaded:', rides.length, 'rides');
        
        // Sort rides by requestedAt (most recent first), fallback to createdAt if requestedAt is not available
        const sortedRides = rides.sort((a, b) => {
@@ -92,16 +89,10 @@ export default function RideHistoryScreen({ navigation }: any) {
          return dateB.getTime() - dateA.getTime(); // Most recent first
        });
        
-       // Debug: Log the timestamps to understand the data
-       console.log('🔍 Ride timestamps for sorting:');
-       sortedRides.forEach((ride, index) => {
-         console.log(`Ride ${index + 1}: createdAt=${ride.createdAt}, requestedAt=${ride.requestedAt}, status=${ride.status}`);
-       });
-       
        setRideHistory(sortedRides);
       
     } catch (error) {
-      console.error('❌ Error loading ride history:', error);
+      logger.error('Error loading ride history:', error);
       setError('Failed to load ride history. Please try again.');
       
       if (!isRefresh) {
@@ -136,8 +127,6 @@ export default function RideHistoryScreen({ navigation }: any) {
        minute: '2-digit' 
      });
      
-     // Debug: Log what timestamp is being used for display
-     console.log(`🎯 Ride ${item.id}: createdAt=${item.createdAt}, requestedAt=${item.requestedAt}, displayTime=${timeText}`);
 
     // Get status color
     const getStatusColor = (status: string) => {

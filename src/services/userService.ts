@@ -1,5 +1,6 @@
 import { api } from './api';
 import Constants from 'expo-constants';
+import { logger } from '../utils/logger';
 
 // Utility function to calculate distance between two coordinates using Haversine formula
 const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
@@ -158,10 +159,11 @@ class UserService {
       
       const response = await api.getAuth<UserProfile>('/api/users/me', getToken);
       
-      console.log('✅ === /api/users/me GET RESPONSE ===');
-      console.log('📊 Response Success:', response.success);
-      console.log('📦 Response Data:', response.data);
-      console.log('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+      if (__DEV__) {
+        console.log('✅ === /api/users/me GET RESPONSE ===');
+        console.log('📊 Response Success:', response.success);
+        console.log('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+      }
       
       if (!response.success) {
         throw new Error(response.message || 'Failed to fetch user profile');
@@ -190,10 +192,11 @@ class UserService {
       
       const response = await api.putAuth<UserProfile>('/api/users/me', updateData, getToken);
       
-      console.log('✅ === /api/users/me PUT RESPONSE ===');
-      console.log('📊 Response Success:', response.success);
-      console.log('📦 Response Data:', response.data);
-      console.log('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+      if (__DEV__) {
+        console.log('✅ === /api/users/me PUT RESPONSE ===');
+        console.log('📊 Response Success:', response.success);
+        console.log('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+      }
       
       if (!response.success) {
         throw new Error(response.message || 'Failed to update user profile');
@@ -277,14 +280,9 @@ class UserService {
         throw new Error(response.message || 'Failed to fetch ride history');
       }
       
-      // Log the raw API response to understand the structure
-      console.log('🔍 Raw API response for ride history:', JSON.stringify(response.data, null, 2));
-      
       // Transform API response to match RideHistory interface
       const transformedRides: RideHistory[] = await Promise.all(
         response.data!.map(async (ride: any) => {
-          // Log each ride to understand the structure
-          console.log('🔍 Individual ride data:', JSON.stringify(ride, null, 2));
           
           // Get coordinates first
           const pickupLat = ride.pickupLat || ride.pickup?.latitude || ride.pickupLocation?.latitude || 0;
@@ -309,12 +307,10 @@ class UserService {
           
           // If addresses are not available, try to reverse geocode coordinates
           if (!pickupAddress && pickupLat && pickupLng) {
-            console.log('🔄 Reverse geocoding pickup location...');
             pickupAddress = await reverseGeocode(pickupLat, pickupLng);
           }
           
           if (!dropAddress && dropLat && dropLng) {
-            console.log('🔄 Reverse geocoding drop location...');
             dropAddress = await reverseGeocode(dropLat, dropLng);
           }
           
@@ -326,12 +322,7 @@ class UserService {
           let calculatedDistance = ride.distance || 0;
           if (!calculatedDistance && pickupLat && pickupLng && dropLat && dropLng) {
             calculatedDistance = calculateDistance(pickupLat, pickupLng, dropLat, dropLng);
-            console.log('📏 Calculated distance:', calculatedDistance, 'km');
           }
-          
-          console.log('📍 Pickup address found:', pickupAddress);
-          console.log('🎯 Drop address found:', dropAddress);
-          console.log('📏 Distance:', calculatedDistance, 'km');
           
           return {
             id: ride.id,
@@ -370,7 +361,7 @@ class UserService {
       
       return transformedRides;
     } catch (error) {
-      console.error('Error fetching ride history:', error);
+      logger.error('Error fetching ride history:', error);
       throw error;
     }
   }

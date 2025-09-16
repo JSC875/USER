@@ -146,8 +146,9 @@ class RideService {
       }
 
       const data = await response.json();
-      console.log('📦 Response Data:', data);
-      console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+      if (__DEV__) {
+        console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+      }
 
       return data;
     } catch (error) {
@@ -213,7 +214,9 @@ class RideService {
       }
 
       const data = await response.json();
-      console.log('📦 Response Data:', data);
+      if (__DEV__) {
+        console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+      }
 
       return data;
     } catch (error) {
@@ -257,7 +260,9 @@ class RideService {
       }
 
       const data = await response.json();
-      console.log('📦 Response Data:', data);
+      if (__DEV__) {
+        console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+      }
 
       return data;
     } catch (error) {
@@ -300,7 +305,9 @@ class RideService {
       }
 
       const data = await response.json();
-      console.log('📦 Response Data:', data);
+      if (__DEV__) {
+        console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+      }
 
       return data;
     } catch (error) {

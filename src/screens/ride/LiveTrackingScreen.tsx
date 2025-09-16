@@ -734,16 +734,16 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           return;
         }
         
-        console.log('✅ Valid driver location received:', validatedLocation);
-        console.log('✅ Previous driver location:', driverLocation);
-        
-        // Log coordinate details for debugging
-        console.log('🔍 Coordinate details:', {
-          received: validatedLocation,
-          latPrecision: validatedLocation.latitude.toString().split('.')[1]?.length || 0,
-          lngPrecision: validatedLocation.longitude.toString().split('.')[1]?.length || 0,
-          timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : 'No timestamp'
-        });
+        // Log coordinate details for debugging (only in development)
+        if (__DEV__) {
+          console.log('✅ Valid driver location received:', validatedLocation);
+          console.log('🔍 Coordinate details:', {
+            received: validatedLocation,
+            latPrecision: validatedLocation.latitude.toString().split('.')[1]?.length || 0,
+            lngPrecision: validatedLocation.longitude.toString().split('.')[1]?.length || 0,
+            timestamp: data.timestamp ? new Date(data.timestamp).toISOString() : 'No timestamp'
+          });
+        }
         
         // Update driver location with animation and path tracking
         updateDriverLocationWithAnimation(validatedLocation);
@@ -756,17 +756,17 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           fetchRoutePath(validatedLocation, { latitude: origin.latitude, longitude: origin.longitude });
         }
         
-        console.log('✅ Driver location updated successfully');
+        // Only log in development mode
+        if (__DEV__) {
+          console.log('✅ Driver location updated successfully');
+        }
       } else {
-        console.log('🚫 Driver ID mismatch, ignoring location update');
-        console.log('🚫 Expected driver ID:', currentDriverId);
-        console.log('🚫 Received driver ID:', data.driverId);
-        console.log('🚫 Driver ID type comparison:', {
-          expected: typeof currentDriverId,
-          received: typeof data.driverId,
-          expectedLength: currentDriverId?.length,
-          receivedLength: data.driverId?.length
-        });
+        // Only log driver ID mismatch in development mode
+        if (__DEV__) {
+          console.log('🚫 Driver ID mismatch, ignoring location update');
+          console.log('🚫 Expected driver ID:', currentDriverId);
+          console.log('🚫 Received driver ID:', data.driverId);
+        }
       }
     });
     
