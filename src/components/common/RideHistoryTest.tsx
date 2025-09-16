@@ -24,6 +24,8 @@ export const RideHistoryTest: React.FC = () => {
         console.log(`Ride ${index + 1}:`);
         console.log(`  Pickup: ${ride.pickupLocation?.address} (${ride.pickupLocation?.latitude}, ${ride.pickupLocation?.longitude})`);
         console.log(`  Drop: ${ride.dropLocation?.address} (${ride.dropLocation?.latitude}, ${ride.dropLocation?.longitude})`);
+        console.log(`  Distance: ${ride.distance} km`);
+        console.log(`  Fare: ₹${ride.fare}`);
       });
       
       setRideHistory(rides);
@@ -173,6 +175,9 @@ export const RideHistoryTest: React.FC = () => {
               </Text>
               <Text style={styles.rideSubtext}>
                 ₹{ride.fare} • {ride.status} • {new Date(ride.createdAt).toLocaleDateString()}
+              </Text>
+              <Text style={styles.rideSubtext}>
+                📏 Distance: {ride.distance} km • ⏱️ Duration: {ride.duration || 0} mins
               </Text>
               <Text style={styles.rideSubtext}>
                 📍 Pickup: {ride.pickupLocation?.latitude}, {ride.pickupLocation?.longitude}

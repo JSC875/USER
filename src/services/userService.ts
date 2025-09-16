@@ -1,6 +1,31 @@
 import { api } from './api';
 import Constants from 'expo-constants';
 
+// Utility function to calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  try {
+    if (!lat1 || !lon1 || !lat2 || !lon2 || 
+        lat1 === 0 || lon1 === 0 || lat2 === 0 || lon2 === 0) {
+      return 0;
+    }
+
+    const R = 6371; // Radius of the Earth in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c; // Distance in kilometers
+    
+    return Math.round(distance * 10) / 10; // Round to 1 decimal place
+  } catch (error) {
+    console.error('Error calculating distance:', error);
+    return 0;
+  }
+};
+
 // Utility function to reverse geocode coordinates to address
 const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
   try {
@@ -297,8 +322,16 @@ class UserService {
           pickupAddress = pickupAddress || 'Pickup Location';
           dropAddress = dropAddress || 'Destination';
           
+          // Calculate distance if not provided by API
+          let calculatedDistance = ride.distance || 0;
+          if (!calculatedDistance && pickupLat && pickupLng && dropLat && dropLng) {
+            calculatedDistance = calculateDistance(pickupLat, pickupLng, dropLat, dropLng);
+            console.log('📏 Calculated distance:', calculatedDistance, 'km');
+          }
+          
           console.log('📍 Pickup address found:', pickupAddress);
           console.log('🎯 Drop address found:', dropAddress);
+          console.log('📏 Distance:', calculatedDistance, 'km');
           
           return {
             id: ride.id,
@@ -316,7 +349,7 @@ class UserService {
             },
             status: ride.status || 'pending',
             fare: ride.estimatedFare || ride.fare || 0,
-            distance: ride.distance || 0,
+            distance: calculatedDistance,
             duration: ride.duration || 0,
             rating: ride.rating,
             createdAt: ride.requestedAt || ride.createdAt || new Date().toISOString(),
