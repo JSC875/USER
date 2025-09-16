@@ -115,7 +115,13 @@ export default function AboutScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="information-circle-outline" size={28} color={TITLE_COLOR} />
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()} 
+          style={styles.backButton}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={28} color={TITLE_COLOR} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>About RoQet</Text>
         <View style={{ width: 28 }} />
       </View>
@@ -204,6 +210,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  backButton: {
+    padding: Layout.spacing.xs,
   },
   headerTitle: {
     fontSize: Layout.fontSize.xl,
