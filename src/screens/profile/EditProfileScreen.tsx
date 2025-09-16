@@ -1,9 +1,8 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Image, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, ScrollView, KeyboardAvoidingView, Platform, Alert } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, TITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
-import * as ImagePicker from 'expo-image-picker';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { userApi, UserProfileUpdate } from '../../services/userService';
 import DateTimePicker from '@react-native-community/datetimepicker';
@@ -16,8 +15,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
     phone: initialPhone = '', 
     gender: initialGender = '', 
     emergencyName: initialEmergencyName = '', 
-    emergencyPhone: initialEmergencyPhone = '', 
-    photo: initialPhoto = '' 
+    emergencyPhone: initialEmergencyPhone = '' 
   } = params;
   
   // State for form fields
@@ -29,7 +27,6 @@ export default function EditProfileScreen({ navigation, route }: any) {
   const [gender, setGender] = useState(initialGender);
   const [emergencyName, setEmergencyName] = useState(initialEmergencyName);
   const [emergencyPhone, setEmergencyPhone] = useState(initialEmergencyPhone);
-  const [photo, setPhoto] = useState(initialPhoto);
   const [preferredLanguage, setPreferredLanguage] = useState('en');
   
   // State for UI
@@ -41,80 +38,7 @@ export default function EditProfileScreen({ navigation, route }: any) {
   const { getToken } = useAuth();
   const { user } = useUser();
 
-  const pickImage = async () => {
-    try {
-      // Request permissions first
-      const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-      
-      if (permissionResult.granted === false) {
-        Alert.alert(
-          'Permission Required',
-          'Permission to access camera roll is required to upload photos.',
-          [{ text: 'OK' }]
-        );
-        return;
-      }
 
-      let result = await ImagePicker.launchImageLibraryAsync({
-        mediaTypes: ImagePicker.MediaTypeOptions.Images,
-        allowsEditing: true,
-        aspect: [1, 1],
-        quality: 0.7, // Slightly higher quality for better results
-        base64: false, // Don't include base64 to reduce payload size
-      });
-      
-      if (!result.canceled && result.assets && result.assets.length > 0) {
-        const asset = result.assets[0];
-        if (asset && asset.uri) {
-          // Validate image size (optional - you can adjust the limit)
-          if (asset.fileSize && asset.fileSize > 5 * 1024 * 1024) { // 5MB limit
-            Alert.alert(
-              'Image Too Large',
-              'Please select an image smaller than 5MB.',
-              [{ text: 'OK' }]
-            );
-            return;
-          }
-          
-          setPhoto(asset.uri);
-          console.log('📷 Image selected:', {
-            uri: asset.uri.substring(0, 50) + '...',
-            width: asset.width,
-            height: asset.height,
-            fileSize: asset.fileSize ? `${Math.round(asset.fileSize / 1024)}KB` : 'Unknown'
-          });
-        }
-      }
-    } catch (error) {
-      console.error('❌ Error picking image:', error);
-      Alert.alert(
-        'Error',
-        'Failed to pick image. Please try again.',
-        [{ text: 'OK' }]
-      );
-    }
-  };
-
-  const removePhoto = () => {
-    Alert.alert(
-      'Remove Photo',
-      'Are you sure you want to remove your profile photo?',
-      [
-        {
-          text: 'Cancel',
-          style: 'cancel',
-        },
-        {
-          text: 'Remove',
-          style: 'destructive',
-          onPress: () => {
-            setPhoto('');
-            console.log('📷 Profile photo removed');
-          },
-        },
-      ]
-    );
-  };
 
   const onDateChange = (_event: any, selectedDate?: Date) => {
     setShowDatePicker(Platform.OS === 'ios');
@@ -183,7 +107,6 @@ export default function EditProfileScreen({ navigation, route }: any) {
       setGender(userProfile.gender || '');
       setEmergencyName(userProfile.emergencyContactName || '');
       setEmergencyPhone(userProfile.emergencyContactPhone || '');
-      setPhoto(userProfile.profilePhoto || '');
       setPreferredLanguage(userProfile.preferredLanguage || 'en');
       
     } catch (error) {
@@ -264,17 +187,13 @@ export default function EditProfileScreen({ navigation, route }: any) {
         phoneNumber: phone.trim(),
         dateOfBirth: dateOfBirth || '',
         gender,
-        profilePhoto: photo || undefined,
         emergencyContactName: emergencyName.trim(),
         emergencyContactPhone: emergencyPhone.trim(),
         preferredLanguage,
       };
 
       // Log the data being sent for debugging
-      console.log('📤 Sending profile update data:', {
-        ...updateData,
-        profilePhoto: photo ? `${photo.substring(0, 50)}...` : 'No photo'
-      });
+      console.log('📤 Sending profile update data:', updateData);
 
       // Update user profile
       const updatedProfile = await userApi.updateUserProfile(updateData, getToken);
@@ -291,10 +210,9 @@ export default function EditProfileScreen({ navigation, route }: any) {
               // Navigate to PersonalDetails with updated data
               console.log('🔄 Navigating to PersonalDetails with updated data:', updatedProfile);
               try {
-                navigation.navigate('PersonalDetails', {
-                  updatedProfile,
-                  updatedPhoto: photo,
-                });
+              navigation.navigate('PersonalDetails', {
+                updatedProfile,
+              });
               } catch (error) {
                 console.error('❌ Navigation error:', error);
                 // Fallback: just go back
@@ -382,30 +300,6 @@ export default function EditProfileScreen({ navigation, route }: any) {
           showsVerticalScrollIndicator={false}
           keyboardShouldPersistTaps="handled"
         >
-          {/* Upload Photo */}
-          <View style={styles.photoContainer}>
-            <TouchableOpacity style={styles.photoUploadArea} onPress={pickImage} accessibilityLabel="Upload Photo">
-              {photo ? (
-                <Image source={{ uri: photo }} style={styles.photo} />
-              ) : (
-                <Ionicons name="camera" size={40} color={Colors.gray400} />
-              )}
-              <Text style={styles.uploadText}>
-                {photo ? 'Change Photo' : 'Upload Photo'}
-              </Text>
-            </TouchableOpacity>
-            
-            {photo && (
-              <TouchableOpacity 
-                style={styles.removePhotoButton} 
-                onPress={removePhoto}
-                accessibilityLabel="Remove Photo"
-              >
-                <Ionicons name="trash-outline" size={16} color={Colors.error} />
-                <Text style={styles.removePhotoText}>Remove</Text>
-              </TouchableOpacity>
-            )}
-          </View>
                      {/* First Name */}
            <Text style={styles.label}>First Name</Text>
            <TextInput
@@ -558,41 +452,6 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     padding: Layout.spacing.lg,
-  },
-  photoContainer: {
-    alignItems: 'center',
-    marginBottom: Layout.spacing.lg,
-  },
-  photoUploadArea: {
-    alignItems: 'center',
-    marginBottom: Layout.spacing.sm,
-  },
-  photo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    marginBottom: 8,
-  },
-  uploadText: {
-    color: Colors.primary,
-    fontSize: Layout.fontSize.sm,
-    marginTop: 4,
-  },
-  removePhotoButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: Colors.gray100,
-    paddingHorizontal: Layout.spacing.md,
-    paddingVertical: Layout.spacing.sm,
-    borderRadius: Layout.borderRadius.sm,
-    borderWidth: 1,
-    borderColor: Colors.error,
-  },
-  removePhotoText: {
-    color: Colors.error,
-    fontSize: Layout.fontSize.sm,
-    marginLeft: Layout.spacing.xs,
-    fontWeight: '500',
   },
   label: {
     fontSize: Layout.fontSize.md,
