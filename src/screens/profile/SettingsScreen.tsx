@@ -17,7 +17,6 @@ import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../i18n/LanguageContext';
 import NotificationPreferencesService, { NotificationPreferences } from '../../services/notificationPreferencesService';
 import NotificationService from '../../services/notificationService';
-import NotificationTestButton from '../../components/common/NotificationTestButton';
 
 export default function SettingsScreen({ navigation }: any) {
   const { user } = useUser();
@@ -26,7 +25,6 @@ export default function SettingsScreen({ navigation }: any) {
   const [preferences, setPreferences] = useState<NotificationPreferences>({
     pushNotifications: true,
     locationServices: true,
-    autoPayment: false,
     shareData: true,
     lastUpdated: Date.now(),
   });
@@ -144,31 +142,11 @@ export default function SettingsScreen({ navigation }: any) {
           value: preferences.locationServices,
           onToggle: (value: boolean) => handlePreferenceChange('locationServices', value),
         },
-        {
-          icon: 'card-outline',
-          title: t('common.autoPayment'),
-          subtitle: t('common.automaticallyPayForRides'),
-          toggle: true,
-          value: preferences.autoPayment,
-          onToggle: (value: boolean) => handlePreferenceChange('autoPayment', value),
-        },
       ],
     },
     {
       title: t('support.helpSupport', 'Support'),
       items: [
-        {
-          icon: 'help-circle-outline',
-          title: t('common.helpCenter'),
-          subtitle: t('common.getHelpWithAccount'),
-          action: () => console.log('Help Center'),
-        },
-        {
-          icon: 'chatbubble-outline',
-          title: t('common.contactSupport'),
-          subtitle: t('common.chatWithSupportTeam'),
-          action: () => console.log('Contact Support'),
-        },
         {
           icon: 'star-outline',
           title: t('common.rateApp'),
@@ -185,12 +163,6 @@ export default function SettingsScreen({ navigation }: any) {
           title: t('common.termsOfService'),
           subtitle: t('common.readTermsAndConditions'),
           action: () => console.log('Terms'),
-        },
-        {
-          icon: 'shield-outline',
-          title: t('common.privacyPolicy'),
-          subtitle: t('common.learnHowWeProtectData'),
-          action: () => console.log('Privacy Policy'),
         },
         {
           icon: 'share-outline',
@@ -279,14 +251,6 @@ export default function SettingsScreen({ navigation }: any) {
           </View>
         ))}
 
-        {/* Test Notification Button */}
-        <View style={styles.testSection}>
-          <Text style={styles.testSectionTitle}>Test Notifications</Text>
-          <NotificationTestButton 
-            title="Send Test Notification"
-            style={styles.testButton}
-          />
-        </View>
 
         {/* Bottom Margin */}
         <View style={styles.bottomMargin} />
@@ -407,18 +371,5 @@ const styles = StyleSheet.create({
   loadingText: {
     fontSize: Layout.fontSize.md,
     color: Colors.textSecondary,
-  },
-  testSection: {
-    marginTop: Layout.spacing.lg,
-    marginHorizontal: Layout.spacing.lg,
-  },
-  testSectionTitle: {
-    fontSize: Layout.fontSize.md,
-    fontWeight: '600',
-    color: Colors.text,
-    marginBottom: Layout.spacing.sm,
-  },
-  testButton: {
-    backgroundColor: Colors.primary,
   },
 });
