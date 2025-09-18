@@ -28,24 +28,18 @@ const getProfileOptions = (t: any) => [
   },
   {
     id: '1',
-    title: t('payment.paymentMethods'),
-    icon: 'wallet-outline',
-    screen: 'Payment',
-  },
-  {
-    id: '2',
     title: t('common.privacySecurity'),
     icon: 'shield-checkmark-outline',
     screen: 'PrivacySecurity',
   },
   {
-    id: '3',
+    id: '2',
     title: t('common.settings'),
     icon: 'settings-outline',
     screen: 'Settings',
   },
   {
-    id: '4',
+    id: '3',
     title: t('common.about'),
     icon: 'information-circle-outline',
     screen: 'About',
@@ -110,8 +104,6 @@ export default function ProfileScreen({ navigation }: any) {
       navigation.navigate('EditProfile');
     } else if (screen === 'History') {
       navigation.navigate('History');
-    } else if (screen === 'Payment') {
-      navigation.navigate('Payment');
     } else if (screen === 'Settings') {
       navigation.navigate('Settings');
     } else if (screen === 'About') {
@@ -219,13 +211,6 @@ export default function ProfileScreen({ navigation }: any) {
                   <Text style={styles.rideHistoryText}>{userProfile?.totalRides || 0} Rides</Text>
                 </TouchableOpacity>
               </View>
-              <TouchableOpacity style={styles.editButton} onPress={() => navigation.navigate('EditProfile', {
-                name: getUserName(),
-                email: getUserEmail(),
-                phone: getUserPhone(),
-              })}>
-                <Ionicons name="pencil" size={18} color={Colors.primary} />
-              </TouchableOpacity>
             </View>
           </LinearGradient>
         </View>
@@ -447,15 +432,6 @@ const styles = StyleSheet.create({
     color: Colors.white,
     fontWeight: '600',
     marginLeft: 6,
-  },
-  editButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginTop: Layout.spacing.xs,
   },
   quickActions: {
     backgroundColor: Colors.white,

@@ -103,7 +103,9 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Ionicons name="person-circle" size={32} color={TITLE_COLOR} />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={TITLE_COLOR} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('profile.personalDetails')}</Text>
           <View style={{ width: 32 }} />
         </View>
@@ -118,7 +120,9 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Ionicons name="person-circle" size={32} color={TITLE_COLOR} />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={TITLE_COLOR} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('profile.personalDetails')}</Text>
           <View style={{ width: 32 }} />
         </View>
@@ -136,7 +140,9 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="person-circle" size={32} color={TITLE_COLOR} />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={TITLE_COLOR} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('profile.personalDetails')}</Text>
         <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
           <Ionicons name="create-outline" size={24} color={Colors.primary} />
@@ -321,6 +327,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
     textAlign: 'right',
+  },
+  backButton: {
+    padding: Layout.spacing.sm,
   },
   editButton: {
     padding: Layout.spacing.sm,
