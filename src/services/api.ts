@@ -1,13 +1,14 @@
 import { apiConfig, isDevelopment, isProduction } from '../config/environment';
 import { getUserIdFromJWT, getUserTypeFromJWT } from '../utils/jwtDecoder';
+import { logger } from '../utils/logger';
 
 // Conditional logging function
 const log = (message: string, data?: any) => {
   if (isDevelopment) {
     if (data) {
-      console.log(message, data);
+      logger.debug(message, data);
     } else {
-      console.log(message);
+      logger.debug(message);
     }
   }
 };

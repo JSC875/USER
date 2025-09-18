@@ -13,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useUser } from '@clerk/clerk-expo';
+import { logger } from '../../utils/logger';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../i18n/LanguageContext';
 import NotificationPreferencesService, { NotificationPreferences } from '../../services/notificationPreferencesService';
@@ -142,7 +143,7 @@ export default function SettingsScreen({ navigation }: any) {
           icon: 'star-outline',
           title: t('common.rateApp'),
           subtitle: t('common.shareYourFeedback'),
-          action: () => console.log('Rate App'),
+          action: () => logger.debug('Rate App'),
         },
       ],
     },
@@ -153,13 +154,13 @@ export default function SettingsScreen({ navigation }: any) {
           icon: 'document-text-outline',
           title: t('common.termsOfService'),
           subtitle: t('common.readTermsAndConditions'),
-          action: () => console.log('Terms'),
+          action: () => logger.debug('Terms'),
         },
         {
           icon: 'share-outline',
           title: t('common.dataSharing'),
           subtitle: t('common.controlDataSharing'),
-          action: () => console.log('Data Sharing'),
+          action: () => logger.debug('Data Sharing'),
         },
       ],
     },

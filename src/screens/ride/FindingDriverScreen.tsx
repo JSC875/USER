@@ -30,6 +30,7 @@ import { rideService } from '../../services/rideService';
 import { useTranslation } from 'react-i18next';
 import { useNotifications } from '../../store/NotificationContext';
 import BackendNotificationService from '../../services/backendNotificationService';
+import { logger } from '../../utils/logger';
 
 const { width } = Dimensions.get('window');
 
@@ -65,7 +66,7 @@ function TimelineLoader({ searchTime }: { searchTime: number }) {
     return 'pending';
   };
   
-  console.log('TimelineLoader rendering with searchTime:', searchTime, 'progress:', progress);
+  logger.debug('TimelineLoader rendering with searchTime:', searchTime, 'progress:', progress);
   
   return (
     <View style={styles.timelineContainer}>
@@ -272,7 +273,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
               // Emit cancel ride event to server
               const socket = getSocket();
               if (socket && rideId) {
-                console.log('🚫 User cancelled ride search, emitting cancel_ride');
+                logger.debug('🚫 User cancelled ride search, emitting cancel_ride');
                 socket.emit('cancel_ride', { rideId });
               }
               navigation.navigate('TabNavigator', { screen: 'Home' });
@@ -287,7 +288,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
   }, [rideId, navigation, t]);
 
   useEffect(() => {
-    console.log('🔍 FindingDriverScreen mounted with params:', {
+    logger.debug('🔍 FindingDriverScreen mounted with params:', {
       destination: destination?.name,
       rideId,
       pickup: pickup?.address
@@ -313,15 +314,15 @@ export default function FindingDriverScreen({ navigation, route }: any) {
     const checkConnection = () => {
       const connected = isConnected();
       setSocketConnected(connected);
-      console.log('🔍 Socket connection status:', connected);
+      logger.debug('🔍 Socket connection status:', connected);
       
       if (getSocket()) {
-        console.log('🔍 Socket ID:', getSocket()?.id);
-        console.log('🔍 Socket connected state:', getSocket()?.connected);
+        logger.debug('🔍 Socket ID:', getSocket()?.id);
+        logger.debug('🔍 Socket connected state:', getSocket()?.connected);
       }
       
       if (!connected) {
-        console.log('⚠️ Socket not connected, attempting to reconnect...');
+        logger.debug('⚠️ Socket not connected, attempting to reconnect...');
         Alert.alert(
           t('common.error'),
           t('errors.networkError'),
@@ -336,31 +337,31 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
     // Set up socket event listeners
     const setupSocketListeners = () => {
-      console.log('🔧 Setting up socket listeners for FindingDriverScreen');
+      logger.debug('🔧 Setting up socket listeners for FindingDriverScreen');
       
       // Listen for ride acceptance
       onRideAccepted(async (data) => {
-        console.log('✅ Driver accepted ride (callback):', data);
-        console.log('🔍 Current isDriverFound state (callback):', isDriverFound);
-        console.log('🔍 Current hasNavigated state (callback):', hasNavigated);
+        logger.debug('✅ Driver accepted ride (callback):', data);
+        logger.debug('🔍 Current isDriverFound state (callback):', isDriverFound);
+        logger.debug('🔍 Current hasNavigated state (callback):', hasNavigated);
         
         // Prevent multiple navigations
         if (isDriverFound || hasNavigated) {
-          console.log('🚫 Driver already found or navigation already triggered, ignoring duplicate event');
+          logger.debug('🚫 Driver already found or navigation already triggered, ignoring duplicate event');
           return;
         }
         
         // Validate that this is the correct ride
         if (data.rideId && rideId && data.rideId !== rideId) {
-          console.log('🚫 Ride ID mismatch, ignoring event for different ride');
+          logger.debug('🚫 Ride ID mismatch, ignoring event for different ride');
           return;
         }
         
-        console.log('✅ Processing ride acceptance for correct ride');
+        logger.debug('✅ Processing ride acceptance for correct ride');
         setIsDriverFound(true);
         setSearchText('Driver found! Confirming ride...');
         
-        console.log('🚗 Navigating to LiveTracking from callback with driver data:', {
+        logger.debug('🚗 Navigating to LiveTracking from callback with driver data:', {
           id: data.driverId,
           name: data.driverName,
           phone: data.driverPhone,
@@ -386,7 +387,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
               driverName: data.driverName,
               eta: data.estimatedArrival
             });
-            console.log('✅ Ride accepted notification sent');
+            logger.debug('✅ Ride accepted notification sent');
           }
         } catch (error) {
           console.error('❌ Error sending ride accepted notification:', error);
@@ -410,7 +411,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
       // Listen for ride status updates
       onRideStatus((data) => {
-        console.log('🔄 Ride status update:', data);
+        logger.debug('🔄 Ride status update:', data);
         if (data.status === 'cancelled') {
           Alert.alert('Ride Cancelled', 'Your ride has been cancelled.');
           navigation.navigate('TabNavigator', { screen: 'Home' });
@@ -419,7 +420,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
       // Listen for ride timeout
       onRideTimeout((data) => {
-        console.log('⏰ Ride request timed out:', data);
+        logger.debug('⏰ Ride request timed out:', data);
         Alert.alert(
                     'No Pilots Found',
           data.message || 'No pilots were found. Please try again.',
@@ -431,7 +432,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
       // Listen for driver offline
       onDriverOffline((data) => {
-        console.log('🔴 Driver went offline:', data);
+        logger.debug('🔴 Driver went offline:', data);
         Alert.alert(
           'Pilot Unavailable',
           'The assigned pilot is no longer available. We\'ll find you another pilot.',
@@ -444,44 +445,44 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       // Additional listener for ride_accepted event (backup)
       const socket = getSocket();
       if (socket) {
-        console.log('🔧 Setting up direct socket listeners');
+        logger.debug('🔧 Setting up direct socket listeners');
         
         // Test socket connection by emitting a test event
-        console.log('🧪 Testing socket connection...');
+        logger.debug('🧪 Testing socket connection...');
         socket.emit('test_event', { message: 'FindingDriverScreen test' });
 
         // Add a simple test listener to see if any events are received
         socket.on('connect', () => {
-          console.log('🎯 Socket connected in FindingDriverScreen!');
+          logger.debug('🎯 Socket connected in FindingDriverScreen!');
         });
 
         socket.on('disconnect', () => {
-          console.log('🎯 Socket disconnected in FindingDriverScreen!');
+          logger.debug('🎯 Socket disconnected in FindingDriverScreen!');
         });
 
         // Add direct ride_accepted listener for debugging
         socket.on('ride_accepted', (data) => {
-          console.log('🎯 Direct ride_accepted event received in FindingDriverScreen:', data);
-          console.log('🔍 Current isDriverFound state (direct):', isDriverFound);
-          console.log('🔍 Current hasNavigated state (direct):', hasNavigated);
+          logger.debug('🎯 Direct ride_accepted event received in FindingDriverScreen:', data);
+          logger.debug('🔍 Current isDriverFound state (direct):', isDriverFound);
+          logger.debug('🔍 Current hasNavigated state (direct):', hasNavigated);
           
           // Prevent multiple navigations
           if (isDriverFound || hasNavigated) {
-            console.log('🚫 Driver already found or navigation already triggered, ignoring duplicate event');
+            logger.debug('🚫 Driver already found or navigation already triggered, ignoring duplicate event');
             return;
           }
           
           // Validate that this is the correct ride
           if (data.rideId && rideId && data.rideId !== rideId) {
-            console.log('🚫 Ride ID mismatch, ignoring event for different ride');
+            logger.debug('🚫 Ride ID mismatch, ignoring event for different ride');
             return;
           }
           
-          console.log('✅ Processing ride acceptance for correct ride (direct)');
+          logger.debug('✅ Processing ride acceptance for correct ride (direct)');
           setIsDriverFound(true);
           setSearchText('Pilot found! Confirming ride...');
           
-          console.log('🚗 Navigating to LiveTracking from direct event with driver data:', {
+          logger.debug('🚗 Navigating to LiveTracking from direct event with driver data:', {
             id: data.driverId,
             name: data.driverName,
             phone: data.driverPhone,
@@ -517,7 +518,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
     setupSocketListeners();
 
     return () => {
-      console.log('🧹 Cleaning up FindingDriverScreen');
+      logger.debug('🧹 Cleaning up FindingDriverScreen');
       clearCallbacks();
       if (searchTimer.current) {
         clearInterval(searchTimer.current);
@@ -540,22 +541,22 @@ export default function FindingDriverScreen({ navigation, route }: any) {
 
   const handleConfirmCancel = async (reason: string) => {
     try {
-      console.log('🚫 User cancelled ride with reason:', reason);
+      logger.debug('🚫 User cancelled ride with reason:', reason);
       
       // Call the cancel ride API endpoint
       if (rideId && getToken) {
-        console.log('📡 Calling cancel ride API for ride ID:', rideId);
+        logger.debug('📡 Calling cancel ride API for ride ID:', rideId);
         const token = await getToken();
         if (!token) {
           throw new Error('Authentication token not available');
         }
         const result = await rideService.cancelRide(rideId, () => Promise.resolve(token));
-        console.log('✅ Cancel ride API response:', result);
+        logger.debug('✅ Cancel ride API response:', result);
         
         // Emit socket event to notify server about cancellation (preserve socket events)
         const socket = getSocket();
         if (socket) {
-          console.log('🔌 Emitting cancel_ride socket event');
+          logger.debug('🔌 Emitting cancel_ride socket event');
           socket.emit('cancel_ride', { rideId, reason });
         }
         
@@ -563,7 +564,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
         setShowCancelModal(false);
         
         // Navigate immediately without alert
-        console.log('🚀 Navigating to home screen immediately after successful cancellation');
+        logger.debug('🚀 Navigating to home screen immediately after successful cancellation');
         navigation.replace('TabNavigator', { screen: 'Home' });
         
       } else {
@@ -575,7 +576,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       // Show error message but still try to emit socket event
       const socket = getSocket();
       if (socket && rideId) {
-        console.log('🔌 Emitting cancel_ride socket event as fallback');
+        logger.debug('🔌 Emitting cancel_ride socket event as fallback');
         socket.emit('cancel_ride', { rideId, reason });
       }
       
@@ -583,7 +584,7 @@ export default function FindingDriverScreen({ navigation, route }: any) {
       setShowCancelModal(false);
       
       // Navigate immediately even on error
-      console.log('🚀 Navigating to home screen after error');
+      logger.debug('🚀 Navigating to home screen after error');
       navigation.replace('TabNavigator', { screen: 'Home' });
     }
   };

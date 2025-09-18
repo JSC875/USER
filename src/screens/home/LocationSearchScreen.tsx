@@ -17,6 +17,7 @@ import LocationPickerMap from '../../components/common/LocationPickerMap';
 import ConnectionStatus from '../../components/common/ConnectionStatus';
 import { HYDERABAD_POPULAR_PLACES, getCategoryIcon, getCategoryColor, getSubcategoryIcon } from '../../constants/HyderabadPopularPlaces';
 import CategorizedLocationList from '../../components/common/CategorizedLocationList';
+import { logger } from '../../utils/logger';
 
 const GOOGLE_MAPS_API_KEY = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -185,8 +186,8 @@ export default function LocationSearchScreen({ navigation, route }: any) {
       const location = '17.3850,78.4867'; // Hyderabad coordinates
       const radius = 30000; // 30km radius around Hyderabad
       
-      console.log('🔍 Searching Google Places API for Hyderabad places:', query);
-      console.log('🔑 Using API key:', GOOGLE_MAPS_API_KEY ? 'Present' : 'Missing');
+      logger.debug('🔍 Searching Google Places API for Hyderabad places:', query);
+      logger.debug('🔑 Using API key:', GOOGLE_MAPS_API_KEY ? 'Present' : 'Missing');
       
       // Add timeout to prevent hanging requests
       const controller = new AbortController();
@@ -214,11 +215,11 @@ export default function LocationSearchScreen({ navigation, route }: any) {
       }
       
       const data = await response.json();
-      console.log('📡 Places API response:', data.status, data.error_message || 'No error');
+      logger.debug('📡 Places API response:', data.status, data.error_message || 'No error');
       
       if (data.status === 'OK' && data.predictions && data.predictions.length > 0) {
-        console.log('✅ Found', data.predictions.length, 'places from Google API');
-        console.log('🔍 Raw Google results:', data.predictions.map((p: any) => p.description));
+        logger.debug('✅ Found', data.predictions.length, 'places from Google API');
+        logger.debug('🔍 Raw Google results:', data.predictions.map((p: any) => p.description));
         
         // Strict filtering for Hyderabad locations only - reject any non-Hyderabad results
         const hyderabadOnly = data.predictions.filter((prediction: any) => {
@@ -316,21 +317,21 @@ export default function LocationSearchScreen({ navigation, route }: any) {
         });
         
         if (hyderabadOnly.length > 0) {
-          console.log('✅ Filtered to', hyderabadOnly.length, 'Hyderabad places');
-          console.log('🏙️ Hyderabad results:', hyderabadOnly.map((p: any) => p.description));
+          logger.debug('✅ Filtered to', hyderabadOnly.length, 'Hyderabad places');
+          logger.debug('🏙️ Hyderabad results:', hyderabadOnly.map((p: any) => p.description));
           setSearchResults(hyderabadOnly);
           setNoResults(false);
         } else {
-          console.log('📭 No Hyderabad places found in Google results, trying local data');
-          console.log('❌ Rejected results:', data.predictions.map((p: any) => p.description));
+          logger.debug('📭 No Hyderabad places found in Google results, trying local data');
+          logger.debug('❌ Rejected results:', data.predictions.map((p: any) => p.description));
           // Fallback to local Hyderabad data
           const localResults = searchLocalHyderabadPlaces(query);
           if (localResults.length > 0) {
-            console.log('✅ Found', localResults.length, 'places in local Hyderabad data');
+            logger.debug('✅ Found', localResults.length, 'places in local Hyderabad data');
             setSearchResults(localResults);
             setNoResults(false);
           } else {
-            console.log('📭 No Hyderabad places found');
+            logger.debug('📭 No Hyderabad places found');
             setSearchResults([]);
             setNoResults(true);
           }
@@ -340,7 +341,7 @@ export default function LocationSearchScreen({ navigation, route }: any) {
         setSearchResults([]);
         setNoResults(true);
       } else if (data.status === 'ZERO_RESULTS') {
-        console.log('📭 No results found');
+        logger.debug('📭 No results found');
         setSearchResults([]);
         setNoResults(true);
       } else {
@@ -351,7 +352,7 @@ export default function LocationSearchScreen({ navigation, route }: any) {
     } catch (error: any) {
       console.error('❌ Network error:', error);
       if (error.name === 'AbortError') {
-        console.log('⏰ Request timeout');
+        logger.debug('⏰ Request timeout');
       }
       setSearchResults([]);
       setNoResults(true);
@@ -363,15 +364,15 @@ export default function LocationSearchScreen({ navigation, route }: any) {
 
   const getPlaceDetails = async (placeId: string): Promise<PlaceDetails | null> => {
     try {
-      console.log('🔍 Getting place details for:', placeId);
+      logger.debug('🔍 Getting place details for:', placeId);
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,formatted_address&key=${GOOGLE_MAPS_API_KEY}`
       );
       const data = await response.json();
-      console.log('📡 Place details response:', data.status, data.error_message || 'No error');
+      logger.debug('📡 Place details response:', data.status, data.error_message || 'No error');
       
       if (data.status === 'OK' && data.result) {
-        console.log('✅ Place details retrieved successfully');
+        logger.debug('✅ Place details retrieved successfully');
         return data.result;
       } else if (data.status === 'REQUEST_DENIED') {
         console.error('❌ Place details API access denied:', data.error_message);

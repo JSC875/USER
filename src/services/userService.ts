@@ -152,17 +152,17 @@ class UserService {
   // Get current user profile
   async getCurrentUser(getToken: () => Promise<string | null>): Promise<UserProfile> {
     try {
-      console.log('🔄 === /api/users/me GET REQUEST ===');
-      console.log('🎯 Endpoint: /api/users/me');
-      console.log('📋 Method: GET');
-      console.log('🔐 Requires Auth: true');
+      logger.debug('🔄 === /api/users/me GET REQUEST ===');
+      logger.debug('🎯 Endpoint: /api/users/me');
+      logger.debug('📋 Method: GET');
+      logger.debug('🔐 Requires Auth: true');
       
       const response = await api.getAuth<UserProfile>('/api/users/me', getToken);
       
       if (__DEV__) {
-        console.log('✅ === /api/users/me GET RESPONSE ===');
-        console.log('📊 Response Success:', response.success);
-        console.log('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+        logger.debug('✅ === /api/users/me GET RESPONSE ===');
+        logger.debug('📊 Response Success:', response.success);
+        logger.debug('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
       }
       
       if (!response.success) {
@@ -183,19 +183,19 @@ class UserService {
     getToken: () => Promise<string | null>
   ): Promise<UserProfile> {
     try {
-      console.log('🔄 === /api/users/me PUT REQUEST ===');
-      console.log('🎯 Endpoint: /api/users/me');
-      console.log('📋 Method: PUT');
-      console.log('🔐 Requires Auth: true');
-      console.log('📦 Request Payload:');
-      console.log(JSON.stringify(updateData, null, 2));
+      logger.debug('🔄 === /api/users/me PUT REQUEST ===');
+      logger.debug('🎯 Endpoint: /api/users/me');
+      logger.debug('📋 Method: PUT');
+      logger.debug('🔐 Requires Auth: true');
+      logger.debug('📦 Request Payload:');
+      logger.debug(JSON.stringify(updateData, null, 2));
       
       const response = await api.putAuth<UserProfile>('/api/users/me', updateData, getToken);
       
       if (__DEV__) {
-        console.log('✅ === /api/users/me PUT RESPONSE ===');
-        console.log('📊 Response Success:', response.success);
-        console.log('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+        logger.debug('✅ === /api/users/me PUT RESPONSE ===');
+        logger.debug('📊 Response Success:', response.success);
+        logger.debug('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
       }
       
       if (!response.success) {

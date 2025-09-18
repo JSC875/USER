@@ -5,6 +5,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import Constants from 'expo-constants';
 import { config } from '../config/environment';
 import NotificationPreferencesService from './notificationPreferencesService';
+import { logger } from '../utils/logger';
 
 // Configure notification behavior
 Notifications.setNotificationHandler({
@@ -66,7 +67,7 @@ class NotificationService {
       const notificationsEnabled = await this.preferencesService.areNotificationsEnabled();
       
       if (!notificationsEnabled) {
-        console.log('📵 Notifications disabled by user preference');
+        logger.debug('📵 Notifications disabled by user preference');
         this.isInitialized = true;
         return;
       }
@@ -88,9 +89,9 @@ class NotificationService {
         this.setupTokenRefresh();
         
         this.isInitialized = true;
-        console.log('✅ Notification service initialized successfully');
+        logger.debug('✅ Notification service initialized successfully');
       } else {
-        console.log('❌ Notification permissions not granted');
+        logger.debug('❌ Notification permissions not granted');
       }
     } catch (error) {
       console.error('❌ Failed to initialize notification service:', error);
@@ -124,7 +125,7 @@ class NotificationService {
         showBadge: true,
       });
 
-      console.log('✅ Notification channels set up successfully');
+      logger.debug('✅ Notification channels set up successfully');
     } catch (error) {
       console.error('❌ Error setting up notification channels:', error);
     }
@@ -168,7 +169,7 @@ class NotificationService {
 
         return true;
       } else {
-        console.log('Must use physical device for Push Notifications');
+        logger.debug('Must use physical device for Push Notifications');
         return false;
       }
     } catch (error) {
@@ -185,15 +186,15 @@ class NotificationService {
       // Get project ID from Expo configuration
       const projectId = (Constants.expoConfig as any)?.projectId || (Constants.expoConfig as any)?.extra?.eas?.projectId;
       
-      console.log('🔍 Notification Service: Project ID from config:', projectId);
-      console.log('🔍 Notification Service: Constants.expoConfig?.projectId:', (Constants.expoConfig as any)?.projectId);
-      console.log('🔍 Notification Service: Constants.expoConfig?.extra?.eas?.projectId:', (Constants.expoConfig as any)?.extra?.eas?.projectId);
+      logger.debug('🔍 Notification Service: Project ID from config:', projectId);
+      logger.debug('🔍 Notification Service: Constants.expoConfig?.projectId:', (Constants.expoConfig as any)?.projectId);
+      logger.debug('🔍 Notification Service: Constants.expoConfig?.extra?.eas?.projectId:', (Constants.expoConfig as any)?.extra?.eas?.projectId);
       
       if (!projectId) {
         throw new Error('Expo project ID not found in configuration');
       }
       
-      console.log('🔍 Notification Service: Attempting to get push token with project ID:', projectId);
+      logger.debug('🔍 Notification Service: Attempting to get push token with project ID:', projectId);
       
       const token = await Notifications.getExpoPushTokenAsync({
         projectId: projectId,
@@ -213,7 +214,7 @@ class NotificationService {
         // Send token to server
         await this.sendTokenToServer(notificationToken);
         
-        console.log('✅ Push token obtained and stored:', token.data);
+        logger.debug('✅ Push token obtained and stored:', token.data);
         return token.data;
       }
     } catch (error) {
@@ -254,7 +255,7 @@ class NotificationService {
         throw new Error(`Server responded with ${response.status}`);
       }
 
-      console.log('Token sent to server successfully');
+      logger.debug('Token sent to server successfully');
     } catch (error) {
       console.error('Error sending token to server:', error);
     }
@@ -266,13 +267,13 @@ class NotificationService {
   private setupNotificationListeners(): void {
     // Handle notification received while app is running
     const notificationListener = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received:', notification);
+      logger.debug('Notification received:', notification);
       this.handleNotificationReceived(notification);
     });
 
     // Handle notification tapped
     const responseListener = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response:', response);
+      logger.debug('Notification response:', response);
       this.handleNotificationResponse(response);
     });
 
@@ -349,63 +350,63 @@ class NotificationService {
    */
   private handleRideRequestNotification(data: NotificationData): void {
     // Play sound, show alert, update UI
-    console.log('Ride request notification:', data);
+    logger.debug('Ride request notification:', data);
   }
 
   /**
    * Handle ride accepted notification
    */
   private handleRideAcceptedNotification(data: NotificationData): void {
-    console.log('Ride accepted notification:', data);
+    logger.debug('Ride accepted notification:', data);
   }
 
   /**
    * Handle driver arrived notification
    */
   private handleDriverArrivedNotification(data: NotificationData): void {
-    console.log('Driver arrived notification:', data);
+    logger.debug('Driver arrived notification:', data);
   }
 
   /**
    * Handle ride started notification
    */
   private handleRideStartedNotification(data: NotificationData): void {
-    console.log('Ride started notification:', data);
+    logger.debug('Ride started notification:', data);
   }
 
   /**
    * Handle ride completed notification
    */
   private handleRideCompletedNotification(data: NotificationData): void {
-    console.log('Ride completed notification:', data);
+    logger.debug('Ride completed notification:', data);
   }
 
   /**
    * Handle payment notification
    */
   private handlePaymentNotification(data: NotificationData): void {
-    console.log('Payment notification:', data);
+    logger.debug('Payment notification:', data);
   }
 
   /**
    * Handle promo notification
    */
   private handlePromoNotification(data: NotificationData): void {
-    console.log('Promo notification:', data);
+    logger.debug('Promo notification:', data);
   }
 
   /**
    * Handle chat notification
    */
   private handleChatNotification(data: NotificationData): void {
-    console.log('Chat notification:', data);
+    logger.debug('Chat notification:', data);
   }
 
   /**
    * Handle general notification
    */
   private handleGeneralNotification(data: NotificationData): void {
-    console.log('General notification:', data);
+    logger.debug('General notification:', data);
   }
 
   /**
@@ -433,7 +434,7 @@ class NotificationService {
       const notificationsEnabled = await this.preferencesService.areNotificationsEnabled();
       
       if (!notificationsEnabled) {
-        console.log('📵 Notification not scheduled - disabled by user preference');
+        logger.debug('📵 Notification not scheduled - disabled by user preference');
         return '';
       }
 
@@ -453,7 +454,7 @@ class NotificationService {
         trigger: trigger || null,
       });
       
-      console.log(`✅ ${priority} priority local notification scheduled:`, identifier);
+      logger.debug(`✅ ${priority} priority local notification scheduled:`, identifier);
       return identifier;
     } catch (error) {
       console.error(`❌ Error scheduling ${priority} priority local notification:`, error);
@@ -467,7 +468,7 @@ class NotificationService {
   async cancelScheduledNotification(identifier: string): Promise<void> {
     try {
       await Notifications.cancelScheduledNotificationAsync(identifier);
-      console.log('Scheduled notification cancelled:', identifier);
+      logger.debug('Scheduled notification cancelled:', identifier);
     } catch (error) {
       console.error('Error cancelling scheduled notification:', error);
     }
@@ -479,7 +480,7 @@ class NotificationService {
   async cancelAllScheduledNotifications(): Promise<void> {
     try {
       await Notifications.cancelAllScheduledNotificationsAsync();
-      console.log('All scheduled notifications cancelled');
+      logger.debug('All scheduled notifications cancelled');
     } catch (error) {
       console.error('Error cancelling all scheduled notifications:', error);
     }
@@ -520,7 +521,7 @@ class NotificationService {
   private openAppSettings(): void {
     // This would typically use Linking to open app settings
     // For now, we'll just log it
-    console.log('Should open app settings');
+    logger.debug('Should open app settings');
   }
 
   /**

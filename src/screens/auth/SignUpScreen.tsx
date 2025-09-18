@@ -18,6 +18,7 @@ import { useSignUp, useUser, useAuth } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
+import { logger } from '../../utils/logger';
 import Input from '../../components/common/Input';
 import PhoneInput from '../../components/common/PhoneInput';
 import OTPInput from '../../components/common/OTPInput';
@@ -420,7 +421,7 @@ function OtpStep({
             value={otp}
             onChange={setOtp}
             onComplete={(otpString) => {
-              console.log('OTP completed in SignUp:', otpString);
+              logger.debug('OTP completed in SignUp:', otpString);
               // Optionally auto-verify when OTP is complete
               // onVerify();
             }}
@@ -722,9 +723,9 @@ export default function SignUpScreen() {
 
   // Monitor authentication state
   useEffect(() => {
-    console.log('SignUpScreen - Auth state changed. isSignedIn:', isSignedIn);
+    logger.debug('SignUpScreen - Auth state changed. isSignedIn:', isSignedIn);
     if (isSignedIn) {
-      console.log('SignUpScreen - User is signed in!');
+      logger.debug('SignUpScreen - User is signed in!');
     }
   }, [isSignedIn]);
 
@@ -765,9 +766,9 @@ export default function SignUpScreen() {
     setIsLoading(true);
     try {
       const formattedPhone = `${countryCode}${phoneNumber.replace(/^0+/, '')}`;
-      console.log('SignUpScreen - Sending OTP to:', formattedPhone);
-      console.log('SignUpScreen - SignUp object:', signUp);
-      console.log('SignUpScreen - Is loaded:', isLoaded);
+      logger.debug('SignUpScreen - Sending OTP to:', formattedPhone);
+      logger.debug('SignUpScreen - SignUp object:', signUp);
+      logger.debug('SignUpScreen - Is loaded:', isLoaded);
       
       if (!signUp) {
         console.error('SignUpScreen - SignUp object is null during OTP send');
@@ -776,15 +777,15 @@ export default function SignUpScreen() {
       }
       
       if (!signUpCreated) {
-        console.log('SignUpScreen - Creating sign up...');
+        logger.debug('SignUpScreen - Creating sign up...');
         await signUp.create({ phoneNumber: formattedPhone });
         setSignUpCreated(true);
-        console.log('SignUpScreen - Sign up created successfully');
+        logger.debug('SignUpScreen - Sign up created successfully');
       }
       
-      console.log('SignUpScreen - Preparing phone number verification...');
+      logger.debug('SignUpScreen - Preparing phone number verification...');
       await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' });
-      console.log('SignUpScreen - OTP sent successfully');
+      logger.debug('SignUpScreen - OTP sent successfully');
       goToNextStep();
     } catch (err: unknown) {
       console.error('SignUpScreen - Error sending OTP:', err);
@@ -808,12 +809,12 @@ export default function SignUpScreen() {
     setOtpError('');
     try {
       const otpString = otp.join('');
-      console.log('SignUpScreen - Verifying OTP:', otpString);
-      console.log('SignUpScreen - OTP length:', otpString.length);
-      console.log('SignUpScreen - OTP array:', otp);
-      console.log('SignUpScreen - SignUp object:', signUp);
-      console.log('SignUpScreen - Is loaded:', isLoaded);
-      console.log('SignUpScreen - SignUpCreated:', signUpCreated);
+      logger.debug('SignUpScreen - Verifying OTP:', otpString);
+      logger.debug('SignUpScreen - OTP length:', otpString.length);
+      logger.debug('SignUpScreen - OTP array:', otp);
+      logger.debug('SignUpScreen - SignUp object:', signUp);
+      logger.debug('SignUpScreen - Is loaded:', isLoaded);
+      logger.debug('SignUpScreen - SignUpCreated:', signUpCreated);
       
       if (otpString.length !== 6) {
         setOtpError('Please enter complete OTP');
@@ -836,22 +837,22 @@ export default function SignUpScreen() {
         return;
       }
       
-      console.log('SignUpScreen - Attempting phone number verification...');
-      console.log('SignUpScreen - OTP code being sent:', otpString);
+      logger.debug('SignUpScreen - Attempting phone number verification...');
+      logger.debug('SignUpScreen - OTP code being sent:', otpString);
       
       const completeSignUp = await signUp.attemptPhoneNumberVerification({ code: otpString });
-      console.log('SignUpScreen - Verification result:', completeSignUp);
-      console.log('SignUpScreen - Verification status:', completeSignUp?.status);
-      console.log('SignUpScreen - Phone verification status:', completeSignUp?.verifications?.phoneNumber?.status);
-      console.log('SignUpScreen - Created session ID:', completeSignUp?.createdSessionId);
+      logger.debug('SignUpScreen - Verification result:', completeSignUp);
+      logger.debug('SignUpScreen - Verification status:', completeSignUp?.status);
+      logger.debug('SignUpScreen - Phone verification status:', completeSignUp?.verifications?.phoneNumber?.status);
+      logger.debug('SignUpScreen - Created session ID:', completeSignUp?.createdSessionId);
       
       // Check if phone number is verified
       const isPhoneVerified = completeSignUp?.verifications?.phoneNumber?.status === 'verified';
-      console.log('SignUpScreen - Is phone verified:', isPhoneVerified);
+      logger.debug('SignUpScreen - Is phone verified:', isPhoneVerified);
       
       if (isPhoneVerified) {
-        console.log('SignUpScreen - Phone verification successful!');
-        console.log('SignUpScreen - Missing fields:', completeSignUp?.missingFields);
+        logger.debug('SignUpScreen - Phone verification successful!');
+        logger.debug('SignUpScreen - Missing fields:', completeSignUp?.missingFields);
         
         // Set userType in Clerk metadata immediately after phone verification
         if (user) {
@@ -859,12 +860,12 @@ export default function SignUpScreen() {
             await user.update({
               unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
             });
-            console.log('SignUpScreen - User type set to customer after phone verification');
+            logger.debug('SignUpScreen - User type set to customer after phone verification');
             
             // Force new JWT with updated userType
             if (typeof getToken === 'function') {
               const newToken = await getToken({ template: 'my_app_token', skipCache: true });
-              console.log('SignUpScreen - New JWT with userType after phone verification:', newToken ? 'Generated' : 'Failed');
+              logger.debug('SignUpScreen - New JWT with userType after phone verification:', newToken ? 'Generated' : 'Failed');
             }
           } catch (metadataErr) {
             console.error('SignUpScreen - Error setting user type after phone verification:', metadataErr);
@@ -873,27 +874,27 @@ export default function SignUpScreen() {
         
         // Check if we have all required fields (phone is verified, but we still need first_name and last_name)
         if (completeSignUp?.missingFields?.includes('first_name') || completeSignUp?.missingFields?.includes('last_name')) {
-          console.log('SignUpScreen - Phone verified but missing name fields, proceeding to next step');
+          logger.debug('SignUpScreen - Phone verified but missing name fields, proceeding to next step');
           goToNextStep();
         } else if (completeSignUp?.status === 'complete') {
-          console.log('SignUpScreen - All requirements met, setting active session...');
-          console.log('SignUpScreen - Created session ID:', completeSignUp.createdSessionId);
+          logger.debug('SignUpScreen - All requirements met, setting active session...');
+          logger.debug('SignUpScreen - Created session ID:', completeSignUp.createdSessionId);
           
           // Set the active session
           if (setSignUpActive && completeSignUp.createdSessionId) {
             await setSignUpActive({ session: completeSignUp.createdSessionId });
-            console.log('SignUpScreen - Session activated successfully');
+            logger.debug('SignUpScreen - Session activated successfully');
           } else {
             console.error('SignUpScreen - setSignUpActive is not available or no session ID');
           }
           goToNextStep();
         } else {
-          console.log('SignUpScreen - Phone verified but status not complete, proceeding anyway');
+          logger.debug('SignUpScreen - Phone verified but status not complete, proceeding anyway');
           goToNextStep();
         }
       } else {
-        console.log('SignUpScreen - Phone verification failed');
-        console.log('SignUpScreen - Complete signup object:', completeSignUp);
+        logger.debug('SignUpScreen - Phone verification failed');
+        logger.debug('SignUpScreen - Complete signup object:', completeSignUp);
         setOtpError('Invalid OTP. Please try again.');
       }
     } catch (err: any) {
@@ -935,10 +936,10 @@ export default function SignUpScreen() {
   const handleCompleteProfile = async () => {
     setIsLoading(true);
     try {
-      console.log('SignUpScreen - Completing profile...');
-      console.log('SignUpScreen - First name:', firstName);
-      console.log('SignUpScreen - Last name:', lastName);
-      console.log('SignUpScreen - Current auth state - isSignedIn:', isSignedIn);
+      logger.debug('SignUpScreen - Completing profile...');
+      logger.debug('SignUpScreen - First name:', firstName);
+      logger.debug('SignUpScreen - Last name:', lastName);
+      logger.debug('SignUpScreen - Current auth state - isSignedIn:', isSignedIn);
       
       // Validate that both names are provided
       if (!firstName.trim() || !lastName.trim()) {
@@ -965,24 +966,24 @@ export default function SignUpScreen() {
           firstName: firstName.trim(),
           lastName: lastName.trim()
         });
-        console.log('SignUpScreen - Profile updated successfully');
-        console.log('SignUpScreen - SignUp status after update:', signUp.status);
+        logger.debug('SignUpScreen - Profile updated successfully');
+        logger.debug('SignUpScreen - SignUp status after update:', signUp.status);
         // Check if we need to complete the signup
         if (signUp.status === 'complete') {
-          console.log('SignUpScreen - SignUp is complete, setting active session...');
+          logger.debug('SignUpScreen - SignUp is complete, setting active session...');
           if (setSignUpActive && signUp.createdSessionId) {
             await setSignUpActive({ session: signUp.createdSessionId });
-            console.log('SignUpScreen - Session activated successfully');
+            logger.debug('SignUpScreen - Session activated successfully');
           }
         } else {
-          console.log('SignUpScreen - SignUp status is not complete:', signUp.status);
-          console.log('SignUpScreen - Missing fields:', signUp.missingFields);
+          logger.debug('SignUpScreen - SignUp status is not complete:', signUp.status);
+          logger.debug('SignUpScreen - Missing fields:', signUp.missingFields);
           // Try to complete the signup manually
           try {
-            console.log('SignUpScreen - Attempting to complete signup...');
+            logger.debug('SignUpScreen - Attempting to complete signup...');
             // Since we've already verified the phone and updated the name, 
             // we should be able to complete the signup
-            console.log('SignUpScreen - SignUp should be complete now');
+            logger.debug('SignUpScreen - SignUp should be complete now');
           } catch (completionErr) {
             console.error('SignUpScreen - Error completing signup:', completionErr);
           }
@@ -997,12 +998,12 @@ export default function SignUpScreen() {
             lastName: lastName.trim(),
             unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
           });
-          console.log('SignUpScreen - Clerk user updated with name and userType');
+          logger.debug('SignUpScreen - Clerk user updated with name and userType');
           
           // Force new JWT with updated userType and name fields
           if (typeof getToken === 'function') {
             const newToken = await getToken({ template: 'my_app_token', skipCache: true });
-            console.log('SignUpScreen - New JWT with complete user data:', newToken ? 'Generated' : 'Failed');
+            logger.debug('SignUpScreen - New JWT with complete user data:', newToken ? 'Generated' : 'Failed');
             
             // Log the JWT details to verify custom fields
             if (newToken) {
@@ -1019,11 +1020,11 @@ export default function SignUpScreen() {
       //   await user?.setProfileImage({ file: profileImage });
       // }
       
-      console.log('SignUpScreen - Profile completion successful');
-      console.log('SignUpScreen - Final auth state - isSignedIn:', isSignedIn);
+      logger.debug('SignUpScreen - Profile completion successful');
+      logger.debug('SignUpScreen - Final auth state - isSignedIn:', isSignedIn);
       Alert.alert('Success', 'Profile updated successfully!', [
         { text: 'OK', onPress: () => {
-          console.log('SignUpScreen - Profile completion alert dismissed');
+          logger.debug('SignUpScreen - Profile completion alert dismissed');
         }}
       ]);
     } catch (err: any) {

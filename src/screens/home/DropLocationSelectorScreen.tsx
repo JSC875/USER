@@ -11,6 +11,7 @@ import LoadingSpinner from '../../components/common/LoadingSpinner';
 import * as Location from 'expo-location';
 import { HYDERABAD_POPULAR_PLACES, getCategoryIcon, getCategoryColor } from '../../constants/HyderabadPopularPlaces';
 import CategorizedLocationList from '../../components/common/CategorizedLocationList';
+import { logger } from '../../utils/logger';
 
 const GOOGLE_MAPS_API_KEY = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
 
@@ -74,7 +75,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       try {
         let { status } = await Location.requestForegroundPermissionsAsync();
         if (status !== 'granted') {
-          console.log('Location permission denied');
+          logger.debug('Location permission denied');
           return;
         }
         
@@ -112,13 +113,13 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
             }
           }
         } catch (geocodeError) {
-          console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
+          logger.debug('Failed to reverse geocode current location, using fallback:', geocodeError);
         }
         
         setCurrentLocation(coords);
-        console.log('Current location fetched:', coords);
+        logger.debug('Current location fetched:', coords);
       } catch (error) {
-        console.log('Error fetching current location:', error);
+        logger.debug('Error fetching current location:', error);
         // Don't set current location if there's an error
       }
     };
@@ -165,7 +166,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           }
         }
       } catch (geocodeError) {
-        console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
+        logger.debug('Failed to reverse geocode current location, using fallback:', geocodeError);
       }
       
       return {
@@ -175,7 +176,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         name: currentName,
       };
     } catch (error) {
-      console.log('Error getting current location:', error);
+      logger.debug('Error getting current location:', error);
       // Return fallback location
       return {
         latitude: 17.4448, // Fallback to static Hyderabad
@@ -297,7 +298,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   }, [searchQuery, editing]);
 
   useEffect(() => {
-    console.log('dropLocation changed:', dropLocation);
+    logger.debug('dropLocation changed:', dropLocation);
   }, [dropLocation]);
 
   useEffect(() => {
@@ -340,35 +341,35 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   // Handle route params for auto-focusing fields
   useEffect(() => {
-    console.log('🔍 DropLocationSelectorScreen - Route params:', route.params);
-    console.log('🔍 DropLocationSelectorScreen - Type:', route.params?.type);
+    logger.debug('🔍 DropLocationSelectorScreen - Route params:', route.params);
+    logger.debug('🔍 DropLocationSelectorScreen - Type:', route.params?.type);
     
     if (route.params?.focusDestination) {
       // Set editing to 'drop' to trigger focus on destination field
       setEditing('drop');
       setDropLocationQuery(dropLocation?.address || dropLocation?.name || '');
       setSearchQuery(dropLocation?.address || dropLocation?.name || '');
-      console.log('📍 Focused on destination field');
+      logger.debug('📍 Focused on destination field');
     } else if (route.params?.type === 'pickup') {
       // Set editing to 'current' to trigger focus on current location field
       setEditing('current');
       setCurrentLocationQuery(''); // Clear only the current location field
       setSearchQuery(''); // Clear search query for current location
-      console.log('📍 Focused on current location field for pickup editing');
+      logger.debug('📍 Focused on current location field for pickup editing');
     } else if (route.params?.type === 'drop') {
       // Set editing to 'drop' to trigger focus on destination field
       setEditing('drop');
       setDropLocationQuery(''); // Clear the query to allow fresh input
       setSearchQuery(''); // Clear the search query too
-      console.log('📍 Focused on destination field for drop editing');
+      logger.debug('📍 Focused on destination field for drop editing');
     }
   }, [route.params?.focusDestination, route.params?.type, route.params?.drop, dropLocation, currentLocation]);
 
   // Focus the drop input when editing state changes to 'drop'
   useEffect(() => {
-    console.log('🔍 Focus useEffect - editing state:', editing);
+    logger.debug('🔍 Focus useEffect - editing state:', editing);
     if (editing === 'drop') {
-      console.log('🎯 Attempting to focus drop input');
+      logger.debug('🎯 Attempting to focus drop input');
       // More aggressive focus attempts
       const focusAttempts = [50, 100, 200, 400, 600];
       focusAttempts.forEach((delay, index) => {
@@ -376,17 +377,17 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           if (dropInputRef.current) {
             try {
               dropInputRef.current.focus();
-              console.log(`✅ Drop input focused successfully (attempt ${index + 1})`);
+              logger.debug(`✅ Drop input focused successfully (attempt ${index + 1})`);
             } catch (error) {
-              console.log(`❌ Drop input focus error (attempt ${index + 1}):`, error);
+              logger.debug(`❌ Drop input focus error (attempt ${index + 1}):`, error);
             }
           } else {
-            console.log(`❌ Drop input ref is null (attempt ${index + 1})`);
+            logger.debug(`❌ Drop input ref is null (attempt ${index + 1})`);
           }
         }, delay);
       });
     } else if (editing === 'current') {
-      console.log('🎯 Attempting to focus current input');
+      logger.debug('🎯 Attempting to focus current input');
       // More aggressive focus attempts
       const focusAttempts = [50, 100, 200, 400, 600];
       focusAttempts.forEach((delay, index) => {
@@ -394,12 +395,12 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
           if (currentInputRef.current) {
             try {
               currentInputRef.current.focus();
-              console.log(`✅ Current input focused successfully (attempt ${index + 1})`);
+              logger.debug(`✅ Current input focused successfully (attempt ${index + 1})`);
             } catch (error) {
-              console.log(`❌ Current input focus error (attempt ${index + 1}):`, error);
+              logger.debug(`❌ Current input focus error (attempt ${index + 1}):`, error);
             }
           } else {
-            console.log(`❌ Current input ref is null (attempt ${index + 1})`);
+            logger.debug(`❌ Current input ref is null (attempt ${index + 1})`);
           }
         }, delay);
       });
@@ -499,8 +500,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       let location = '17.3850,78.4867'; // Hyderabad coordinates
       const radius = 30000; // 30km radius around Hyderabad
       
-      console.log('🔍 Searching places for:', query);
-      console.log('🔑 Using API key:', GOOGLE_MAPS_API_KEY ? 'Present' : 'Missing');
+      logger.debug('🔍 Searching places for:', query);
+      logger.debug('🔑 Using API key:', GOOGLE_MAPS_API_KEY ? 'Present' : 'Missing');
       
       // First, search in saved locations
       const savedMatches = getSavedLocationMatches(query);
@@ -509,10 +510,10 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         `https://maps.googleapis.com/maps/api/place/autocomplete/json?input=${encodeURIComponent(query)}&location=${location}&radius=${radius}&components=country:in&key=${GOOGLE_MAPS_API_KEY}`
       );
       const data = await response.json();
-      console.log('📡 Places API response:', data.status, data.error_message || 'No error');
+      logger.debug('📡 Places API response:', data.status, data.error_message || 'No error');
       
       if (data.status === 'OK' && data.predictions && data.predictions.length > 0) {
-        console.log('✅ Found', data.predictions.length, 'places');
+        logger.debug('✅ Found', data.predictions.length, 'places');
         // Fetch coordinates for each result and filter for Hyderabad area
         const resultsWithCoords = await Promise.all(
           data.predictions.slice(0, 10).map(async (prediction: any) => {
@@ -534,7 +535,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
               }
               return null;
             } catch (error) {
-              console.log('Failed to get details for:', prediction.place_id);
+              logger.debug('Failed to get details for:', prediction.place_id);
               return null;
             }
           })
@@ -549,7 +550,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         // Fallback to basic search
         await searchPlacesFallback(query);
       } else if (data.status === 'ZERO_RESULTS') {
-        console.log('📭 No results found');
+        logger.debug('📭 No results found');
         // Still show saved location matches if any
         setSearchResults(savedMatches);
       } else {
@@ -568,7 +569,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
   // Fallback search using Geocoding API
   const searchPlacesFallback = async (query: string) => {
     try {
-      console.log('🔄 Using fallback geocoding search');
+      logger.debug('🔄 Using fallback geocoding search');
       const savedMatches = getSavedLocationMatches(query);
       
       const response = await fetch(
@@ -611,7 +612,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   // Enhanced offline fallback with Hyderabad-specific locations
   const searchPlacesOffline = async (query: string) => {
-    console.log('📱 Using enhanced offline fallback search');
+    logger.debug('📱 Using enhanced offline fallback search');
     
     const lowercaseQuery = query.toLowerCase();
     const savedMatches = getSavedLocationMatches(query);
@@ -651,15 +652,15 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
 
   const getPlaceDetails = async (placeId: string) => {
     try {
-      console.log('🔍 Getting place details for:', placeId);
+      logger.debug('🔍 Getting place details for:', placeId);
       const response = await fetch(
         `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=geometry,formatted_address&key=${GOOGLE_MAPS_API_KEY}`
       );
       const data = await response.json();
-      console.log('📡 Place details response:', data.status, data.error_message || 'No error');
+      logger.debug('📡 Place details response:', data.status, data.error_message || 'No error');
       
       if (data.status === 'OK' && data.result) {
-        console.log('✅ Place details retrieved successfully');
+        logger.debug('✅ Place details retrieved successfully');
         return data.result;
       } else if (data.status === 'REQUEST_DENIED') {
         console.error('❌ Place details API access denied:', data.error_message);
@@ -809,8 +810,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       setSearchQuery(location.address || location.name || ''); // update search query
       // If we came here to edit only the pickup (from RideOptions), return with updated pickup only
       if (route.params?.type === 'pickup') {
-        console.log('🔄 Navigating back to RideOptions with updated pickup:', location);
-        console.log('📍 Original drop preserved:', route.params?.drop);
+        logger.debug('🔄 Navigating back to RideOptions with updated pickup:', location);
+        logger.debug('📍 Original drop preserved:', route.params?.drop);
         navigation.replace('RideOptions', {
           pickup: location,
           drop: route.params?.drop, // Use original drop from route params, don't change it

@@ -35,13 +35,14 @@ import Animated, {
   runOnJS,
   Easing
 } from 'react-native-reanimated';
+import { logger } from '../../utils/logger';
 
 export default function RideInProgressScreen({ navigation, route }: any) {
   const { destination, driver, rideId, origin, mpinVerified, estimate } = route.params;
   const { getToken } = useAuth();
   const { getStoredToken } = useNotifications();
   
-  console.log('🚀 RideInProgressScreen: Component initialized with params:', {
+  logger.debug('RideInProgressScreen: Component initialized with params', {
     destination,
     estimate,
     driver,
@@ -121,7 +122,7 @@ export default function RideInProgressScreen({ navigation, route }: any) {
       { duration: 5000, easing: Easing.inOut(Easing.cubic) },
       (finished) => {
         if (finished) {
-          console.log('✅ Latitude animation completed');
+          logger.debug('Latitude animation completed');
         }
       }
     );
@@ -132,7 +133,7 @@ export default function RideInProgressScreen({ navigation, route }: any) {
       { duration: 5000, easing: Easing.inOut(Easing.cubic) },
       (finished) => {
         if (finished) {
-          console.log('✅ Longitude animation completed');
+          logger.debug('Longitude animation completed');
           isAnimating.value = false;
         }
       }
@@ -187,19 +188,19 @@ export default function RideInProgressScreen({ navigation, route }: any) {
 
   // Update driver location with animation and path tracking
   const updateDriverLocationWithAnimation = (newLocation: {latitude: number, longitude: number}) => {
-    console.log('🔄 Updating driver location from:', driverLocation, 'to:', newLocation);
+    logger.location('Updating driver location', { from: driverLocation, to: newLocation });
     
     // Validate the new location
     if (!newLocation || !newLocation.latitude || !newLocation.longitude ||
         isNaN(newLocation.latitude) || isNaN(newLocation.longitude)) {
-      console.log('🚫 Invalid new location data, skipping update');
+      logger.warn('Invalid new location data, skipping update');
       return;
     }
     
     // Additional validation for coordinate ranges
     if (newLocation.latitude < -90 || newLocation.latitude > 90 || 
         newLocation.longitude < -180 || newLocation.longitude > 180) {
-      console.log('🚫 Coordinates out of valid range, skipping update');
+      logger.warn('Coordinates out of valid range, skipping update');
       return;
     }
     
@@ -232,16 +233,16 @@ export default function RideInProgressScreen({ navigation, route }: any) {
           newPath.splice(0, newPath.length - 50);
         }
         setPathUpdateCount(prev => prev + 1);
-        console.log('🛣️ Updated driver path, new length:', newPath.length);
+        logger.debug('Updated driver path', { length: newPath.length });
         return newPath;
       }
-      console.log('🛣️ Path not updated - duplicate location');
+      logger.debug('Path not updated - duplicate location');
       return prev;
     });
     
     // Immediately update map region to follow driver
     if (mapRef.current) {
-      console.log('📷 Animating map to follow driver location:', newLocation);
+      logger.debug('Animating map to follow driver location', newLocation);
       const region = {
         latitude: newLocation.latitude,
         longitude: newLocation.longitude,
@@ -252,33 +253,33 @@ export default function RideInProgressScreen({ navigation, route }: any) {
       mapRef.current.animateToRegion(region, 1000); // 1 second animation
     }
     
-    console.log('✅ Driver location update completed successfully');
+    logger.debug('Driver location update completed successfully');
   };
 
   // Function to fetch real road route between driver and destination using Google Directions API
   const fetchRoutePath = async (driverPos: {latitude: number, longitude: number}, destPos: {latitude: number, longitude: number}) => {
     try {
-      console.log('🛣️ Fetching real road route from Google Directions API...');
-      console.log('🛣️ Driver position:', driverPos);
-      console.log('🛣️ Destination position:', destPos);
+      logger.api('Fetching real road route from Google Directions API', { driverPos, destPos });
       
       const routingService = RoutingService.getInstance();
       
       // Try to get real route from Google Directions API first
       const routeResponse = await routingService.getRoute(driverPos, destPos, 'driving');
       
-      console.log('🛣️ Route response:', routeResponse);
+      logger.api('Route response received', routeResponse);
       
       if (routeResponse.success && routeResponse.route && routeResponse.route.length > 0) {
-        console.log('✅ Got real road route with', routeResponse.route.length, 'points');
-        console.log('✅ First point:', routeResponse.route[0]);
-        console.log('✅ Last point:', routeResponse.route[routeResponse.route.length - 1]);
+        logger.success('Got real road route', { 
+          pointCount: routeResponse.route.length,
+          firstPoint: routeResponse.route[0],
+          lastPoint: routeResponse.route[routeResponse.route.length - 1]
+        });
         setRoutePath(routeResponse.route);
       } else {
         // Fallback to generated path if API fails
-        console.log('⚠️ Google Directions API failed or returned empty route, using fallback path');
+        logger.warn('Google Directions API failed or returned empty route, using fallback path');
         const curvedPath = routingService.generateCurvedPath(driverPos, destPos, 50);
-        console.log('🛣️ Generated fallback path with', curvedPath.length, 'points');
+        logger.debug('Generated fallback path', { pointCount: curvedPath.length });
         setRoutePath(curvedPath);
       }
     } catch (error) {
@@ -286,7 +287,7 @@ export default function RideInProgressScreen({ navigation, route }: any) {
       // Fallback to generated path
       const routingService = RoutingService.getInstance();
       const curvedPath = routingService.generateCurvedPath(driverPos, destPos, 50);
-      console.log('🛣️ Generated fallback path with', curvedPath.length, 'points');
+      logger.debug('Generated fallback path', { pointCount: curvedPath.length });
       setRoutePath(curvedPath);
     }
   };
@@ -304,22 +305,20 @@ export default function RideInProgressScreen({ navigation, route }: any) {
   });
 
   useEffect(() => {
-    console.log('🚗 RideInProgressScreen mounted with params:', route.params);
-    console.log('🔍 MPIN Verified:', mpinVerified);
+    logger.debug('RideInProgressScreen mounted', { params: route.params, mpinVerified });
     
     // Listen for real-time ride status and driver location updates
     onRideStatus((data: { rideId: string; status: string; message?: string; }) => {
       if (data.rideId === rideId) {
-        console.log('🔄 Ride status update:', data);
+        logger.debug('Ride status update', data);
         setRideStatus(data.status);
         
         if (data.status === 'completed') {
-          console.log('✅ Ride completed, navigating to payment screen');
+          logger.success('Ride completed, navigating to payment screen');
           // Convert fare from INR to paise for payment
           const fareInINR = estimate?.fare || 73; // Default to 73 INR
           const paymentAmount = Math.round(fareInINR * 100); // Convert to paise
-          console.log('💰 Fare in INR:', fareInINR);
-          console.log('💰 Payment amount in paise:', paymentAmount);
+          logger.info('Payment details', { fareInINR, paymentAmount });
           
           // Navigate to post-ride payment screen
           navigation.navigate('PostRidePayment', {
@@ -338,16 +337,15 @@ export default function RideInProgressScreen({ navigation, route }: any) {
 
     // Listen for ride completed event specifically (backup for payment flow)
     onRideCompleted((data: { rideId: string; status: string; message: string; timestamp: number; }) => {
-      console.log('✅ RideInProgressScreen received ride completed event:', data);
-      console.log('✅ Checking if rideId matches:', data.rideId, '===', rideId);
+      logger.debug('RideInProgressScreen received ride completed event', data);
+      logger.debug('Checking if rideId matches', { received: data.rideId, expected: rideId });
       
       if (data.rideId === rideId) {
-        console.log('✅ Ride completed event matches current ride, navigating to payment screen');
+        logger.success('Ride completed event matches current ride, navigating to payment screen');
         // Convert fare from INR to paise for payment
         const fareInINR = estimate?.fare || 73; // Default to 73 INR
         const paymentAmount = Math.round(fareInINR * 100); // Convert to paise
-        console.log('💰 Fare in INR from completed event:', fareInINR);
-        console.log('💰 Payment amount in paise from completed event:', paymentAmount);
+        logger.info('Payment details from completed event', { fareInINR, paymentAmount });
         
         // Navigate to post-ride payment screen
         navigation.navigate('PostRidePayment', {
@@ -358,12 +356,12 @@ export default function RideInProgressScreen({ navigation, route }: any) {
           estimate: estimate || { fare: fareInINR },
         });
       } else {
-        console.log('🚫 Ignoring ride completed event for different ride:', data.rideId, 'expected:', rideId);
+        logger.debug('Ignoring ride completed event for different ride', { received: data.rideId, expected: rideId });
       }
     });
 
     onDriverLocation((data: { driverId: string; latitude: number; longitude: number; }) => {
-      console.log('📍 Driver location update:', data);
+      logger.location('Driver location update', data);
       setLocationUpdateCount(prev => prev + 1);
       
       const newLocation = { latitude: data.latitude, longitude: data.longitude };
@@ -382,20 +380,18 @@ export default function RideInProgressScreen({ navigation, route }: any) {
 
   // Initial route fetching when component mounts or when we have coordinates
   useEffect(() => {
-    console.log('🛣️ Initial route fetching setup...');
-    console.log('🛣️ Driver location:', driverLocation);
-    console.log('🛣️ Destination:', destination);
+    logger.debug('Initial route fetching setup', { driverLocation, destination });
     
     // If we have driver location and destination, fetch the route immediately
     if (driverLocation && destination?.latitude && destination?.longitude) {
-      console.log('🛣️ Fetching initial route from driver to destination...');
+      logger.debug('Fetching initial route from driver to destination');
       fetchRoutePath(driverLocation, destination);
     }
     
     // Also fetch route from pickup to destination for the overall trip route
     if (origin?.latitude && origin?.longitude && 
         destination?.latitude && destination?.longitude) {
-      console.log('🛣️ Fetching overall trip route from pickup to destination...');
+      logger.debug('Fetching overall trip route from pickup to destination');
       fetchOverallTripRoute(origin, destination);
     }
   }, [driverLocation, destination, origin]);
@@ -403,28 +399,28 @@ export default function RideInProgressScreen({ navigation, route }: any) {
   // Function to fetch overall trip route from pickup to destination
   const fetchOverallTripRoute = async (pickupPos: {latitude: number, longitude: number}, destPos: {latitude: number, longitude: number}) => {
     try {
-      console.log('🛣️ Fetching overall trip route from Google Directions API...');
-      console.log('🛣️ Pickup position:', pickupPos);
-      console.log('🛣️ Destination position:', destPos);
+      logger.api('Fetching overall trip route from Google Directions API', { pickupPos, destPos });
       
       const routingService = RoutingService.getInstance();
       
       // Try to get real route from Google Directions API first
       const routeResponse = await routingService.getRoute(pickupPos, destPos, 'driving');
       
-      console.log('🛣️ Overall trip route response:', routeResponse);
+      logger.api('Overall trip route response', routeResponse);
       
       if (routeResponse.success && routeResponse.route && routeResponse.route.length > 0) {
-        console.log('✅ Got overall trip route with', routeResponse.route.length, 'points');
-        console.log('✅ First point:', routeResponse.route[0]);
-        console.log('✅ Last point:', routeResponse.route[routeResponse.route.length - 1]);
+        logger.success('Got overall trip route', {
+          pointCount: routeResponse.route.length,
+          firstPoint: routeResponse.route[0],
+          lastPoint: routeResponse.route[routeResponse.route.length - 1]
+        });
         // Store this as a separate route for the overall trip visualization
         setOverallTripRoute(routeResponse.route);
       } else {
         // Fallback to generated path if API fails
-        console.log('⚠️ Google Directions API failed for overall trip or returned empty route, using fallback path');
+        logger.warn('Google Directions API failed for overall trip or returned empty route, using fallback path');
         const curvedPath = routingService.generateCurvedPath(pickupPos, destPos, 50);
-        console.log('🛣️ Generated fallback overall trip path with', curvedPath.length, 'points');
+        logger.debug('Generated fallback overall trip path', { pointCount: curvedPath.length });
         setOverallTripRoute(curvedPath);
       }
     } catch (error) {
@@ -432,7 +428,7 @@ export default function RideInProgressScreen({ navigation, route }: any) {
       // Fallback to generated path
       const routingService = RoutingService.getInstance();
       const curvedPath = routingService.generateCurvedPath(pickupPos, destPos, 50);
-      console.log('🛣️ Generated fallback overall trip path with', curvedPath.length, 'points');
+      logger.debug('Generated fallback overall trip path', { pointCount: curvedPath.length });
       setOverallTripRoute(curvedPath);
     }
   };
@@ -520,7 +516,7 @@ export default function RideInProgressScreen({ navigation, route }: any) {
   };
 
   const handleChat = () => {
-    console.log('🔗 Navigating to Chat with data:', { 
+    logger.debug('Navigating to Chat', { 
       ride: { rideId: rideId },
       driver: driverInfo,
       userId: route.params.userId || 'user123'
@@ -540,7 +536,7 @@ export default function RideInProgressScreen({ navigation, route }: any) {
     setCallModalVisible(false);
     const phoneToCall = driverInfo?.phone;
     if (phoneToCall) {
-      console.log('📞 RideInProgressScreen: Calling driver with phone:', phoneToCall);
+      logger.info('Calling driver', { phone: phoneToCall });
       Linking.openURL(`tel:${phoneToCall}`);
     } else {
       Alert.alert('No phone number available');
@@ -611,10 +607,10 @@ export default function RideInProgressScreen({ navigation, route }: any) {
           mapType="standard"
           followsUserLocation={false}
           onMapReady={() => {
-            console.log('🗺️ Map is ready');
+            logger.debug('Map is ready');
             // If we have driver location, center the map on it
             if (driverLocation) {
-              console.log('🗺️ Centering map on driver location:', driverLocation);
+              logger.debug('Centering map on driver location', driverLocation);
               mapRef.current?.animateToRegion({
                 latitude: driverLocation.latitude,
                 longitude: driverLocation.longitude,
@@ -667,12 +663,22 @@ export default function RideInProgressScreen({ navigation, route }: any) {
               coordinate={animatedDriverLocation}
               title="Driver"
               onPress={() => {
-                console.log('📍 Driver marker pressed at:', animatedDriverLocation);
+                logger.debug('Driver marker pressed', animatedDriverLocation);
               }}
             >
               <Animated.View style={[styles.driverMarker, animatedDriverStyle]}>
                 <Image 
-                  source={Images.ICON_ANIMATION_1}
+                  source={
+                    driverInfo?.vehicleType?.toLowerCase().includes('auto') || 
+                    driverInfo?.vehicleModel?.toLowerCase().includes('auto') 
+                      ? Images.RICKSHAW 
+                      : driverInfo?.vehicleType?.toLowerCase().includes('scooter') || 
+                        driverInfo?.vehicleType?.toLowerCase().includes('bike') ||
+                        driverInfo?.vehicleModel?.toLowerCase().includes('scooter') || 
+                        driverInfo?.vehicleModel?.toLowerCase().includes('bike')
+                        ? Images.SCOOTER_1
+                        : Images.ICON_ANIMATION_1
+                  }
                   style={{ width: 40, height: 40 }}
                   resizeMode="contain"
                 />

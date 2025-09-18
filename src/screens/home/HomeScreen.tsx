@@ -17,6 +17,7 @@ import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { mockLocations } from '../../data/mockData';
 import { getGreeting, useAssignUserType, useSafeAreaWithTabBar } from '../../utils/helpers';
+import { logger } from '../../utils/logger';
 import MapView, { Marker } from 'react-native-maps';
 import * as Location from 'expo-location';
 import { useLocationStore } from '../../store/useLocationStore';
@@ -85,7 +86,7 @@ export default function HomeScreen({ navigation, route }: any) {
   // Auto-check service availability when dropLocation changes
   useEffect(() => {
     if (dropLocation && dropLocation.latitude && dropLocation.longitude) {
-      console.log('📍 Auto-checking service availability for new drop location');
+      logger.debug('📍 Auto-checking service availability for new drop location');
       // Get current location for pickup
       (async () => {
         try {
@@ -137,7 +138,7 @@ export default function HomeScreen({ navigation, route }: any) {
           }
         }
       } catch (geocodeError) {
-        console.log('Failed to reverse geocode current location, using fallback:', geocodeError);
+        logger.debug('Failed to reverse geocode current location, using fallback:', geocodeError);
       }
       
       const coords = {
@@ -184,7 +185,7 @@ export default function HomeScreen({ navigation, route }: any) {
   useEffect(() => {
     (async () => {
       const token = await getToken();
-      console.log('Clerk JWT token:', token);
+      logger.debug('Clerk JWT token:', token);
     })();
   }, [getToken]);
 
@@ -203,14 +204,14 @@ export default function HomeScreen({ navigation, route }: any) {
         // Use comprehensive JWT logging utility
         const decodedJWT = await logJWTDetails(getToken, 'Home Screen JWT Analysis');
         if (!decodedJWT) {
-          console.log('❌ No JWT token available or failed to decode');
+          logger.debug('❌ No JWT token available or failed to decode');
           return;
         }
         
         // Send JWT to backend
-        console.log('🌐 Sending JWT to backend...');
-        console.log('🔑 Full JWT Token being sent:');
-        console.log(decodedJWT ? 'Token available' : 'No token');
+        logger.debug('🌐 Sending JWT to backend...');
+        logger.debug('🔑 Full JWT Token being sent:');
+        logger.debug(decodedJWT ? 'Token available' : 'No token');
         
         // Get the actual token for the API call
         const token = await getToken({ template: 'my_app_token', skipCache: true });
@@ -235,13 +236,13 @@ export default function HomeScreen({ navigation, route }: any) {
           result = null; // Not JSON, or empty
         }
         
-        console.log('📡 Backend Response:');
-        console.log(`  ✅ Status: ${response.status} ${response.statusText}`);
-        console.log(`  📦 Data:`, result);
-        console.log(`  📏 Response Size: ${responseText?.length || 0} characters`);
+        logger.debug('📡 Backend Response:');
+        logger.debug(`  ✅ Status: ${response.status} ${response.statusText}`);
+        logger.debug(`  📦 Data:`, result);
+        logger.debug(`  📏 Response Size: ${responseText?.length || 0} characters`);
         
         setHasSentToBackend(true);
-        console.log('✅ === JWT LOGGING COMPLETED ===');
+        logger.debug('✅ === JWT LOGGING COMPLETED ===');
         
       } catch (err) {
         console.error('❌ === JWT LOGGING ERROR ===');
@@ -256,11 +257,11 @@ export default function HomeScreen({ navigation, route }: any) {
   useEffect(() => {
     // Connect to socket using JWT with APK-specific handling
     connectSocketWithJWT(getToken).then((socket: any) => {
-      console.log('🔗 HomeScreen: Socket connected successfully');
+      logger.debug('🔗 HomeScreen: Socket connected successfully');
       
       // Set up event callbacks
       onRideBooked((data) => {
-        console.log('✅ HomeScreen: Ride booked:', data);
+        logger.debug('✅ HomeScreen: Ride booked:', data);
         setCurrentRide({
           rideId: data.rideId,
           price: data.price,
@@ -269,7 +270,7 @@ export default function HomeScreen({ navigation, route }: any) {
         setIsBookingRide(true);
         
         // Navigate directly to FindingDriver screen without showing popup
-        console.log('🎯 Navigating to FindingDriver after ride booked');
+        logger.debug('🎯 Navigating to FindingDriver after ride booked');
         navigation.navigate('FindingDriver', {
           rideId: data.rideId,
           price: data.price,
@@ -288,7 +289,7 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onRideAccepted((data) => {
-        console.log('✅ HomeScreen: Ride accepted by driver:', data);
+        logger.debug('✅ HomeScreen: Ride accepted by driver:', data);
         
         // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
         const transformDriverName = (name: string) => {
@@ -314,7 +315,7 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onDriverLocation((data) => {
-        console.log('📍 HomeScreen: Driver location update:', data);
+        logger.debug('📍 HomeScreen: Driver location update:', data);
         setDriverLocation({
           latitude: data.latitude,
           longitude: data.longitude
@@ -322,7 +323,7 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onRideStatus((data) => {
-        console.log('🔄 HomeScreen: Ride status update:', data);
+        logger.debug('🔄 HomeScreen: Ride status update:', data);
         setRideStatus(data.message);
         setCurrentRide((prev: any) => ({
           ...prev,
@@ -339,13 +340,13 @@ export default function HomeScreen({ navigation, route }: any) {
       });
 
       onDriverOffline((data) => {
-        console.log('🔴 HomeScreen: Driver went offline:', data);
+        logger.debug('🔴 HomeScreen: Driver went offline:', data);
         Alert.alert(t('home.pilotOffline'), t('home.pilotWentOffline'));
       });
 
       // Cleanup callbacks on unmount
       return () => {
-        console.log('🧹 HomeScreen: Cleaning up socket callbacks');
+        logger.debug('🧹 HomeScreen: Cleaning up socket callbacks');
         clearCallbacks();
       };
     }).catch((error: any) => {
@@ -389,7 +390,7 @@ export default function HomeScreen({ navigation, route }: any) {
     }
 
     // Check service availability for both pickup and drop locations
-    console.log('📍 === CHECKING SERVICE AVAILABILITY ===');
+    logger.debug('📍 === CHECKING SERVICE AVAILABILITY ===');
     
     try {
       // Get current location for pickup
@@ -407,8 +408,8 @@ export default function HomeScreen({ navigation, route }: any) {
         name: t('home.currentLocation'),
       };
       
-      console.log('📍 Pickup location:', pickup);
-      console.log('🎯 Drop location:', dropLocation);
+      logger.debug('📍 Pickup location:', pickup);
+      logger.debug('🎯 Drop location:', dropLocation);
       
       await checkRideAvailability(
         { latitude: pickup.latitude, longitude: pickup.longitude },
@@ -424,7 +425,7 @@ export default function HomeScreen({ navigation, route }: any) {
         return;
       }
       
-      console.log('✅ Service availability check passed');
+      logger.debug('✅ Service availability check passed');
     } catch (error) {
       console.error('❌ Service availability check failed:', error);
       Alert.alert(
@@ -438,16 +439,16 @@ export default function HomeScreen({ navigation, route }: any) {
     setIsBookingRide(true);
 
     try {
-      console.log('🚗 === STARTING RIDE BOOKING PROCESS ===');
-      console.log('🔍 === DETAILED BOOKING FLOW LOG ===');
+      logger.debug('🚗 === STARTING RIDE BOOKING PROCESS ===');
+      logger.debug('🔍 === DETAILED BOOKING FLOW LOG ===');
 
       // Step 1: Ensure socket is connected before booking
-      console.log('🔌 Step 1: Connecting socket...');
+      logger.debug('🔌 Step 1: Connecting socket...');
       await connectSocketWithJWT(getToken);
-      console.log('✅ Socket ready for ride booking');
+      logger.debug('✅ Socket ready for ride booking');
 
       // Step 2: Fetch real-time GPS location
-      console.log('📍 Step 2: Fetching GPS location...');
+      logger.debug('📍 Step 2: Fetching GPS location...');
       let { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== 'granted') {
         Alert.alert(t('home.locationPermissionRequired'));
@@ -456,7 +457,7 @@ export default function HomeScreen({ navigation, route }: any) {
       }
       
       let loc = await Location.getCurrentPositionAsync({ accuracy: Location.Accuracy.Highest });
-      console.log('📍 Fetched GPS position:', loc.coords);
+      logger.debug('📍 Fetched GPS position:', loc.coords);
       
       const pickup = {
         latitude: loc.coords.latitude,
@@ -465,17 +466,17 @@ export default function HomeScreen({ navigation, route }: any) {
         name: t('home.currentLocation'),
       };
       
-      console.log('📍 Pickup:', pickup);
-      console.log('🎯 Drop:', dropLocation);
-      console.log('drop latitude:', dropLocation?.latitude, 'drop longitude:', dropLocation?.longitude);
+      logger.debug('📍 Pickup:', pickup);
+      logger.debug('🎯 Drop:', dropLocation);
+      logger.debug('drop latitude:', dropLocation?.latitude, 'drop longitude:', dropLocation?.longitude);
       
       // Step 3: Get user ID from JWT
-      console.log('🔑 Step 3: Extracting user ID from JWT...');
+      logger.debug('🔑 Step 3: Extracting user ID from JWT...');
       const userId = await getUserIdFromJWT(getToken);
-      console.log('🔑 Using user ID for ride booking:', userId);
+      logger.debug('🔑 Using user ID for ride booking:', userId);
       
       // Step 4: Prepare ride request data
-      console.log('📦 Step 4: Preparing ride request data...');
+      logger.debug('📦 Step 4: Preparing ride request data...');
       const rideRequest = {
         pickup,
         drop: {
@@ -491,13 +492,13 @@ export default function HomeScreen({ navigation, route }: any) {
         userId: userId,
       };
       
-      console.log('🚗 Ride request data prepared:', rideRequest);
+      logger.debug('🚗 Ride request data prepared:', rideRequest);
 
       // Step 5: Call API endpoint first
-      console.log('🌐 === CALLING API ENDPOINT FIRST ===');
-      console.log('🎯 Step 5: Converting to API payload...');
+      logger.debug('🌐 === CALLING API ENDPOINT FIRST ===');
+      logger.debug('🎯 Step 5: Converting to API payload...');
       const apiPayload = rideApi.convertToApiPayload(rideRequest);
-      console.log('📦 API Payload:', apiPayload);
+      logger.debug('📦 API Payload:', apiPayload);
       
       // Create a wrapper function that handles null token
       const getTokenWrapper = async (): Promise<string> => {
@@ -508,17 +509,17 @@ export default function HomeScreen({ navigation, route }: any) {
         return token;
       };
       
-      console.log('🚀 Step 6: Making API call to /api/rides/request...');
+      logger.debug('🚀 Step 6: Making API call to /api/rides/request...');
       const apiResponse: RideRequestResponse = await rideApi.requestRide(apiPayload, getTokenWrapper);
-      console.log('✅ API Response received:', apiResponse);
-      console.log('📊 API Response Details:');
-      console.log('   - Ride ID:', apiResponse.id);
-      console.log('   - Status:', apiResponse.status);
-      console.log('   - Estimated Fare:', apiResponse.estimatedFare);
-      console.log('   - Requested At:', apiResponse.requestedAt);
+      logger.debug('✅ API Response received:', apiResponse);
+      logger.debug('📊 API Response Details:');
+      logger.debug('   - Ride ID:', apiResponse.id);
+      logger.debug('   - Status:', apiResponse.status);
+      logger.debug('   - Estimated Fare:', apiResponse.estimatedFare);
+      logger.debug('   - Requested At:', apiResponse.requestedAt);
       
       // Step 7: Send Socket.IO event with API response data
-      console.log('🔌 === SENDING SOCKET.IO EVENT WITH API DATA ===');
+      logger.debug('🔌 === SENDING SOCKET.IO EVENT WITH API DATA ===');
       const socketRideRequest = {
         ...rideRequest,
         rideId: apiResponse.id, // Use the ride ID from API response
@@ -526,12 +527,12 @@ export default function HomeScreen({ navigation, route }: any) {
         status: apiResponse.status,
       };
       
-      console.log('🔌 Socket ride request:', socketRideRequest);
-      console.log('📤 Attempting to emit event: request_ride');
+      logger.debug('🔌 Socket ride request:', socketRideRequest);
+      logger.debug('📤 Attempting to emit event: request_ride');
       const socketSuccess = bookRide(socketRideRequest);
       
       if (socketSuccess) {
-        console.log('✅ Socket.IO event sent successfully');
+        logger.debug('✅ Socket.IO event sent successfully');
         
         // Update current ride state with API response
         setCurrentRide({
@@ -543,13 +544,13 @@ export default function HomeScreen({ navigation, route }: any) {
           requestedAt: apiResponse.requestedAt,
         });
         
-        console.log('🎉 === RIDE BOOKING COMPLETED SUCCESSFULLY ===');
-        console.log('📋 Final Ride Details:');
-        console.log('   - Ride ID:', apiResponse.id);
-        console.log('   - Estimated Fare: ₹', apiResponse.estimatedFare.toFixed(2));
-        console.log('   - Status:', apiResponse.status);
-        console.log('   - Pickup:', pickup);
-        console.log('   - Drop:', dropLocation);
+        logger.debug('🎉 === RIDE BOOKING COMPLETED SUCCESSFULLY ===');
+        logger.debug('📋 Final Ride Details:');
+        logger.debug('   - Ride ID:', apiResponse.id);
+        logger.debug('   - Estimated Fare: ₹', apiResponse.estimatedFare.toFixed(2));
+        logger.debug('   - Status:', apiResponse.status);
+        logger.debug('   - Pickup:', pickup);
+        logger.debug('   - Drop:', dropLocation);
         
         // Alert removed - direct navigation to FindingDriver
       } else {
@@ -583,7 +584,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const fetchCustomJWT = async () => {
     try {
       const token = await getToken({ template: 'my_app_token' });
-      console.log('Custom Clerk JWT:', token);
+      logger.debug('Custom Clerk JWT:', token);
       // Optionally, you can show an alert or copy to clipboard
     } catch (err) {
       console.error('Failed to fetch custom JWT:', err);
@@ -594,7 +595,7 @@ export default function HomeScreen({ navigation, route }: any) {
   const handleSendCustomJWT = async () => {
     try {
       const token = await getToken({ template: 'my_app_token' });
-      console.log('Custom Clerk JWT:', token);
+      logger.debug('Custom Clerk JWT:', token);
       const response = await fetch(`${process.env.EXPO_PUBLIC_API_URL}/api/users/me`, {
         method: 'GET',
         headers: {
@@ -608,7 +609,7 @@ export default function HomeScreen({ navigation, route }: any) {
       } catch (e) {
         result = null;
       }
-      console.log('Backend response:', result, 'Status:', response.status);
+      logger.debug('Backend response:', result, 'Status:', response.status);
       if (response.status >= 200 && response.status < 300) {
         Alert.alert('Success', 'Custom JWT sent to backend!');
       }

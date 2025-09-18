@@ -258,27 +258,7 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('profile.rideStatistics')}</Text>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>{t('profile.totalRides')}:</Text>
-            <Text style={styles.value}>{userProfile?.totalRides || 0}</Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>{t('common.rating')}:</Text>
-            <View style={styles.ratingContainer}>
-              <Ionicons name="star" size={16} color={Colors.accent} />
-              <Text style={styles.ratingText}>{userProfile?.rating || 0}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>{t('common.walletBalance')}:</Text>
-            <Text style={styles.value}>{t('common.currencySymbol')}{userProfile?.walletBalance || 0}</Text>
-          </View>
-        </View>
+       
       </ScrollView>
     </View>
   );

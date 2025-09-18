@@ -3,6 +3,7 @@ import { NavigationContainerRef } from '@react-navigation/native';
 import * as Notifications from 'expo-notifications';
 import NotificationService, { NotificationData } from '../services/notificationService';
 import NotificationPreferencesService from '../services/notificationPreferencesService';
+import { logger } from '../utils/logger';
 
 interface NotificationContextType {
   initializeNotifications: () => Promise<void>;
@@ -36,12 +37,12 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
   useEffect(() => {
     // Set up notification listeners
     notificationListener.current = Notifications.addNotificationReceivedListener(notification => {
-      console.log('Notification received in context:', notification);
+      logger.debug('Notification received in context:', notification);
       handleNotificationReceived(notification);
     });
 
     responseListener.current = Notifications.addNotificationResponseReceivedListener(response => {
-      console.log('Notification response in context:', response);
+      logger.debug('Notification response in context:', response);
       handleNotificationResponse(response);
     });
 
@@ -62,7 +63,7 @@ export const NotificationProvider: React.FC<NotificationProviderProps> = ({
     
     // You can add custom logic here for handling notifications
     // For example, updating global state, showing in-app alerts, etc.
-    console.log('Handling notification received:', data);
+    logger.debug('Handling notification received:', data);
   };
 
   const handleNotificationResponse = (response: Notifications.NotificationResponse) => {

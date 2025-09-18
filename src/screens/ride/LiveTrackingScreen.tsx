@@ -36,13 +36,14 @@ import Animated, {
   runOnJS,
   Easing
 } from 'react-native-reanimated';
+import { logger } from '../../utils/logger';
 
 export default function LiveTrackingScreen({ navigation, route }: any) {
   const { destination, estimate, driver, rideId, origin, driverArrived } = route.params;
   const { getToken } = useAuth();
   const { getStoredToken } = useNotifications();
   
-  console.log('🚀 LiveTrackingScreen: Component initialized with params:', {
+  logger.debug('LiveTrackingScreen: Component initialized with params', {
     destination,
     estimate,
     driver,
@@ -90,7 +91,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   // Update current driver ID when driverInfoState changes
   useEffect(() => {
     setCurrentDriverId(driverInfoState.id);
-    console.log('🔄 Updated driver ID to:', driverInfoState.id);
+    logger.debug('Updated driver ID', { id: driverInfoState.id });
   }, [driverInfoState.id]);
 
   // Flag to prevent multiple API calls
@@ -146,7 +147,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     // Only set initial location if we don't have any driver location and we're in development
     // AND we haven't received any real driver location updates yet
     if (!driverLocation && __DEV__ && !lastLocationUpdate) {
-      console.log('🧪 Setting initial driver location for development testing');
+      logger.debug('🧪 Setting initial driver location for development testing');
       let initialDriverLocation;
       
       if (origin && origin.latitude && origin.longitude) {
@@ -163,12 +164,12 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         };
       } else {
         // Don't set hardcoded coordinates - wait for real driver location
-        console.log('🧪 Waiting for real driver location instead of using hardcoded coordinates');
+        logger.debug('🧪 Waiting for real driver location instead of using hardcoded coordinates');
         return;
       }
       
       setDriverLocation(initialDriverLocation);
-      console.log('🧪 Initial driver location set for testing:', initialDriverLocation);
+      logger.debug('🧪 Initial driver location set for testing:', initialDriverLocation);
     }
   }, [origin, destination, driverLocation, lastLocationUpdate]);
 
@@ -176,7 +177,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   // Summary log for driver location updates
   useEffect(() => {
     if (locationUpdateCount > 0) {
-      console.log('📊 Driver Location Summary:', {
+      logger.debug('📊 Driver Location Summary:', {
         totalUpdates: locationUpdateCount,
         pathLength: driverPath.length,
         lastUpdate: lastLocationUpdate?.toLocaleTimeString()
@@ -201,7 +202,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     // Start smooth animation
     isAnimating.value = true;
     
-    console.log('🎬 Starting smooth animation from:', driverLocation, 'to:', newLocation);
+    logger.debug('🎬 Starting smooth animation from:', driverLocation, 'to:', newLocation);
     
     // Animate latitude and longitude over 5 seconds
     animatedLatitude.value = withTiming(
@@ -209,7 +210,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       { duration: 5000, easing: Easing.inOut(Easing.cubic) },
       (finished) => {
         if (finished) {
-          console.log('✅ Latitude animation completed');
+          logger.debug('✅ Latitude animation completed');
         }
       }
     );
@@ -219,7 +220,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       { duration: 5000, easing: Easing.inOut(Easing.cubic) },
       (finished) => {
         if (finished) {
-          console.log('✅ Longitude animation completed');
+          logger.debug('✅ Longitude animation completed');
           isAnimating.value = false;
         }
       }
@@ -308,7 +309,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     if (typeof lat !== 'number' || typeof lng !== 'number' || 
         isNaN(lat) || isNaN(lng) ||
         lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-      console.log('🚫 Invalid coordinates received:', { lat, lng });
+      logger.debug('🚫 Invalid coordinates received:', { lat, lng });
       return null;
     }
     
@@ -316,7 +317,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     const processedLat = parseFloat(lat.toFixed(7));
     const processedLng = parseFloat(lng.toFixed(7));
     
-    console.log('✅ Coordinate validation passed:', {
+    logger.debug('✅ Coordinate validation passed:', {
       originalLat: lat,
       originalLng: lng,
       processedLat: processedLat,
@@ -330,23 +331,23 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
 
   // Update driver location with animation and path tracking
   const updateDriverLocationWithAnimation = (newLocation: {latitude: number, longitude: number}) => {
-    console.log('🔄 Updating driver location from:', driverLocation, 'to:', newLocation);
+    logger.debug('🔄 Updating driver location from:', driverLocation, 'to:', newLocation);
     
     // Validate the new location
     if (!newLocation || !newLocation.latitude || !newLocation.longitude ||
         isNaN(newLocation.latitude) || isNaN(newLocation.longitude)) {
-      console.log('🚫 Invalid new location data, skipping update');
+      logger.debug('🚫 Invalid new location data, skipping update');
       return;
     }
     
     // Additional validation for coordinate ranges
     if (newLocation.latitude < -90 || newLocation.latitude > 90 || 
         newLocation.longitude < -180 || newLocation.longitude > 180) {
-      console.log('🚫 Coordinates out of valid range, skipping update');
+      logger.debug('🚫 Coordinates out of valid range, skipping update');
       return;
     }
     
-    console.log('✅ Coordinates validation passed:', {
+    logger.debug('✅ Coordinates validation passed:', {
       latitude: newLocation.latitude,
       longitude: newLocation.longitude,
       latInRange: newLocation.latitude >= -90 && newLocation.latitude <= 90,
@@ -382,16 +383,16 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           newPath.splice(0, newPath.length - 50);
         }
         setPathUpdateCount(prev => prev + 1);
-        console.log('🛣️ Updated driver path, new length:', newPath.length);
+        logger.debug('🛣️ Updated driver path, new length:', newPath.length);
         return newPath;
       }
-      console.log('🛣️ Path not updated - duplicate location');
+      logger.debug('🛣️ Path not updated - duplicate location');
       return prev;
     });
     
     // Immediately update map region to follow driver
     if (mapRef.current) {
-      console.log('📷 Animating map to follow driver location:', newLocation);
+      logger.debug('📷 Animating map to follow driver location:', newLocation);
       const region = {
         latitude: newLocation.latitude,
         longitude: newLocation.longitude,
@@ -399,37 +400,37 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         longitudeDelta: 0.01,
       };
       
-      console.log('📷 Map region to animate to:', region);
+      logger.debug('📷 Map region to animate to:', region);
       
       mapRef.current.animateToRegion(region, 1000); // 1 second animation
       
       // Also force a map update after animation
       setTimeout(() => {
         if (mapRef.current) {
-          console.log('📷 Forcing map region update after animation');
+          logger.debug('📷 Forcing map region update after animation');
           mapRef.current.animateToRegion(region, 0);
         }
       }, 1100);
     } else {
-      console.log('⚠️ Map reference not available for region update');
+      logger.debug('⚠️ Map reference not available for region update');
     }
     
-    console.log('✅ Driver location update completed successfully');
+    logger.debug('✅ Driver location update completed successfully');
   };
 
   // Debug effect to log when driverRating changes
   useEffect(() => {
-    console.log('⭐ LiveTrackingScreen: Driver rating state changed to:', driverRating);
-    console.log('⭐ LiveTrackingScreen: Is new driver:', isNewDriver);
+    logger.debug('⭐ LiveTrackingScreen: Driver rating state changed to:', driverRating);
+    logger.debug('⭐ LiveTrackingScreen: Is new driver:', isNewDriver);
   }, [driverRating, isNewDriver]);
 
 
 
   // Log when custom motorcycle icon is being used
   useEffect(() => {
-    console.log('🏍️ Using custom motorcycle icon (iconAnimation1.png) for driver marker');
-    console.log('🏍️ Icon source:', Images.ICON_ANIMATION_1);
-    console.log('🏍️ Icon description: Top-down view of person riding motorcycle with green glow effect');
+    logger.debug('🏍️ Using custom motorcycle icon (iconAnimation1.png) for driver marker');
+    logger.debug('🏍️ Icon source:', Images.ICON_ANIMATION_1);
+    logger.debug('🏍️ Icon description: Top-down view of person riding motorcycle with green glow effect');
   }, []);
 
   // Transform driver name to replace "Driver" with "Pilot" if it contains "Driver"
@@ -443,7 +444,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   // Handle driver arrived notification
   const handleDriverArrived = async () => {
     try {
-      console.log('🚗 Driver arrived at pickup location');
+      logger.debug('🚗 Driver arrived at pickup location');
       
       // Get the user's push token
       const tokenData = await getStoredToken();
@@ -455,7 +456,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
                         driverName: driverInfoState.name,
           pickupLocation: origin?.name || 'Your pickup location'
         });
-        console.log('✅ Driver arrived notification sent');
+        logger.debug('✅ Driver arrived notification sent');
       }
       
       // Update ride status
@@ -476,32 +477,32 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   useEffect(() => {
     const fetchRideDetails = async () => {
       if (!rideId) {
-        console.log('⚠️ LiveTrackingScreen: Missing rideId, skipping API call');
+        logger.debug('⚠️ LiveTrackingScreen: Missing rideId, skipping API call');
         setIsLoadingRideData(false);
         return;
       }
 
       // Prevent multiple API calls
       if (hasFetchedRideDetails.current) {
-        console.log('⚠️ LiveTrackingScreen: Already fetched ride details, skipping duplicate call');
+        logger.debug('⚠️ LiveTrackingScreen: Already fetched ride details, skipping duplicate call');
         return;
       }
 
       try {
         hasFetchedRideDetails.current = true;
-        console.log('🔍 LiveTrackingScreen: Fetching ride details from backend...');
-        console.log('🎯 Ride ID:', rideId);
+        logger.debug('🔍 LiveTrackingScreen: Fetching ride details from backend...');
+        logger.debug('🎯 Ride ID:', rideId);
         
         const token = await getToken();
         const response = await rideService.getRideDetailsForOTP(rideId, token || undefined);
         
         if (response.success && response.data) {
-          console.log('✅ LiveTrackingScreen: Successfully fetched ride details:', response.data);
-          console.log('🔍 LiveTrackingScreen: Full response data structure:', JSON.stringify(response.data, null, 2));
+          logger.debug('✅ LiveTrackingScreen: Successfully fetched ride details:', response.data);
+          logger.debug('🔍 LiveTrackingScreen: Full response data structure:', JSON.stringify(response.data, null, 2));
           
           // Update OTP from backend
           if (response.data.otp) {
-            console.log('🔐 LiveTrackingScreen: Setting OTP from backend:', response.data.otp);
+            logger.debug('🔐 LiveTrackingScreen: Setting OTP from backend:', response.data.otp);
             setOtpCode(response.data.otp);
           }
           
@@ -510,21 +511,21 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           
           if (response.data.driver?.firstName) {
             pilotNameFromBackend = response.data.driver.firstName;
-            console.log('👨‍✈️ LiveTrackingScreen: Found pilot name in driver.firstName:', pilotNameFromBackend);
+            logger.debug('👨‍✈️ LiveTrackingScreen: Found pilot name in driver.firstName:', pilotNameFromBackend);
           } else if (response.data.driver?.name) {
             pilotNameFromBackend = response.data.driver.name;
-            console.log('👨‍✈️ LiveTrackingScreen: Found pilot name in driver.name:', pilotNameFromBackend);
+            logger.debug('👨‍✈️ LiveTrackingScreen: Found pilot name in driver.name:', pilotNameFromBackend);
           } else if (response.data.pilot?.firstName) {
             pilotNameFromBackend = response.data.pilot.firstName;
-            console.log('👨‍✈️ LiveTrackingScreen: Found pilot name in pilot.firstName:', pilotNameFromBackend);
+            logger.debug('👨‍✈️ LiveTrackingScreen: Found pilot name in pilot.firstName:', pilotNameFromBackend);
           } else if (response.data.pilot?.name) {
             pilotNameFromBackend = response.data.pilot.name;
-            console.log('👨‍✈️ LiveTrackingScreen: Found pilot name in pilot.name:', pilotNameFromBackend);
+            logger.debug('👨‍✈️ LiveTrackingScreen: Found pilot name in pilot.name:', pilotNameFromBackend);
           }
           
           if (pilotNameFromBackend) {
             // Don't transform the name, use it as is from backend
-            console.log('👨‍✈️ LiveTrackingScreen: Setting pilot name from backend:', pilotNameFromBackend);
+            logger.debug('👨‍✈️ LiveTrackingScreen: Setting pilot name from backend:', pilotNameFromBackend);
             setPilotName(pilotNameFromBackend);
             setRealDriverName(pilotNameFromBackend); // Store in real driver name state
           } else {
@@ -534,48 +535,48 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           // Update driver rating from backend - check multiple possible fields
           let ratingFromBackend = null;
           
-          console.log('🔍 LiveTrackingScreen: Checking for driver rating in response data...');
-          console.log('🔍 LiveTrackingScreen: driver object:', response.data.driver);
-          console.log('🔍 LiveTrackingScreen: pilot object:', response.data.pilot);
+          logger.debug('🔍 LiveTrackingScreen: Checking for driver rating in response data...');
+          logger.debug('🔍 LiveTrackingScreen: driver object:', response.data.driver);
+          logger.debug('🔍 LiveTrackingScreen: pilot object:', response.data.pilot);
           
           if (response.data.driver?.rating !== null && response.data.driver?.rating !== undefined) {
             ratingFromBackend = response.data.driver.rating;
-            console.log('⭐ LiveTrackingScreen: Found driver rating in driver.rating:', ratingFromBackend);
+            logger.debug('⭐ LiveTrackingScreen: Found driver rating in driver.rating:', ratingFromBackend);
           } else if (response.data.pilot?.rating !== null && response.data.pilot?.rating !== undefined) {
             ratingFromBackend = response.data.pilot.rating;
-            console.log('⭐ LiveTrackingScreen: Found driver rating in pilot.rating:', ratingFromBackend);
+            logger.debug('⭐ LiveTrackingScreen: Found driver rating in pilot.rating:', ratingFromBackend);
           } else if (response.data.driver?.averageRating !== null && response.data.driver?.averageRating !== undefined) {
             ratingFromBackend = response.data.driver.averageRating;
-            console.log('⭐ LiveTrackingScreen: Found driver rating in driver.averageRating:', ratingFromBackend);
+            logger.debug('⭐ LiveTrackingScreen: Found driver rating in driver.averageRating:', ratingFromBackend);
           } else if (response.data.pilot?.averageRating !== null && response.data.pilot?.averageRating !== undefined) {
             ratingFromBackend = response.data.pilot.averageRating;
-            console.log('⭐ LiveTrackingScreen: Found driver rating in pilot.averageRating:', ratingFromBackend);
+            logger.debug('⭐ LiveTrackingScreen: Found driver rating in pilot.averageRating:', ratingFromBackend);
           } else if (response.data.driver?.driverRating !== null && response.data.driver?.driverRating !== undefined) {
             ratingFromBackend = response.data.driver.driverRating;
-            console.log('⭐ LiveTrackingScreen: Found driver rating in driver.driverRating:', ratingFromBackend);
+            logger.debug('⭐ LiveTrackingScreen: Found driver rating in driver.driverRating:', ratingFromBackend);
           } else if (response.data.pilot?.driverRating !== null && response.data.pilot?.driverRating !== undefined) {
             ratingFromBackend = response.data.pilot.driverRating;
-            console.log('⭐ LiveTrackingScreen: Found driver rating in pilot.driverRating:', ratingFromBackend);
+            logger.debug('⭐ LiveTrackingScreen: Found driver rating in pilot.driverRating:', ratingFromBackend);
           }
           
-          console.log('🔍 LiveTrackingScreen: Final ratingFromBackend value:', ratingFromBackend);
+          logger.debug('🔍 LiveTrackingScreen: Final ratingFromBackend value:', ratingFromBackend);
           
           // Fix: Check if rating exists (including 0) instead of just truthy values
           if (ratingFromBackend !== null && ratingFromBackend !== undefined) {
-            console.log('⭐ LiveTrackingScreen: Setting driver rating from backend:', ratingFromBackend);
+            logger.debug('⭐ LiveTrackingScreen: Setting driver rating from backend:', ratingFromBackend);
             const ratingValue = parseFloat(String(ratingFromBackend));
-            console.log('⭐ LiveTrackingScreen: Parsed rating value:', ratingValue);
+            logger.debug('⭐ LiveTrackingScreen: Parsed rating value:', ratingValue);
             // If rating is 0, it means no rating yet, so we can show a default or skip
             if (ratingValue > 0) {
               setDriverRating(ratingValue);
               setIsNewDriver(false);
-              console.log('⭐ LiveTrackingScreen: Set as rated driver with rating:', ratingValue);
+              logger.debug('⭐ LiveTrackingScreen: Set as rated driver with rating:', ratingValue);
             } else {
-              console.log('⭐ LiveTrackingScreen: Driver has no rating yet (rating: 0)');
+              logger.debug('⭐ LiveTrackingScreen: Driver has no rating yet (rating: 0)');
               // Show "New Driver" indicator for drivers with rating 0
               setDriverRating(0);
               setIsNewDriver(true);
-              console.log('⭐ LiveTrackingScreen: Set as new driver');
+              logger.debug('⭐ LiveTrackingScreen: Set as new driver');
             }
           } else {
             console.warn('⚠️ LiveTrackingScreen: No driver rating found in backend response');
@@ -585,26 +586,26 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           // Update driver phone number from backend - check multiple possible fields
           let phoneFromBackend = null;
           
-          console.log('📞 LiveTrackingScreen: Checking for driver phone in response data...');
-          console.log('📞 LiveTrackingScreen: driver object:', response.data.driver);
-          console.log('📞 LiveTrackingScreen: pilot object:', response.data.pilot);
+          logger.debug('📞 LiveTrackingScreen: Checking for driver phone in response data...');
+          logger.debug('📞 LiveTrackingScreen: driver object:', response.data.driver);
+          logger.debug('📞 LiveTrackingScreen: pilot object:', response.data.pilot);
           
           if (response.data.driver?.phoneNumber) {
             phoneFromBackend = response.data.driver.phoneNumber;
-            console.log('📞 LiveTrackingScreen: Found driver phone in driver.phoneNumber:', phoneFromBackend);
+            logger.debug('📞 LiveTrackingScreen: Found driver phone in driver.phoneNumber:', phoneFromBackend);
           } else if (response.data.pilot?.phoneNumber) {
             phoneFromBackend = response.data.pilot.phoneNumber;
-            console.log('📞 LiveTrackingScreen: Found driver phone in pilot.phoneNumber:', phoneFromBackend);
+            logger.debug('📞 LiveTrackingScreen: Found driver phone in pilot.phoneNumber:', phoneFromBackend);
           } else if (response.data.driver?.phone) {
             phoneFromBackend = response.data.driver.phone;
-            console.log('📞 LiveTrackingScreen: Found driver phone in driver.phone:', phoneFromBackend);
+            logger.debug('📞 LiveTrackingScreen: Found driver phone in driver.phone:', phoneFromBackend);
           } else if (response.data.pilot?.phone) {
             phoneFromBackend = response.data.pilot.phone;
-            console.log('📞 LiveTrackingScreen: Found driver phone in pilot.phone:', phoneFromBackend);
+            logger.debug('📞 LiveTrackingScreen: Found driver phone in pilot.phone:', phoneFromBackend);
           }
           
           if (phoneFromBackend) {
-            console.log('📞 LiveTrackingScreen: Setting driver phone from backend:', phoneFromBackend);
+            logger.debug('📞 LiveTrackingScreen: Setting driver phone from backend:', phoneFromBackend);
             setDriverPhoneNumber(phoneFromBackend);
           } else {
             console.warn('⚠️ LiveTrackingScreen: No driver phone found in backend response');
@@ -612,14 +613,14 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           
           // Update other ride details if available
           if (response.data.status) {
-            console.log('📊 LiveTrackingScreen: Setting ride status from backend:', response.data.status);
+            logger.debug('📊 LiveTrackingScreen: Setting ride status from backend:', response.data.status);
             setRideStatus(response.data.status);
           }
           
           // Update driver info with correct driver ID from backend
           if (response.data?.driver?.id) {
             const driverId = response.data.driver.id;
-            console.log('🆔 LiveTrackingScreen: Updating driver info with backend driver ID:', driverId);
+            logger.debug('🆔 LiveTrackingScreen: Updating driver info with backend driver ID:', driverId);
             // Update the driver info to use the correct driver ID from backend
             // This ensures we listen for location updates from the correct driver
             setDriverInfoState(prev => ({
@@ -644,11 +645,11 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         
         // Fallback: If no rating was set, use the rating from backend response
         if (driverRating === null) {
-          console.log('🔄 LiveTrackingScreen: No rating set, using fallback logic');
+          logger.debug('🔄 LiveTrackingScreen: No rating set, using fallback logic');
           // Set as new driver for testing
           setDriverRating(0);
           setIsNewDriver(true);
-          console.log('🔄 LiveTrackingScreen: Set fallback rating as new driver');
+          logger.debug('🔄 LiveTrackingScreen: Set fallback rating as new driver');
         }
       }
     };
@@ -662,53 +663,53 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   }, [rideId]); // Removed getToken from dependencies to prevent infinite loop
 
   useEffect(() => {
-    console.log('�� LiveTrackingScreen: Setting up ride status and driver location listeners');
-    console.log('🔧 Current rideId:', rideId);
-    console.log('🔧 Current driverInfo:', driverInfoState);
+    logger.debug('�� LiveTrackingScreen: Setting up ride status and driver location listeners');
+    logger.debug('🔧 Current rideId:', rideId);
+    logger.debug('🔧 Current driverInfo:', driverInfoState);
     
     // Listen for real-time ride status and driver location updates
     onRideStatus((data: { rideId: string; status: string; message?: string; }) => {
-      console.log('🔄 LiveTrackingScreen received ride status update:', data);
-      console.log('🔄 Checking if rideId matches:', data.rideId, '===', rideId);
+      logger.debug('🔄 LiveTrackingScreen received ride status update:', data);
+      logger.debug('🔄 Checking if rideId matches:', data.rideId, '===', rideId);
       
       if (data.rideId === rideId) {
-        console.log('✅ RideId matches, updating status from', rideStatus, 'to', data.status);
+        logger.debug('✅ RideId matches, updating status from', rideStatus, 'to', data.status);
         setRideStatus(data.status);
         
         // Only handle completion and cancellation here
         // Driver arrival and ride start are handled by direct socket listeners
         if (data.status === 'completed') {
-          console.log('✅ Ride completed, waiting for QR payment modal from driver');
+          logger.debug('✅ Ride completed, waiting for QR payment modal from driver');
           // Don't navigate immediately - wait for QR payment flow
         }
         if (data.status === 'cancelled') {
-          console.log('❌ Ride cancelled');
+          logger.debug('❌ Ride cancelled');
           Alert.alert('Ride Cancelled', (data as any).message || 'Your ride has been cancelled.');
           navigation.navigate('TabNavigator', { screen: 'Home' });
         }
       } else {
-        console.log('🚫 Ignoring ride status update for different ride:', data.rideId, 'expected:', rideId);
+        logger.debug('🚫 Ignoring ride status update for different ride:', data.rideId, 'expected:', rideId);
       }
     });
 
     // Listen for ride completed event specifically
     onRideCompleted((data: { rideId: string; status: string; message: string; timestamp: number; }) => {
-      console.log('✅ LiveTrackingScreen received ride completed event:', data);
-      console.log('✅ Checking if rideId matches:', data.rideId, '===', rideId);
+      logger.debug('✅ LiveTrackingScreen received ride completed event:', data);
+      logger.debug('✅ Checking if rideId matches:', data.rideId, '===', rideId);
       
       if (data.rideId === rideId) {
-        console.log('✅ Ride completed event matches current ride, waiting for QR payment');
+        logger.debug('✅ Ride completed event matches current ride, waiting for QR payment');
         // Don't navigate immediately - wait for QR payment flow
       } else {
-        console.log('🚫 Ignoring ride completed event for different ride:', data.rideId, 'expected:', rideId);
+        logger.debug('🚫 Ignoring ride completed event for different ride:', data.rideId, 'expected:', rideId);
       }
     });
 
     onDriverLocation((data: { driverId: string; latitude: number; longitude: number; timestamp?: number; }) => {
-      console.log('📍 Received driver location update:', data);
-      console.log('📍 Current driver ID:', currentDriverId);
-      console.log('📍 Driver ID match:', data.driverId === currentDriverId);
-      console.log('📍 Location data validation:', {
+      logger.debug('📍 Received driver location update:', data);
+      logger.debug('📍 Current driver ID:', currentDriverId);
+      logger.debug('📍 Driver ID match:', data.driverId === currentDriverId);
+      logger.debug('📍 Location data validation:', {
         hasLatitude: typeof data.latitude === 'number' && !isNaN(data.latitude),
         hasLongitude: typeof data.longitude === 'number' && !isNaN(data.longitude),
         latitude: data.latitude,
@@ -720,7 +721,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       if (!data.latitude || !data.longitude || 
           isNaN(data.latitude) || isNaN(data.longitude) ||
           data.latitude === 0 || data.longitude === 0) {
-        console.log('🚫 Invalid location data received, ignoring update');
+        logger.debug('🚫 Invalid location data received, ignoring update');
         return;
       }
       
@@ -730,14 +731,14 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         // Use coordinate validation function to ensure consistency
         const validatedLocation = validateAndProcessCoordinates(data.latitude, data.longitude);
         if (!validatedLocation) {
-          console.log('🚫 Coordinate validation failed, ignoring update');
+          logger.debug('🚫 Coordinate validation failed, ignoring update');
           return;
         }
         
         // Log coordinate details for debugging (only in development)
         if (__DEV__) {
-          console.log('✅ Valid driver location received:', validatedLocation);
-          console.log('🔍 Coordinate details:', {
+          logger.debug('✅ Valid driver location received:', validatedLocation);
+          logger.debug('🔍 Coordinate details:', {
             received: validatedLocation,
             latPrecision: validatedLocation.latitude.toString().split('.')[1]?.length || 0,
             lngPrecision: validatedLocation.longitude.toString().split('.')[1]?.length || 0,
@@ -758,20 +759,20 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         
         // Only log in development mode
         if (__DEV__) {
-          console.log('✅ Driver location updated successfully');
+          logger.debug('✅ Driver location updated successfully');
         }
       } else {
         // Only log driver ID mismatch in development mode
         if (__DEV__) {
-          console.log('🚫 Driver ID mismatch, ignoring location update');
-          console.log('🚫 Expected driver ID:', currentDriverId);
-          console.log('🚫 Received driver ID:', data.driverId);
+          logger.debug('🚫 Driver ID mismatch, ignoring location update');
+          logger.debug('🚫 Expected driver ID:', currentDriverId);
+          logger.debug('🚫 Received driver ID:', data.driverId);
         }
       }
     });
     
     return () => {
-      console.log('🧹 LiveTrackingScreen: Cleaning up ride status and driver location listeners');
+      logger.debug('🧹 LiveTrackingScreen: Cleaning up ride status and driver location listeners');
       clearCallbacks();
     };
   }, [rideId, navigation, destination, estimate, currentDriverId]); // Added currentDriverId to re-run when driver ID changes
@@ -783,7 +784,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         latitude: origin.latitude + 0.001, // 100m away from pickup
         longitude: origin.longitude + 0.001
       };
-      console.log('📍 Setting initial driver location:', initialDriverLocation);
+      logger.debug('📍 Setting initial driver location:', initialDriverLocation);
       setDriverLocation(initialDriverLocation);
       setDriverPath([initialDriverLocation]);
     }
@@ -792,13 +793,13 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   // Test socket connection
   useEffect(() => {
     const testSocketConnection = () => {
-      console.log('🧪 Testing socket connection...');
+      logger.debug('🧪 Testing socket connection...');
       const socket = getSocket();
       if (socket && socket.connected) {
-        console.log('✅ Socket is connected, emitting test event');
+        logger.debug('✅ Socket is connected, emitting test event');
         socket.emit('test_event', { message: 'Hello from customer app', timestamp: Date.now() });
       } else {
-        console.log('❌ Socket is not connected');
+        logger.debug('❌ Socket is not connected');
       }
     };
 
@@ -816,20 +817,20 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
 
   // Listen for driver_arrived event to show MPIN entry
   useEffect(() => {
-    console.log('🔧 LiveTrackingScreen: Setting up direct socket listeners');
-    console.log('🔧 Current rideId for direct listeners:', rideId);
+    logger.debug('🔧 LiveTrackingScreen: Setting up direct socket listeners');
+    logger.debug('🔧 Current rideId for direct listeners:', rideId);
     
     const handleDriverArrived = async (data: { rideId: string; driverId: string; message?: string; status?: string }) => {
-      console.log('🎯 LiveTrackingScreen received driver_arrived event:', data);
-      console.log('🎯 Checking if rideId matches:', data.rideId, '===', rideId);
+      logger.debug('🎯 LiveTrackingScreen received driver_arrived event:', data);
+      logger.debug('🎯 Checking if rideId matches:', data.rideId, '===', rideId);
       
       if (data.rideId === rideId) {
-        console.log('🚗 Driver arrived at pickup location, staying on LiveTrackingScreen');
-        console.log('🚗 OTP is already displayed on this screen for customer to share');
+        logger.debug('🚗 Driver arrived at pickup location, staying on LiveTrackingScreen');
+        logger.debug('🚗 OTP is already displayed on this screen for customer to share');
         
         // Send push notification for driver arrived
         try {
-          console.log('🚗 Sending driver arrived push notification...');
+          logger.debug('🚗 Sending driver arrived push notification...');
           
           // Get the user's push token
           const tokenData = await getStoredToken();
@@ -841,9 +842,9 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
               driverName: driverInfoState.name,
               pickupLocation: origin?.name || 'Your pickup location'
             });
-            console.log('✅ Driver arrived push notification sent successfully');
+            logger.debug('✅ Driver arrived push notification sent successfully');
           } else {
-            console.log('⚠️ No push token available for driver arrived notification');
+            logger.debug('⚠️ No push token available for driver arrived notification');
           }
           
           // Update ride status
@@ -855,18 +856,18 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         // Stay on LiveTrackingScreen - OTP is already displayed here
         // Customer can share the OTP with the driver directly from this screen
       } else {
-        console.log('🚫 Ignoring driver_arrived event for different ride:', data.rideId, 'expected:', rideId);
+        logger.debug('🚫 Ignoring driver_arrived event for different ride:', data.rideId, 'expected:', rideId);
       }
     };
 
     // Listen for ride_started event to go to ride in progress
     const handleRideStarted = (data: { rideId: string; driverId: string; message?: string; status?: string }) => {
-      console.log('🎯 LiveTrackingScreen received ride_started event:', data);
-      console.log('🎯 Checking if rideId matches:', data.rideId, '===', rideId);
+      logger.debug('🎯 LiveTrackingScreen received ride_started event:', data);
+      logger.debug('🎯 Checking if rideId matches:', data.rideId, '===', rideId);
       
       if (data.rideId === rideId) {
-        console.log('🚀 Ride started, navigating to RideInProgress');
-        console.log('🚀 Current screen state before navigation:', { rideStatus });
+        logger.debug('🚀 Ride started, navigating to RideInProgress');
+        logger.debug('🚀 Current screen state before navigation:', { rideStatus });
         
         navigation.replace('RideInProgress', {
           driver: driverInfoState,
@@ -876,15 +877,15 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           estimate, // Add the estimate data
         });
       } else {
-        console.log('🚫 Ignoring ride_started event for different ride:', data.rideId, 'expected:', rideId);
+        logger.debug('🚫 Ignoring ride_started event for different ride:', data.rideId, 'expected:', rideId);
       }
     };
 
     // Add event listeners
     const socket = require('../../utils/socket').getSocket();
     if (socket) {
-      console.log('🔗 Adding direct socket listeners to socket:', socket.id);
-      console.log('🔗 Socket connected:', socket.connected);
+      logger.debug('🔗 Adding direct socket listeners to socket:', socket.id);
+      logger.debug('🔗 Socket connected:', socket.connected);
       socket.on('driver_arrived', handleDriverArrived);
       socket.on('ride_started', handleRideStarted);
     } else {
@@ -893,7 +894,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
 
     return () => {
       if (socket) {
-        console.log('🧹 LiveTrackingScreen: Cleaning up direct socket listeners');
+        logger.debug('🧹 LiveTrackingScreen: Cleaning up direct socket listeners');
         socket.off('driver_arrived', handleDriverArrived);
         socket.off('ride_started', handleRideStarted);
       }
@@ -901,7 +902,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   }, [rideId, driverInfo, navigation, destination, origin]);
 
   const handleChat = () => {
-    console.log('🔗 Navigating to Chat with data:', { 
+    logger.debug('🔗 Navigating to Chat with data:', { 
       ride: { rideId: rideId },
       driver: driverInfo,
       userId: route.params.userId || 'user123'
@@ -921,7 +922,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
     setCallModalVisible(false);
     const phoneToCall = driverPhoneNumber || driverInfoState.phone;
     if (phoneToCall) {
-      console.log('📞 LiveTrackingScreen: Calling driver with phone:', phoneToCall);
+      logger.debug('📞 LiveTrackingScreen: Calling driver with phone:', phoneToCall);
       Linking.openURL(`tel:${phoneToCall}`);
     } else {
       Alert.alert('No phone number available');
@@ -964,20 +965,20 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   // Function to fetch real road route between driver and pickup using Google Directions API
   const fetchRoutePath = async (driverPos: {latitude: number, longitude: number}, pickupPos: {latitude: number, longitude: number}) => {
     try {
-      console.log('🛣️ Fetching real road route from Google Directions API...');
+      logger.debug('🛣️ Fetching real road route from Google Directions API...');
       const routingService = RoutingService.getInstance();
       
       // Try to get real route from Google Directions API first
       const routeResponse = await routingService.getRoute(driverPos, pickupPos, 'driving');
       
       if (routeResponse.success && routeResponse.route) {
-        console.log('✅ Got real road route with', routeResponse.route.length, 'points');
+        logger.debug('✅ Got real road route with', routeResponse.route.length, 'points');
         setRoutePath(routeResponse.route);
       } else {
         // Fallback to generated path if API fails
-        console.log('⚠️ Google Directions API failed, using fallback path');
+        logger.debug('⚠️ Google Directions API failed, using fallback path');
         const curvedPath = routingService.generateCurvedPath(driverPos, pickupPos, 30);
-        console.log('🛣️ Generated fallback path with', curvedPath.length, 'points');
+        logger.debug('🛣️ Generated fallback path with', curvedPath.length, 'points');
         setRoutePath(curvedPath);
       }
     } catch (error) {
@@ -985,7 +986,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
       // Fallback to generated path
       const routingService = RoutingService.getInstance();
       const curvedPath = routingService.generateCurvedPath(driverPos, pickupPos, 30);
-      console.log('🛣️ Generated fallback path with', curvedPath.length, 'points');
+      logger.debug('🛣️ Generated fallback path with', curvedPath.length, 'points');
       setRoutePath(curvedPath);
     }
   };
@@ -1010,7 +1011,7 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
   // Force center map on driver location for debugging
   const forceCenterOnDriver = () => {
     if (driverLocation && mapRef.current) {
-      console.log('🔧 Force centering map on driver location:', driverLocation);
+      logger.debug('🔧 Force centering map on driver location:', driverLocation);
       mapRef.current.animateToRegion({
         latitude: driverLocation.latitude,
         longitude: driverLocation.longitude,
@@ -1063,10 +1064,10 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
           mapType="standard"
           followsUserLocation={false}
           onMapReady={() => {
-            console.log('🗺️ Map is ready');
+            logger.debug('🗺️ Map is ready');
             // If we have driver location, center the map on it
             if (driverLocation) {
-              console.log('🗺️ Centering map on driver location:', driverLocation);
+              logger.debug('🗺️ Centering map on driver location:', driverLocation);
               mapRef.current?.animateToRegion({
                 latitude: driverLocation.latitude,
                 longitude: driverLocation.longitude,
@@ -1135,12 +1136,22 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
               coordinate={animatedDriverLocation}
               title="Driver"
               onPress={() => {
-                console.log('📍 Driver marker pressed at:', animatedDriverLocation);
+                logger.debug('📍 Driver marker pressed at:', animatedDriverLocation);
               }}
             >
               <Animated.View style={[styles.driverMarker, animatedDriverStyle]}>
                 <Image 
-                  source={Images.ICON_ANIMATION_1}
+                  source={
+                    driverInfoState?.vehicleType?.toLowerCase().includes('auto') || 
+                    driverInfoState?.vehicleModel?.toLowerCase().includes('auto') 
+                      ? Images.RICKSHAW 
+                      : driverInfoState?.vehicleType?.toLowerCase().includes('scooter') || 
+                        driverInfoState?.vehicleType?.toLowerCase().includes('bike') ||
+                        driverInfoState?.vehicleModel?.toLowerCase().includes('scooter') || 
+                        driverInfoState?.vehicleModel?.toLowerCase().includes('bike')
+                        ? Images.SCOOTER_1
+                        : Images.ICON_ANIMATION_1
+                  }
                   style={{ width: 40, height: 40 }}
                   resizeMode="contain"
                 />
@@ -1178,14 +1189,14 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
               <TouchableOpacity style={styles.debugButton} onPress={forceCenterOnDriver}>
                 <Text style={styles.debugButtonText}>Center on Driver</Text>
               </TouchableOpacity>
-                          <TouchableOpacity style={styles.debugButton} onPress={() => console.log('Debug button removed')}>
+                          <TouchableOpacity style={styles.debugButton} onPress={() => logger.debug('Debug button removed')}>
               <Text style={styles.debugButtonText}>Center on Exact</Text>
             </TouchableOpacity>
               <TouchableOpacity 
                 style={styles.debugButton} 
                 onPress={() => {
                   const exactCoords = { latitude: 17.452078, longitude: 78.3935025 };
-                  console.log('🔧 Force centering map on latest driver coordinates:', exactCoords);
+                  logger.debug('🔧 Force centering map on latest driver coordinates:', exactCoords);
                   if (mapRef.current) {
                     mapRef.current.animateToRegion({
                       latitude: exactCoords.latitude,
@@ -1214,7 +1225,17 @@ export default function LiveTrackingScreen({ navigation, route }: any) {
         <View style={styles.driverSection}>
           <View style={styles.driverInfo}>
             <Image 
-              source={Images.ICON_ANIMATION_1} 
+              source={
+                driverInfoState?.vehicleType?.toLowerCase().includes('auto') || 
+                driverInfoState?.vehicleModel?.toLowerCase().includes('auto') 
+                  ? Images.RICKSHAW 
+                  : driverInfoState?.vehicleType?.toLowerCase().includes('scooter') || 
+                    driverInfoState?.vehicleType?.toLowerCase().includes('bike') ||
+                    driverInfoState?.vehicleModel?.toLowerCase().includes('scooter') || 
+                    driverInfoState?.vehicleModel?.toLowerCase().includes('bike')
+                    ? Images.SCOOTER_1
+                    : Images.ICON_ANIMATION_1
+              } 
               style={styles.driverPhoto} 
             />
           </View>

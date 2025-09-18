@@ -16,6 +16,7 @@ import { paymentService } from '../../services/paymentService';
 import LoadingSpinner from '../../components/common/LoadingSpinner';
 import RazorpayWebView from '../../components/payment/RazorpayWebView';
 import { isDevelopment } from '../../config/environment';
+import { logger } from '../../utils/logger';
 
 interface PostRidePaymentScreenProps {
   navigation: any;
@@ -72,12 +73,12 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
   // Initialize payment flow
   useEffect(() => {
     if (isDevelopment) {
-      console.log('🎯 PostRidePaymentScreen mounted with params:', route.params);
-      console.log('🎯 Destination type:', typeof destination);
-      console.log('🎯 Destination value:', destination);
-      console.log('🎯 Destination name:', destinationName);
-      console.log('🎯 Driver:', driver);
-      console.log('🎯 Estimate:', estimate);
+      logger.debug('🎯 PostRidePaymentScreen mounted with params:', route.params);
+      logger.debug('🎯 Destination type:', typeof destination);
+      logger.debug('🎯 Destination value:', destination);
+      logger.debug('🎯 Destination name:', destinationName);
+      logger.debug('🎯 Driver:', driver);
+      logger.debug('🎯 Estimate:', estimate);
     }
     
     // Validate required parameters
@@ -97,10 +98,10 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
       setErrorMessage('');
 
       if (isDevelopment) {
-        console.log('🚀 Initializing post-ride payment...');
-        console.log('🆔 Ride ID:', rideId);
-        console.log('💵 Amount:', formatAmount(amount));
-        console.log('📋 Route params:', route.params);
+        logger.debug('🚀 Initializing post-ride payment...');
+        logger.debug('🆔 Ride ID:', rideId);
+        logger.debug('💵 Amount:', formatAmount(amount));
+        logger.debug('📋 Route params:', route.params);
       }
 
       // Get user token
@@ -110,7 +111,7 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
       }
 
       if (isDevelopment) {
-        console.log('✅ Authentication token obtained');
+        logger.debug('✅ Authentication token obtained');
       }
 
       // Get user info from token or user context
@@ -122,18 +123,18 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
       setUserInfo(userInfoData);
 
       if (isDevelopment) {
-        console.log('👤 User info set:', userInfoData);
+        logger.debug('👤 User info set:', userInfoData);
       }
 
       // Step 1: Create payment order via API
       if (isDevelopment) {
-        console.log('📡 Calling payment service to create order...');
+        logger.debug('📡 Calling payment service to create order...');
       }
 
       // Convert amount from paise to rupees for backend
       const amountInRupees = amount / 100;
-      console.log('💰 Amount in paise:', amount);
-      console.log('💰 Amount in rupees for backend:', amountInRupees);
+      logger.debug('💰 Amount in paise:', amount);
+      logger.debug('💰 Amount in rupees for backend:', amountInRupees);
       
       const orderResponse = await paymentService.createPostRideOrder(
         {
@@ -146,7 +147,7 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
       );
 
       if (isDevelopment) {
-        console.log('📡 Order creation response:', orderResponse);
+        logger.debug('📡 Order creation response:', orderResponse);
       }
 
       if (!orderResponse.success) {
@@ -154,8 +155,8 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
       }
 
       if (isDevelopment) {
-        console.log('✅ Payment order created successfully');
-        console.log('📋 Order data:', orderResponse.data);
+        logger.debug('✅ Payment order created successfully');
+        logger.debug('📋 Order data:', orderResponse.data);
       }
 
       // Store order data for WebView
@@ -170,12 +171,12 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
       setOrderData(orderDataToStore);
 
       if (isDevelopment) {
-        console.log('💾 Order data stored for WebView:', orderDataToStore);
+        logger.debug('💾 Order data stored for WebView:', orderDataToStore);
       }
 
       // Show WebView for payment
       if (isDevelopment) {
-        console.log('🌐 Opening Razorpay WebView...');
+        logger.debug('🌐 Opening Razorpay WebView...');
       }
 
       setShowWebView(true);
@@ -201,18 +202,18 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
   }) => {
     try {
       if (isDevelopment) {
-        console.log('✅ WebView payment successful:', paymentData);
-        console.log('🔍 Payment data validation:');
-        console.log('  - Payment ID:', paymentData.paymentId);
-        console.log('  - Order ID:', paymentData.orderId);
-        console.log('  - Signature:', paymentData.signature);
+        logger.debug('✅ WebView payment successful:', paymentData);
+        logger.debug('🔍 Payment data validation:');
+        logger.debug('  - Payment ID:', paymentData.paymentId);
+        logger.debug('  - Order ID:', paymentData.orderId);
+        logger.debug('  - Signature:', paymentData.signature);
       }
 
       setShowWebView(false);
       setPaymentStatus('processing');
 
       if (isDevelopment) {
-        console.log('🔄 Starting payment verification...');
+        logger.debug('🔄 Starting payment verification...');
       }
 
       // Step 2: Verify payment with backend
@@ -227,7 +228,7 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
       );
 
       if (isDevelopment) {
-        console.log('📡 Verification response:', verificationResponse);
+        logger.debug('📡 Verification response:', verificationResponse);
       }
 
       if (!verificationResponse.success) {
@@ -235,7 +236,7 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
       }
 
       if (isDevelopment) {
-        console.log('✅ Payment verified successfully');
+        logger.debug('✅ Payment verified successfully');
       }
 
       // Step 3: Show success and navigate
@@ -248,7 +249,7 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
             text: 'View Ride Summary',
             onPress: () => {
               if (isDevelopment) {
-                console.log('🚀 Navigating to RideSummary with payment info');
+                logger.debug('🚀 Navigating to RideSummary with payment info');
               }
               navigation.navigate('RideSummary', {
                 destination,
@@ -283,11 +284,11 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
   // Handle WebView payment failure
   const handlePaymentFailure = (error: string) => {
     if (isDevelopment) {
-      console.log('❌ WebView payment failed:', error);
-      console.log('🔍 Failure details:');
-      console.log('  - Error message:', error);
-      console.log('  - Current order data:', orderData);
-      console.log('  - Current user info:', userInfo);
+      logger.debug('❌ WebView payment failed:', error);
+      logger.debug('🔍 Failure details:');
+      logger.debug('  - Error message:', error);
+      logger.debug('  - Current order data:', orderData);
+      logger.debug('  - Current user info:', userInfo);
     }
     setShowWebView(false);
     setPaymentStatus('failed');
@@ -343,7 +344,7 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
   const testPaymentConnectivity = async () => {
     try {
       if (isDevelopment) {
-        console.log('🧪 Testing payment connectivity...');
+        logger.debug('🧪 Testing payment connectivity...');
       }
 
       const token = await getToken();
@@ -355,7 +356,7 @@ export default function PostRidePaymentScreen({ navigation, route }: PostRidePay
       const isConnected = await paymentService.testPaymentConnectivity(getToken);
       
       if (isDevelopment) {
-        console.log('🧪 Payment connectivity test result:', isConnected);
+        logger.debug('🧪 Payment connectivity test result:', isConnected);
       }
 
       Alert.alert(

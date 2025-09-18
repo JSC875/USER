@@ -16,6 +16,7 @@ import { calculateRideFare, getDistanceFromLatLonInKm } from '../../utils/helper
 import { getUserIdFromJWT } from '../../utils/jwtDecoder';
 import { Images } from '../../constants/Images';
 import { rideApi, RideRequestResponse } from '../../services/rideService';
+import { logger } from '../../utils/logger';
 
 const { width, height } = Dimensions.get('window');
 
@@ -40,11 +41,11 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   useEffect(() => {
     if (route.params?.pickup) {
       setPickup(route.params.pickup);
-      console.log('📍 Pickup updated from route params:', route.params.pickup);
+      logger.debug('📍 Pickup updated from route params:', route.params.pickup);
     }
     if (route.params?.drop) {
       setDrop(route.params.drop);
-      console.log('📍 Drop updated from route params:', route.params.drop);
+      logger.debug('📍 Drop updated from route params:', route.params.drop);
     }
     if (route.params?.forWhom) {
       setForWhom(route.params.forWhom);
@@ -59,10 +60,10 @@ export default function RideOptionsScreen({ navigation, route }: any) {
 
   // Debug: Log current state
   useEffect(() => {
-    console.log('🔍 RideOptionsScreen - Current state:');
-    console.log('   - Pickup:', pickup);
-    console.log('   - Drop:', drop);
-    console.log('   - Route params:', route.params);
+    logger.debug('🔍 RideOptionsScreen - Current state:');
+    logger.debug('   - Pickup:', pickup);
+    logger.debug('   - Drop:', drop);
+    logger.debug('   - Route params:', route.params);
   }, [pickup, drop, route.params]);
   const [selected, setSelected] = useState('bike');
   const [isBooking, setIsBooking] = useState(false);
@@ -74,10 +75,10 @@ export default function RideOptionsScreen({ navigation, route }: any) {
 
   // Calculate real ride options based on distance and duration
   useEffect(() => {
-    console.log('🔍 RideOptions - Pickup coordinates:', pickup);
-    console.log('🔍 RideOptions - Drop coordinates:', drop);
-    console.log('🔍 RideOptions - Valid pickup?', pickup && pickup.latitude && pickup.longitude);
-    console.log('🔍 RideOptions - Valid drop?', drop && drop.latitude && drop.longitude);
+    logger.debug('🔍 RideOptions - Pickup coordinates:', pickup);
+    logger.debug('🔍 RideOptions - Drop coordinates:', drop);
+    logger.debug('🔍 RideOptions - Valid pickup?', pickup && pickup.latitude && pickup.longitude);
+    logger.debug('🔍 RideOptions - Valid drop?', drop && drop.latitude && drop.longitude);
     
     if (pickup && drop && pickup.latitude && pickup.longitude && drop.latitude && drop.longitude) {
       const distanceKm = getDistanceFromLatLonInKm(
@@ -112,14 +113,24 @@ export default function RideOptionsScreen({ navigation, route }: any) {
           tagColor: '#3b82f6',
           ...calculateRideFare(distanceKm, durationMinutes, 'scooty')
         },
+        {
+          id: 'auto',
+          icon: 'car' as any,
+          label: 'Auto',
+          eta: '4 mins',
+          dropTime: `Drop ${new Date(Date.now() + (durationMinutes + 4) * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`,
+          tag: 'COMFORT',
+          tagColor: '#f59e0b',
+          ...calculateRideFare(distanceKm, durationMinutes, 'auto')
+        },
       ];
       
       setRideOptions(options);
-      console.log('✅ Calculated ride options:', options);
+      logger.debug('✅ Calculated ride options:', options);
     } else {
-      console.log('❌ Cannot calculate ride options - missing valid coordinates');
-      console.log('   - Pickup valid:', pickup && pickup.latitude && pickup.longitude);
-      console.log('   - Drop valid:', drop && drop.latitude && drop.longitude);
+      logger.debug('❌ Cannot calculate ride options - missing valid coordinates');
+      logger.debug('   - Pickup valid:', pickup && pickup.latitude && pickup.longitude);
+      logger.debug('   - Drop valid:', drop && drop.latitude && drop.longitude);
     }
   }, [pickup, drop]);
 
@@ -169,7 +180,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
   const handleBook = async () => {
     // Prevent multiple bookings
     if (isBooking) {
-      console.log('🚫 Booking already in progress, ignoring duplicate request');
+      logger.debug('🚫 Booking already in progress, ignoring duplicate request');
       return;
     }
 
@@ -184,8 +195,8 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     setBookingError(null);
     
     try {
-      console.log('🚗 === STARTING RIDE BOOKING PROCESS ===');
-      console.log('🔍 === DETAILED BOOKING FLOW LOG ===');
+      logger.debug('🚗 === STARTING RIDE BOOKING PROCESS ===');
+      logger.debug('🔍 === DETAILED BOOKING FLOW LOG ===');
       
       // Get the selected ride option details
       const selectedRide = rideOptions.find(o => o.id === selected);
@@ -215,9 +226,9 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         }, 500);
       }
       
-      console.log('📤 Step 1: Preparing ride request data...');
-      console.log('📍 Pickup:', pickup);
-      console.log('🎯 Drop:', drop);
+      logger.debug('📤 Step 1: Preparing ride request data...');
+      logger.debug('📍 Pickup:', pickup);
+      logger.debug('🎯 Drop:', drop);
       
       // Step 1: Prepare ride request data
       const rideRequest = {
@@ -235,25 +246,25 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         userId: await getUserIdFromJWT(getToken), // Use JWT user ID for consistency
       };
       
-      console.log('🚗 Ride request data prepared:', rideRequest);
+      logger.debug('🚗 Ride request data prepared:', rideRequest);
 
       // Step 2: Call API endpoint first
-      console.log('🌐 === CALLING API ENDPOINT FIRST ===');
-      console.log('🎯 Step 2: Converting to API payload...');
+      logger.debug('🌐 === CALLING API ENDPOINT FIRST ===');
+      logger.debug('🎯 Step 2: Converting to API payload...');
       const apiPayload = rideApi.convertToApiPayload(rideRequest);
-      console.log('📦 API Payload:', apiPayload);
+      logger.debug('📦 API Payload:', apiPayload);
       
-      console.log('🚀 Step 3: Making API call to /api/rides/request...');
+      logger.debug('🚀 Step 3: Making API call to /api/rides/request...');
       const apiResponse: RideRequestResponse = await rideApi.requestRide(apiPayload, getToken as () => Promise<string>);
-      console.log('✅ API Response received:', apiResponse);
-      console.log('📊 API Response Details:');
-      console.log('   - Ride ID:', apiResponse.id);
-      console.log('   - Status:', apiResponse.status);
-      console.log('   - Estimated Fare:', apiResponse.estimatedFare);
-      console.log('   - Requested At:', apiResponse.requestedAt);
+      logger.debug('✅ API Response received:', apiResponse);
+      logger.debug('📊 API Response Details:');
+      logger.debug('   - Ride ID:', apiResponse.id);
+      logger.debug('   - Status:', apiResponse.status);
+      logger.debug('   - Estimated Fare:', apiResponse.estimatedFare);
+      logger.debug('   - Requested At:', apiResponse.requestedAt);
       
       // Step 3: Send Socket.IO event with API response data
-      console.log('🔌 === SENDING SOCKET.IO EVENT WITH API DATA ===');
+      logger.debug('🔌 === SENDING SOCKET.IO EVENT WITH API DATA ===');
       const socketRideRequest = {
         ...rideRequest,
         rideId: apiResponse.id, // Use the ride ID from API response
@@ -261,22 +272,22 @@ export default function RideOptionsScreen({ navigation, route }: any) {
         status: apiResponse.status,
       };
       
-      console.log('🔌 Socket ride request:', socketRideRequest);
-      console.log('📤 Attempting to emit event: request_ride');
+      logger.debug('🔌 Socket ride request:', socketRideRequest);
+      logger.debug('📤 Attempting to emit event: request_ride');
       const success = emitEvent('request_ride', socketRideRequest);
       
       if (!success) {
         throw new Error('Unable to connect to server. Please check your internet connection.');
       }
       
-      console.log('✅ Socket.IO event sent successfully');
-      console.log('🎉 === RIDE BOOKING COMPLETED SUCCESSFULLY ===');
-      console.log('📋 Final Ride Details:');
-      console.log('   - Ride ID:', apiResponse.id);
-      console.log('   - Estimated Fare: ₹', apiResponse.estimatedFare.toFixed(2));
-      console.log('   - Status:', apiResponse.status);
-      console.log('   - Pickup:', pickup);
-      console.log('   - Drop:', drop);
+      logger.debug('✅ Socket.IO event sent successfully');
+      logger.debug('🎉 === RIDE BOOKING COMPLETED SUCCESSFULLY ===');
+      logger.debug('📋 Final Ride Details:');
+      logger.debug('   - Ride ID:', apiResponse.id);
+      logger.debug('   - Estimated Fare: ₹', apiResponse.estimatedFare.toFixed(2));
+      logger.debug('   - Status:', apiResponse.status);
+      logger.debug('   - Pickup:', pickup);
+      logger.debug('   - Drop:', drop);
       
       // Don't navigate immediately - wait for server response
       // The navigation will happen in the useEffect below when we receive 'ride_booked' event
@@ -297,15 +308,15 @@ export default function RideOptionsScreen({ navigation, route }: any) {
 
   useEffect(() => {
     const handleRideBooked = (data: any) => {
-      console.log('✅ Ride booked response received:', data);
+      logger.debug('✅ Ride booked response received:', data);
       
       // Reset booking state
       setIsBooking(false);
       setBookingError(null);
       
       if (data.success) {
-        console.log('🎉 Ride booked successfully, navigating to FindingDriver');
-        console.log('📋 Ride details:', {
+        logger.debug('🎉 Ride booked successfully, navigating to FindingDriver');
+        logger.debug('📋 Ride details:', {
           rideId: data.rideId,
           price: data.price,
           destination: drop?.address,
@@ -338,7 +349,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
     };
     
     const handleRideTimeout = (data: any) => {
-      console.log('⏰ Ride request timed out:', data);
+      logger.debug('⏰ Ride request timed out:', data);
       setIsBooking(false);
               setBookingError('No pilots found. Please try again.');
               Alert.alert('No Pilots Found', data.message || 'No pilots were found. Please try again.');
@@ -370,7 +381,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
 
   // Fit map to route on mount
   useEffect(() => {
-    console.log('🗺️ Fitting map to coordinates - Pickup:', pickup, 'Drop:', drop);
+    logger.debug('🗺️ Fitting map to coordinates - Pickup:', pickup, 'Drop:', drop);
     if (mapRef.current && pickup && drop) {
       setTimeout(() => {
         mapRef.current?.fitToCoordinates([pickup, drop], {
@@ -426,7 +437,7 @@ export default function RideOptionsScreen({ navigation, route }: any) {
 
   // Using pickup and drop from route.params - no need for useState
 
-  console.log('rideOptions:', rideOptions);
+  logger.debug('rideOptions:', rideOptions);
 
   return (
     <View style={styles.container}>
@@ -528,9 +539,13 @@ export default function RideOptionsScreen({ navigation, route }: any) {
                   onPress={() => setSelected(opt.id)}
                   activeOpacity={0.8}
                 >
-                  {/* Replace icon with logo */}
+                  {/* Vehicle type specific icon */}
                   <Image
-                    source={Images.ICON_ANIMATION}
+                    source={
+                      opt.id === 'auto' ? Images.RICKSHAW :
+                      opt.id === 'scooty' ? Images.SCOOTER_1 :
+                      Images.ICON_ANIMATION
+                    }
                     style={{ width: 32, height: 32, marginRight: 16, resizeMode: 'contain' }}
                   />
                   <View style={{ flex: 1 }}>
@@ -538,10 +553,11 @@ export default function RideOptionsScreen({ navigation, route }: any) {
                       <Text style={styles.rideLabel}>{opt.label}</Text>
                       {/* Person icon and seat count */}
                       <Ionicons name="person" size={16} color="#222" style={{ marginLeft: 6, marginRight: 2 }} />
-                      <Text style={{ fontWeight: '600', color: '#222', fontSize: 14 }}>1</Text>
+                      <Text style={{ fontWeight: '600', color: '#222', fontSize: 14 }}>{opt.id === 'auto' ? '3' : '1'}</Text>
                     </View>
                     {/* Subtitle */}
                     {opt.id === 'bike' && <Text style={styles.rideSubtitle}>Quick Bike rides</Text>}
+                    {opt.id === 'scooty' && <Text style={styles.rideSubtitle}>Electric Scooty rides</Text>}
                     {opt.id === 'auto' && <Text style={styles.rideSubtitle}>Auto rickshaw rides</Text>}
                    
                     <Text style={styles.rideMeta}>{opt.eta} • {opt.dropTime}</Text>

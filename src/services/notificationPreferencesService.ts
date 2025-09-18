@@ -1,5 +1,6 @@
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as Notifications from 'expo-notifications';
+import { logger } from '../utils/logger';
 
 export interface NotificationPreferences {
   pushNotifications: boolean;
@@ -69,7 +70,7 @@ class NotificationPreferencesService {
       // Apply notification settings immediately
       await this.applyNotificationSettings(newPreferences);
 
-      console.log('✅ Notification preferences updated:', newPreferences);
+      logger.debug('✅ Notification preferences updated:', newPreferences);
       return newPreferences;
     } catch (error) {
       console.error('Error updating notification preferences:', error);
@@ -129,7 +130,7 @@ class NotificationPreferencesService {
         }),
       });
 
-      console.log('✅ Notifications enabled');
+      logger.debug('✅ Notifications enabled');
     } catch (error) {
       console.error('Error enabling notifications:', error);
     }
@@ -153,7 +154,7 @@ class NotificationPreferencesService {
       // Cancel all scheduled notifications
       await Notifications.cancelAllScheduledNotificationsAsync();
 
-      console.log('✅ Notifications disabled');
+      logger.debug('✅ Notifications disabled');
     } catch (error) {
       console.error('Error disabling notifications:', error);
     }
@@ -194,7 +195,7 @@ class NotificationPreferencesService {
     try {
       const preferences = await this.getPreferences();
       await this.applyNotificationSettings(preferences);
-      console.log('✅ Notification preferences initialized');
+      logger.debug('✅ Notification preferences initialized');
     } catch (error) {
       console.error('Error initializing notification preferences:', error);
     }

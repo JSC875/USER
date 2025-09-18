@@ -1,5 +1,6 @@
 import { useAuth } from '@clerk/clerk-expo';
 import { serviceAvailabilityService, LocationData } from './serviceAvailabilityService';
+import { logger } from '../utils/logger';
 
 export interface RideDetails {
   id: string;
@@ -118,10 +119,10 @@ class RideService {
     getToken: () => Promise<string>
   ): Promise<RideRequestResponse> {
     try {
-      console.log('🚗 === RIDE REQUEST API CALL ===');
-      console.log('🎯 Endpoint: /api/rides/request');
-      console.log('📋 Method: POST');
-      console.log('📦 Request Payload:', JSON.stringify(rideData, null, 2));
+      logger.debug('🚗 === RIDE REQUEST API CALL ===');
+      logger.debug('🎯 Endpoint: /api/rides/request');
+      logger.debug('📋 Method: POST');
+      logger.debug('📦 Request Payload:', JSON.stringify(rideData, null, 2));
 
       const token = await getToken();
       const response = await fetch(`${this.baseUrl}/api/rides/request`, {
@@ -136,8 +137,8 @@ class RideService {
         body: JSON.stringify(rideData),
       });
 
-      console.log('✅ === RIDE REQUEST API RESPONSE ===');
-      console.log('📊 Response Status:', response.status);
+      logger.debug('✅ === RIDE REQUEST API RESPONSE ===');
+      logger.debug('📊 Response Status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -147,7 +148,7 @@ class RideService {
 
       const data = await response.json();
       if (__DEV__) {
-        console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+        logger.debug('📏 Data Size:', JSON.stringify(data).length, 'characters');
       }
 
       return data;
@@ -168,7 +169,11 @@ class RideService {
       'Auto': 'AUTO',
       'BIKE': 'BIKE',
       'CAR': 'CAR',
-      'AUTO': 'AUTO'
+      'AUTO': 'AUTO',
+      'bike': 'BIKE',
+      'car': 'CAR',
+      'auto': 'AUTO',
+      'scooty': 'BIKE' // Map scooty to BIKE for now
     };
 
     return {
@@ -188,9 +193,9 @@ class RideService {
     getToken: () => Promise<string>
   ): Promise<RideRequestResponse> {
     try {
-      console.log('🔍 === GET RIDE DETAILS API CALL ===');
-      console.log('🎯 Endpoint: /api/rides/' + rideId);
-      console.log('📋 Method: GET');
+      logger.debug('🔍 === GET RIDE DETAILS API CALL ===');
+      logger.debug('🎯 Endpoint: /api/rides/' + rideId);
+      logger.debug('📋 Method: GET');
 
       const token = await getToken();
       const response = await fetch(`${this.baseUrl}/api/rides/${rideId}`, {
@@ -204,8 +209,8 @@ class RideService {
         },
       });
 
-      console.log('✅ === GET RIDE DETAILS API RESPONSE ===');
-      console.log('📊 Response Status:', response.status);
+      logger.debug('✅ === GET RIDE DETAILS API RESPONSE ===');
+      logger.debug('📊 Response Status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -215,7 +220,7 @@ class RideService {
 
       const data = await response.json();
       if (__DEV__) {
-        console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+        logger.debug('📏 Data Size:', JSON.stringify(data).length, 'characters');
       }
 
       return data;
@@ -234,9 +239,9 @@ class RideService {
     getToken: () => Promise<string>
   ): Promise<{ success: boolean; message: string }> {
     try {
-      console.log('❌ === CANCEL RIDE API CALL ===');
-      console.log('🎯 Endpoint: /api/rides/' + rideId + '/cancel');
-      console.log('📋 Method: PUT');
+      logger.debug('❌ === CANCEL RIDE API CALL ===');
+      logger.debug('🎯 Endpoint: /api/rides/' + rideId + '/cancel');
+      logger.debug('📋 Method: PUT');
 
       const token = await getToken();
       const response = await fetch(`${this.baseUrl}/api/rides/${rideId}/cancel`, {
@@ -250,8 +255,8 @@ class RideService {
         },
       });
 
-      console.log('✅ === CANCEL RIDE API RESPONSE ===');
-      console.log('📊 Response Status:', response.status);
+      logger.debug('✅ === CANCEL RIDE API RESPONSE ===');
+      logger.debug('📊 Response Status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -261,7 +266,7 @@ class RideService {
 
       const data = await response.json();
       if (__DEV__) {
-        console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+        logger.debug('📏 Data Size:', JSON.stringify(data).length, 'characters');
       }
 
       return data;
@@ -279,9 +284,9 @@ class RideService {
     getToken: () => Promise<string>
   ): Promise<RideRequestResponse[]> {
     try {
-      console.log('📋 === GET ACTIVE RIDES API CALL ===');
-      console.log('🎯 Endpoint: /api/rides/active');
-      console.log('📋 Method: GET');
+      logger.debug('📋 === GET ACTIVE RIDES API CALL ===');
+      logger.debug('🎯 Endpoint: /api/rides/active');
+      logger.debug('📋 Method: GET');
 
       const token = await getToken();
       const response = await fetch(`${this.baseUrl}/api/rides/active`, {
@@ -295,8 +300,8 @@ class RideService {
         },
       });
 
-      console.log('✅ === GET ACTIVE RIDES API RESPONSE ===');
-      console.log('📊 Response Status:', response.status);
+      logger.debug('✅ === GET ACTIVE RIDES API RESPONSE ===');
+      logger.debug('📊 Response Status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -306,7 +311,7 @@ class RideService {
 
       const data = await response.json();
       if (__DEV__) {
-        console.log('📏 Data Size:', JSON.stringify(data).length, 'characters');
+        logger.debug('📏 Data Size:', JSON.stringify(data).length, 'characters');
       }
 
       return data;
@@ -327,10 +332,10 @@ class RideService {
         throw new Error('Ride ID is required');
       }
 
-      console.log('🚀 Fetching ride details via API...');
-      console.log('📍 Endpoint:', `${this.baseUrl}/api/rides/${rideId}`);
-      console.log('🕐 API call timestamp:', new Date().toISOString());
-      console.log('🆔 Ride ID:', rideId);
+      logger.debug('🚀 Fetching ride details via API...');
+      logger.debug('📍 Endpoint:', `${this.baseUrl}/api/rides/${rideId}`);
+      logger.debug('🕐 API call timestamp:', new Date().toISOString());
+      logger.debug('🆔 Ride ID:', rideId);
 
       const response = await fetch(`${this.baseUrl}/api/rides/${rideId}`, {
         method: 'GET',
@@ -343,7 +348,7 @@ class RideService {
         },
       });
 
-      console.log('📡 API Response Status:', response.status);
+      logger.debug('📡 API Response Status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -354,8 +359,8 @@ class RideService {
       }
 
       const data = await response.json();
-      console.log('✅ Ride details fetched successfully via API:', data);
-      console.log('🔐 OTP from backend:', data.otp);
+      logger.debug('✅ Ride details fetched successfully via API:', data);
+      logger.debug('🔐 OTP from backend:', data.otp);
 
       return {
         success: true,
@@ -382,10 +387,10 @@ class RideService {
         throw new Error('Ride ID is required');
       }
 
-      console.log('🚀 Completing ride via API...');
-      console.log('📍 Endpoint:', `${this.baseUrl}/api/rides/${rideId}/complete`);
-      console.log('🕐 API call timestamp:', new Date().toISOString());
-      console.log('🆔 Ride ID:', rideId);
+      logger.debug('🚀 Completing ride via API...');
+      logger.debug('📍 Endpoint:', `${this.baseUrl}/api/rides/${rideId}/complete`);
+      logger.debug('🕐 API call timestamp:', new Date().toISOString());
+      logger.debug('🆔 Ride ID:', rideId);
 
       const response = await fetch(`${this.baseUrl}/api/rides/${rideId}/complete`, {
         method: 'PUT',
@@ -398,7 +403,7 @@ class RideService {
         },
       });
 
-      console.log('📡 API Response Status:', response.status);
+      logger.debug('📡 API Response Status:', response.status);
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -409,7 +414,7 @@ class RideService {
       }
 
       const data = await response.json();
-      console.log('✅ Ride completed successfully via API:', data);
+      logger.debug('✅ Ride completed successfully via API:', data);
 
       return {
         success: true,
