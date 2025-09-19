@@ -72,23 +72,6 @@ const LanguageSettingsScreen: React.FC<{ navigation: any }> = ({ navigation }) =
           </View>
         </View>
 
-        <View style={styles.availableLanguagesSection}>
-          <Text style={styles.sectionTitle}>{t('profile.availableLanguages')}</Text>
-          {availableLanguages.map((language) => (
-            <View key={language.code} style={styles.languageItem}>
-              <View style={styles.languageItemInfo}>
-                <Text style={styles.languageItemName}>{language.nativeName}</Text>
-                <Text style={styles.languageItemEnglish}>{language.name}</Text>
-              </View>
-              {currentLanguage === language.code && (
-                <View style={styles.currentIndicator}>
-                  <Ionicons name="checkmark-circle" size={20} color={Colors.primary} />
-                  <Text style={styles.currentText}>{t('common.current')}</Text>
-                </View>
-              )}
-            </View>
-          ))}
-        </View>
       </ScrollView>
 
       <LanguageSelector
@@ -191,41 +174,6 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: Colors.textSecondary,
     lineHeight: 18,
-  },
-  availableLanguagesSection: {
-    marginBottom: 30,
-  },
-  languageItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    paddingVertical: 15,
-    paddingHorizontal: 10,
-    borderBottomWidth: 1,
-    borderBottomColor: Colors.border,
-  },
-  languageItemInfo: {
-    flex: 1,
-  },
-  languageItemName: {
-    fontSize: 16,
-    fontWeight: '500',
-    color: Colors.text,
-    marginBottom: 2,
-  },
-  languageItemEnglish: {
-    fontSize: 14,
-    color: Colors.textSecondary,
-  },
-  currentIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-  },
-  currentText: {
-    fontSize: 12,
-    color: Colors.primary,
-    marginLeft: 5,
-    fontWeight: '500',
   },
 });
 

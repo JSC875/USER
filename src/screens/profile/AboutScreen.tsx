@@ -3,6 +3,7 @@ import { View, Text, StyleSheet, ScrollView, TouchableOpacity, Alert } from 'rea
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, TITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import { logger } from '../../utils/logger';
 
 export default function AboutScreen({ navigation }: any) {
   const [tapCount, setTapCount] = useState(0);
@@ -22,7 +23,7 @@ export default function AboutScreen({ navigation }: any) {
   const handleDeveloperToolPress = async (toolType: 'apk' | 'connection' | 'payment') => {
     if (toolType === 'apk') {
       try {
-        console.log('🚀 Initializing APK connection...');
+        logger.debug('🚀 Initializing APK connection...');
         const { testAPKInitialization } = require('../../utils/socketTest');
         
         // Show loading alert
@@ -50,22 +51,22 @@ export default function AboutScreen({ navigation }: any) {
       try {
         // Get current socket status
         const status = getDetailedConnectionStatus();
-        console.log('🔍 Current Socket Status:', status);
+        logger.debug('🔍 Current Socket Status:', status);
         
         // Run connection tests
-        console.log('🔧 Running connection tests...');
+        logger.debug('🔧 Running connection tests...');
         const result = await quickTest();
-        console.log('📊 Quick test result:', result);
+        logger.debug('📊 Quick test result:', result);
         
         const apkResult = await quickTestAPK();
-        console.log('📊 APK Quick test result:', apkResult);
+        logger.debug('📊 APK Quick test result:', apkResult);
         
         // Run APK-specific debug if in production
         let apkDebugResult = null;
         if (!__DEV__) {
           const { debugAPKConnection } = require('../../utils/socketTest');
           apkDebugResult = await debugAPKConnection();
-          console.log('📊 APK Debug result:', apkDebugResult);
+          logger.debug('📊 APK Debug result:', apkDebugResult);
         }
         
         // Run detailed socket debug
@@ -82,7 +83,7 @@ export default function AboutScreen({ navigation }: any) {
               text: 'Force Reconnect',
               onPress: async () => {
                 try {
-                  console.log('🔄 Force reconnecting socket...');
+                  logger.debug('🔄 Force reconnecting socket...');
                   const { initializeAPKConnection } = require('../../utils/socket');
                   await initializeAPKConnection();
                   Alert.alert('Success', 'Socket reconnected successfully!');
@@ -115,7 +116,13 @@ export default function AboutScreen({ navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="information-circle-outline" size={28} color={TITLE_COLOR} />
+        <TouchableOpacity 
+          onPress={() => navigation.goBack()} 
+          style={styles.backButton}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="arrow-back" size={28} color={TITLE_COLOR} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>About RoQet</Text>
         <View style={{ width: 28 }} />
       </View>
@@ -204,6 +211,9 @@ const styles = StyleSheet.create({
     backgroundColor: Colors.white,
     borderBottomWidth: 1,
     borderBottomColor: Colors.border,
+  },
+  backButton: {
+    padding: Layout.spacing.xs,
   },
   headerTitle: {
     fontSize: Layout.fontSize.xl,

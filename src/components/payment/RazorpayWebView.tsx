@@ -4,7 +4,6 @@ import {
   Text,
   StyleSheet,
   Modal,
-  ActivityIndicator,
   Alert,
   TouchableOpacity,
 } from 'react-native';
@@ -14,6 +13,7 @@ import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { isDevelopment } from '../../config/environment';
+import LoadingSpinner from '../common/LoadingSpinner';
 
 interface RazorpayWebViewProps {
   visible: boolean;
@@ -367,8 +367,7 @@ export default function RazorpayWebView({
         <View style={styles.webViewContainer}>
           {isLoading && (
             <View style={styles.loadingOverlay}>
-              <ActivityIndicator size="large" color={Colors.primary} />
-              <Text style={styles.loadingText}>Loading payment gateway...</Text>
+              <LoadingSpinner size="large" text="Loading payment gateway..." />
             </View>
           )}
           

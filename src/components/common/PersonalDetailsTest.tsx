@@ -4,6 +4,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { userApi, UserProfile } from '../../services/userService';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import { logger } from '../../utils/logger';
 
 export const PersonalDetailsTest: React.FC = () => {
   const [isLoading, setIsLoading] = useState(false);
@@ -14,11 +15,11 @@ export const PersonalDetailsTest: React.FC = () => {
     try {
       setIsLoading(true);
       
-      console.log('🔄 Loading user profile...');
+      logger.debug('🔄 Loading user profile...');
       
       const profile = await userApi.getCurrentUser(getToken);
       
-      console.log('✅ User profile loaded:', profile);
+      logger.debug('✅ User profile loaded:', profile);
       setUserProfile(profile);
       
       Alert.alert(
@@ -39,7 +40,7 @@ export const PersonalDetailsTest: React.FC = () => {
     try {
       setIsLoading(true);
       
-      console.log('🔄 Updating user profile...');
+      logger.debug('🔄 Updating user profile...');
       
       const updateData = {
         firstName: 'Test',
@@ -55,7 +56,7 @@ export const PersonalDetailsTest: React.FC = () => {
       
       const result = await userApi.updateUserProfile(updateData, getToken);
       
-      console.log('✅ Profile updated successfully:', result);
+      logger.debug('✅ Profile updated successfully:', result);
       
       Alert.alert(
         'Profile Updated',
@@ -78,11 +79,11 @@ export const PersonalDetailsTest: React.FC = () => {
     try {
       setIsLoading(true);
       
-      console.log('🔄 Loading user statistics...');
+      logger.debug('🔄 Loading user statistics...');
       
       const stats = await userApi.getUserStats(getToken);
       
-      console.log('✅ User statistics loaded:', stats);
+      logger.debug('✅ User statistics loaded:', stats);
       
       Alert.alert(
         'User Statistics',
@@ -102,14 +103,14 @@ export const PersonalDetailsTest: React.FC = () => {
     try {
       setIsLoading(true);
       
-      console.log('🔄 Updating profile photo...');
+      logger.debug('🔄 Updating profile photo...');
       
       // Simulate a profile photo URL
       const photoUrl = 'https://example.com/profile-photo.jpg';
       
       const result = await userApi.updateProfilePhoto(photoUrl, getToken);
       
-      console.log('✅ Profile photo updated successfully:', result);
+      logger.debug('✅ Profile photo updated successfully:', result);
       
       Alert.alert(
         'Profile Photo Updated',
@@ -198,7 +199,7 @@ export const PersonalDetailsTest: React.FC = () => {
             </View>
             
             <View style={styles.profileRow}>
-              <Text style={styles.profileLabel}>Date of Birth:</Text>
+              <Text style={styles.profileLabel}>4:</Text>
               <Text style={styles.profileValue}>
                 {userProfile.dateOfBirth ? new Date(userProfile.dateOfBirth).toLocaleDateString() : 'N/A'}
               </Text>

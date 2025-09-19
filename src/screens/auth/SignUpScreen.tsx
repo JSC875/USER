@@ -7,22 +7,23 @@ import {
   KeyboardAvoidingView, 
   Platform, 
   ScrollView, 
-  Modal, 
-  FlatList, 
-  TextInput, 
-  Image, 
   Alert,
-  BackHandler
+  BackHandler,
+  Animated
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useSignUp, useUser, useAuth } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
+import { logger } from '../../utils/logger';
 import Input from '../../components/common/Input';
+import PhoneInput from '../../components/common/PhoneInput';
 import OTPInput from '../../components/common/OTPInput';
 import { logJWTDetails } from '../../utils/jwtDecoder';
+import * as Haptics from 'expo-haptics';
 
 // Types
 interface NameStepProps {
@@ -36,14 +37,10 @@ interface NameStepProps {
 interface PhoneStepProps {
   phoneNumber: string;
   setPhoneNumber: (v: string) => void;
-  countryCode: string;
-  setCountryCode: (v: string) => void;
-  countryModalVisible: boolean;
-  setCountryModalVisible: (v: boolean) => void;
   onNext: () => void;
   isLoading: boolean;
   selectedCountry: CountryItem;
-  setSelectedCountry: (c: CountryItem) => void;
+  phoneError?: string;
 }
 
 interface OtpStepProps {
@@ -55,15 +52,11 @@ interface OtpStepProps {
   resendOtp: () => void;
   canResend: boolean;
   timer: number;
+  phoneNumber: string;
+  countryCode: string;
+  onEditPhone: () => void;
 }
 
-interface PhotoStepProps {
-  profileImage: string | null;
-  setProfileImage: (v: string | null) => void;
-  onComplete: () => void;
-  onSkip: () => void;
-  isLoading: boolean;
-}
 
 interface CountryItem {
   code: string;
@@ -78,44 +71,116 @@ function isAlphaSpace(str: string) {
 
 // Step 1: Name Entry
 function NameStep({ firstName, lastName, setFirstName, setLastName, onNext }: NameStepProps) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
   // Local handler for Next button
-  const handleNext = () => {
+  const handleNext = async () => {
     if (!isAlphaSpace(firstName.trim())) {
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       Alert.alert('Invalid First Name', 'First name should contain only letters and spaces.');
       return;
     }
     if (!isAlphaSpace(lastName.trim())) {
+      if (Platform.OS === 'ios') {
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
+      }
       Alert.alert('Invalid Last Name', 'Last name should contain only letters and spaces.');
       return;
     }
+    
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
     onNext();
   };
+
   return (
-    <View style={styles.stepContainer}>
-      <Text style={styles.progress}>Step 1 of 4</Text>
-      <Text style={styles.stepTitle}>What's your name?</Text>
-      <Input
-        label="First Name"
-        placeholder="Enter your first name"
-        value={firstName}
-        onChangeText={setFirstName}
-        leftIcon="person"
-      />
-      <Input
-        label="Last Name"
-        placeholder="Enter your last name"
-        value={lastName}
-        onChangeText={setLastName}
-        leftIcon="person"
-      />
-      <Button
-        title="Next"
-        onPress={handleNext}
-        fullWidth
-        disabled={!firstName.trim() || !lastName.trim()}
-        style={{ marginTop: 24 }}
-      />
-    </View>
+    <Animated.View 
+      style={[
+        styles.stepContainer,
+        {
+          opacity: fadeAnim,
+          transform: [
+            { translateY: slideAnim },
+            { scale: scaleAnim }
+          ]
+        }
+      ]}
+    >
+      <View style={styles.stepHeader}>
+        <View style={styles.progressIndicator}>
+          <View style={[styles.progressDot, styles.progressDotActive]} />
+          <View style={styles.progressLine} />
+          <View style={styles.progressDot} />
+          <View style={styles.progressLine} />
+          <View style={styles.progressDot} />
+          <View style={styles.progressLine} />
+          <View style={styles.progressDot} />
+        </View>
+        <Text style={styles.progressText}>Step 1 of 4</Text>
+      </View>
+
+      <View style={styles.stepContent}>
+        <View style={styles.titleContainer}>
+          <Ionicons name="person-circle-outline" size={48} color={Colors.primary} style={styles.stepIcon} />
+          <Text style={styles.stepTitle}>What's your name?</Text>
+          <Text style={styles.stepSubtitle}>Let's get to know you better</Text>
+        </View>
+
+        <View style={styles.inputsContainer}>
+          <Input
+            label="First Name"
+            placeholder="Enter your first name"
+            value={firstName}
+            onChangeText={setFirstName}
+            leftIcon="person"
+            containerStyle={styles.inputContainer}
+          />
+          <Input
+            label="Last Name"
+            placeholder="Enter your last name"
+            value={lastName}
+            onChangeText={setLastName}
+            leftIcon="person"
+            containerStyle={styles.inputContainer}
+          />
+        </View>
+
+        <Button
+          title="Continue"
+          onPress={handleNext}
+          fullWidth
+          disabled={!firstName.trim() || !lastName.trim()}
+          style={styles.nextButton}
+          hapticFeedback={true}
+        />
+      </View>
+    </Animated.View>
   );
 }
 
@@ -123,100 +188,99 @@ function NameStep({ firstName, lastName, setFirstName, setLastName, onNext }: Na
 function PhoneStep({ 
   phoneNumber, 
   setPhoneNumber, 
-  countryCode, 
-  setCountryCode, 
-  countryModalVisible, 
-  setCountryModalVisible, 
   onNext, 
   isLoading,
   selectedCountry,
-  setSelectedCountry
+  phoneError
 }: PhoneStepProps) {
-  const countryList: CountryItem[] = [
-    { code: '+91', name: 'India', flag: '🇮🇳' },
-    { code: '+1', name: 'USA', flag: '🇺🇸' },
-    { code: '+44', name: 'UK', flag: '🇬🇧' },
-    { code: '+86', name: 'China', flag: '🇨🇳' },
-    { code: '+49', name: 'Germany', flag: '🇩🇪' },
-    { code: '+33', name: 'France', flag: '🇫🇷' },
-    { code: '+81', name: 'Japan', flag: '🇯🇵' },
-    { code: '+82', name: 'South Korea', flag: '🇰🇷' },
-    { code: '+61', name: 'Australia', flag: '🇦🇺' },
-    { code: '+55', name: 'Brazil', flag: '🇧🇷' },
-  ];
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  const handleSendOTP = async () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+    onNext();
+  };
 
   return (
-    <View style={styles.stepContainer}>
-      <Text style={styles.progress}>Step 2 of 4</Text>
-      <Text style={styles.stepTitle}>What's your mobile number?</Text>
-      <Input
-        label="Mobile Number"
-        placeholder="Enter your 10-digit mobile number"
-        value={phoneNumber}
-        onChangeText={setPhoneNumber}
-        keyboardType="phone-pad"
-        maxLength={10}
-        leftElement={
-          <TouchableOpacity
-            onPress={() => setCountryModalVisible(true)}
-            style={styles.countryCodeButton}
-          >
-            <Text style={styles.countryCodeText}>{selectedCountry.flag}</Text>
-            <Ionicons name="chevron-down" size={18} color={Colors.gray400} />
-          </TouchableOpacity>
+    <Animated.View 
+      style={[
+        styles.stepContainer,
+        {
+          opacity: fadeAnim,
+          transform: [
+            { translateY: slideAnim },
+            { scale: scaleAnim }
+          ]
         }
-      />
-      
-      {/* Country Code Modal */}
-      <Modal
-        visible={countryModalVisible}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setCountryModalVisible(false)}
-      >
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>Select Country</Text>
-              <TouchableOpacity
-                onPress={() => setCountryModalVisible(false)}
-                style={styles.modalCloseButton}
-              >
-                <Ionicons name="close" size={24} color={Colors.text} />
-              </TouchableOpacity>
-            </View>
-            <FlatList
-              data={countryList}
-              keyExtractor={(item) => item.code}
-              renderItem={({ item }) => (
-                <TouchableOpacity
-                  style={styles.countryItem}
-                  onPress={() => {
-                    setCountryCode(item.code);
-                    setSelectedCountry(item);
-                    setCountryModalVisible(false);
-                  }}
-                >
-                  <Text style={styles.countryItemText}>
-                    {item.flag} {item.name} ({item.code})
-                  </Text>
-                </TouchableOpacity>
-              )}
-            />
-          </View>
+      ]}
+    >
+      <View style={styles.stepHeader}>
+        <View style={styles.progressIndicator}>
+          <View style={[styles.progressDot, styles.progressDotCompleted]} />
+          <View style={[styles.progressLine, styles.progressLineCompleted]} />
+          <View style={[styles.progressDot, styles.progressDotActive]} />
+          <View style={styles.progressLine} />
+          <View style={styles.progressDot} />
+          <View style={styles.progressLine} />
+          <View style={styles.progressDot} />
         </View>
-      </Modal>
-      
-      <Button
-        title="Send OTP"
-        onPress={onNext}
-        fullWidth
-        loading={isLoading}
-        disabled={phoneNumber.length !== 10}
-        style={{ marginTop: 24 }}
-      />
-      {/* Back button removed to prevent going back to previous screens */}
-    </View>
+        <Text style={styles.progressText}>Step 2 of 4</Text>
+      </View>
+
+      <View style={styles.stepContent}>
+        <View style={styles.titleContainer}>
+          <Ionicons name="phone-portrait-outline" size={48} color={Colors.primary} style={styles.stepIcon} />
+          <Text style={styles.stepTitle}>What's your mobile number?</Text>
+          <Text style={styles.stepSubtitle}>We'll send you a verification code</Text>
+        </View>
+
+        <View style={styles.inputsContainer}>
+          <PhoneInput
+            label="Mobile Number"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            country={selectedCountry}
+            {...(phoneError && { error: phoneError })}
+            showCountrySelector={false}
+            containerStyle={styles.inputContainer}
+          />
+        </View>
+
+        <Button
+          title="Send Verification Code"
+          onPress={handleSendOTP}
+          fullWidth
+          loading={isLoading}
+          disabled={phoneNumber.length !== 10}
+          style={styles.nextButton}
+          hapticFeedback={true}
+        />
+      </View>
+    </Animated.View>
   );
 }
 
@@ -229,175 +293,398 @@ function OtpStep({
   error, 
   resendOtp, 
   canResend, 
-  timer 
+  timer,
+  phoneNumber,
+  countryCode,
+  onEditPhone
 }: OtpStepProps) {
-  const inputRefs = useRef<(TextInput | null)[]>([]);
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const pulseAnim = useRef(new Animated.Value(1)).current;
 
-  const handleOtpChange = (value: string, index: number) => {
-    console.log(`OtpStep - handleOtpChange: index=${index}, value="${value}", length=${value.length}`);
-    
-    // Only allow single digit
-    if (value.length > 1) {
-      console.log('OtpStep - Value too long, ignoring');
-      return;
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
+
+  // Pulse animation for the OTP icon
+  useEffect(() => {
+    const pulse = Animated.loop(
+      Animated.sequence([
+        Animated.timing(pulseAnim, {
+          toValue: 1.1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+        Animated.timing(pulseAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ])
+    );
+    pulse.start();
+    return () => pulse.stop();
+  }, []);
+
+  const handleVerify = async () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
-    
-    const newOtp = [...otp];
-    newOtp[index] = value;
-    console.log('OtpStep - New OTP array:', newOtp);
-    setOtp(newOtp);
-    
-    // Auto-focus next input
-    if (value && index < 5) {
-      inputRefs.current[index + 1]?.focus();
-    }
+    onVerify();
   };
 
-  const handleKeyPress = (nativeEvent: any, index: number) => {
-    if (nativeEvent.key === 'Backspace' && !otp[index] && index > 0) {
-      inputRefs.current[index - 1]?.focus();
+  const handleResend = async () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
+    resendOtp();
   };
 
   return (
-    <View style={styles.stepContainer}>
-      <Text style={styles.progress}>Step 3 of 4</Text>
-      <Text style={styles.stepTitle}>Enter 6-digit verification code</Text>
-      <Text style={styles.otpSubtitle}>
-        We've sent a verification code to your mobile number
-      </Text>
-      
-      <OTPInput
-        length={6}
-        value={otp}
-        onChange={setOtp}
-        onComplete={(otpString) => {
-          console.log('OTP completed in SignUp:', otpString);
-          // Optionally auto-verify when OTP is complete
-          // onVerify();
-        }}
-        autoFocus={true}
-        showPasteButton={true}
-      />
-      
-      {error ? (
-        <Text style={styles.errorText}>{error}</Text>
-      ) : null}
-      
-      <View style={styles.resendContainer}>
-        {canResend ? (
-          <TouchableOpacity onPress={resendOtp}>
-            <Text style={styles.resendText}>Resend OTP</Text>
-          </TouchableOpacity>
-        ) : (
-          <Text style={styles.timerText}>Resend OTP in {timer}s</Text>
-        )}
+    <Animated.View 
+      style={[
+        styles.stepContainer,
+        {
+          opacity: fadeAnim,
+          transform: [
+            { translateY: slideAnim },
+            { scale: scaleAnim }
+          ]
+        }
+      ]}
+    >
+      <View style={styles.stepHeader}>
+        <View style={styles.progressIndicator}>
+          <View style={[styles.progressDot, styles.progressDotCompleted]} />
+          <View style={[styles.progressLine, styles.progressLineCompleted]} />
+          <View style={[styles.progressDot, styles.progressDotCompleted]} />
+          <View style={[styles.progressLine, styles.progressLineCompleted]} />
+          <View style={[styles.progressDot, styles.progressDotActive]} />
+          <View style={styles.progressLine} />
+          <View style={styles.progressDot} />
+        </View>
+        <Text style={styles.progressText}>Step 3 of 4</Text>
       </View>
-      
-      <Button
-        title="Verify"
-        onPress={onVerify}
-        fullWidth
-        loading={isLoading}
-        disabled={otp.join('').length !== 6}
-        style={{ marginTop: 24 }}
-      />
-      {/* Back button removed to prevent going back to previous screens */}
-    </View>
+
+      <View style={styles.stepContent}>
+        <View style={styles.titleContainer}>
+          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+            <Ionicons name="shield-checkmark-outline" size={48} color={Colors.primary} style={styles.stepIcon} />
+          </Animated.View>
+          <Text style={styles.stepTitle}>Enter verification code</Text>
+          <Text style={styles.stepSubtitle}>
+            We've sent a 6-digit code to your mobile number
+          </Text>
+        </View>
+
+        {/* Phone Number Display with Edit Option */}
+        <View style={styles.phoneDisplayContainer}>
+          <View style={styles.phoneDisplayCard}>
+            <View style={styles.phoneDisplayInfo}>
+              <Ionicons name="phone-portrait" size={20} color={Colors.primary} />
+              <Text style={styles.phoneDisplayText}>
+                {countryCode} {phoneNumber}
+              </Text>
+            </View>
+            <TouchableOpacity 
+              onPress={onEditPhone} 
+              style={styles.editPhoneButton}
+              disabled={isLoading}
+            >
+              <Ionicons name="pencil" size={16} color={Colors.primary} />
+              <Text style={styles.editPhoneText}>Edit</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        <View style={styles.otpContainer}>
+          <OTPInput
+            length={6}
+            value={otp}
+            onChange={setOtp}
+            onComplete={(otpString) => {
+              logger.debug('OTP completed in SignUp:', otpString);
+              // Optionally auto-verify when OTP is complete
+              // onVerify();
+            }}
+            autoFocus={true}
+            showPasteButton={true}
+            error={!!error}
+            disabled={isLoading}
+          />
+        </View>
+        
+        {error ? (
+          <Animated.View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={20} color={Colors.error} />
+            <Text style={styles.errorText}>{error}</Text>
+          </Animated.View>
+        ) : null}
+        
+        <View style={styles.resendContainer}>
+          {canResend ? (
+            <TouchableOpacity onPress={handleResend} style={styles.resendButton}>
+              <Ionicons name="refresh" size={16} color={Colors.primary} />
+              <Text style={styles.resendText}>Resend Code</Text>
+            </TouchableOpacity>
+          ) : (
+            <View style={styles.timerContainer}>
+              <Ionicons name="time-outline" size={16} color={Colors.textSecondary} />
+              <Text style={styles.timerText}>Resend in {timer}s</Text>
+            </View>
+          )}
+        </View>
+        
+        <Button
+          title="Verify & Continue"
+          onPress={handleVerify}
+          fullWidth
+          loading={isLoading}
+          disabled={otp.join('').length !== 6}
+          style={styles.nextButton}
+          hapticFeedback={true}
+        />
+      </View>
+    </Animated.View>
   );
 }
 
-// Step 4: Photo Upload
-function PhotoStep({ 
-  profileImage, 
-  setProfileImage, 
+// Step 4: Complete Profile
+function CompleteStep({ 
   onComplete, 
-  onSkip, 
   isLoading,
   firstName,
   lastName
-}: PhotoStepProps & { firstName: string; lastName: string }) {
-  const handleImagePicker = () => {
-    Alert.alert(
-      'Select Photo',
-      'Choose how you want to add your photo',
-      [
-        { text: 'Camera', onPress: () => console.log('Open Camera') },
-        { text: 'Gallery', onPress: () => console.log('Open Gallery') },
-        { text: 'Cancel', style: 'cancel' }
-      ]
-    );
+}: { 
+  onComplete: () => void; 
+  isLoading: boolean;
+  firstName: string; 
+  lastName: string; 
+}) {
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const celebrationAnim = useRef(new Animated.Value(0)).current;
+  const confettiAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Initial entrance animation
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        tension: 50,
+        friction: 8,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Celebration animation sequence
+    setTimeout(() => {
+      Animated.sequence([
+        Animated.timing(celebrationAnim, {
+          toValue: 1,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+        Animated.timing(confettiAnim, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }, 500);
+  }, []);
+
+  const handleComplete = async () => {
+    if (Platform.OS === 'ios') {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+    onComplete();
   };
 
   return (
-    <View style={styles.stepContainer}>
-      <Text style={styles.progress}>Step 4 of 4</Text>
-      <Text style={styles.stepTitle}>Upload your photo</Text>
-      <Text style={styles.photoSubtitle}>
-        Add a profile photo to help others recognize you
-      </Text>
-      
-      <TouchableOpacity
-        onPress={handleImagePicker}
-        style={styles.profileImageContainer}
-      >
-        {profileImage ? (
-          <Image source={{ uri: profileImage }} style={styles.profileImage} />
-        ) : (
-          <View style={styles.placeholderImage}>
-            <Ionicons name="camera" size={32} color={Colors.gray400} />
+    <Animated.View 
+      style={[
+        styles.stepContainer,
+        {
+          opacity: fadeAnim,
+          transform: [
+            { translateY: slideAnim },
+            { scale: scaleAnim }
+          ]
+        }
+      ]}
+    >
+      <View style={styles.stepHeader}>
+        <View style={styles.progressIndicator}>
+          <View style={[styles.progressDot, styles.progressDotCompleted]} />
+          <View style={[styles.progressLine, styles.progressLineCompleted]} />
+          <View style={[styles.progressDot, styles.progressDotCompleted]} />
+          <View style={[styles.progressLine, styles.progressLineCompleted]} />
+          <View style={[styles.progressDot, styles.progressDotCompleted]} />
+          <View style={[styles.progressLine, styles.progressLineCompleted]} />
+          <View style={[styles.progressDot, styles.progressDotCompleted]} />
+        </View>
+        <Text style={styles.progressText}>Step 4 of 4 - Complete!</Text>
+      </View>
+
+      <View style={styles.stepContent}>
+        {/* Celebration header */}
+        <Animated.View 
+          style={[
+            styles.celebrationHeader,
+            {
+              opacity: celebrationAnim,
+              transform: [
+                {
+                  scale: celebrationAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [0.8, 1],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <Animated.View 
+            style={[
+              styles.celebrationIcon,
+              {
+                transform: [
+                  {
+                    rotate: celebrationAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: ['0deg', '360deg'],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <Ionicons name="trophy" size={48} color={Colors.white} />
+          </Animated.View>
+          <Text style={styles.celebrationTitle}>🎉 Congratulations!</Text>
+          <Text style={styles.celebrationSubtitle}>
+            Your account is ready to go
+          </Text>
+        </Animated.View>
+        
+        {/* Profile summary card */}
+        <Animated.View 
+          style={[
+            styles.profileCard,
+            {
+              opacity: celebrationAnim,
+              transform: [
+                {
+                  translateY: celebrationAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [30, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <View style={styles.profileInfo}>
+            <View style={styles.profileAvatar}>
+              <Text style={styles.profileAvatarText}>
+                {firstName.charAt(0)}{lastName.charAt(0)}
+              </Text>
+            </View>
+            <View style={styles.profileDetails}>
+              <Text style={styles.profileName}>
+                {firstName} {lastName}
+              </Text>
+              <View style={styles.profileBadge}>
+                <Ionicons name="shield-checkmark" size={14} color={Colors.success} />
+                <Text style={styles.profileBadgeText}>Verified</Text>
+              </View>
+            </View>
           </View>
+          
+          {/* Quick checklist */}
+          <View style={styles.quickChecklist}>
+            <View style={styles.checklistRow}>
+              <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+              <Text style={styles.checklistText}>Personal Info</Text>
+            </View>
+            <View style={styles.checklistRow}>
+              <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+              <Text style={styles.checklistText}>Phone Verified</Text>
+            </View>
+          </View>
+        </Animated.View>
+        
+        {(!firstName.trim() || !lastName.trim()) && (
+          <Animated.View style={styles.errorContainer}>
+            <Ionicons name="alert-circle" size={20} color={Colors.error} />
+            <Text style={styles.errorText}>
+              Please provide both first name and last name to continue
+            </Text>
+          </Animated.View>
         )}
-      </TouchableOpacity>
-      
-      <Text style={styles.imageHint}>Tap to upload</Text>
-      
-      {(!firstName.trim() || !lastName.trim()) && (
-        <Text style={styles.errorText}>
-          Please provide both first name and last name to continue
-        </Text>
-      )}
-      
-      <Button
-        title="Complete"
-        onPress={onComplete}
-        fullWidth
-        loading={isLoading}
-        disabled={!firstName.trim() || !lastName.trim()}
-        style={{ marginTop: 24 }}
-      />
-      {/* Back to Name Step button removed to prevent going back to previous screens */}
-      <Button
-        title="I'll do it later"
-        onPress={onSkip}
-        fullWidth
-        variant="secondary"
-        style={{ marginTop: 12 }}
-      />
-      {/* Back button removed to prevent going back to previous screens */}
-    </View>
+        
+        <Button
+          title="🚀 Complete Setup & Get Started"
+          onPress={handleComplete}
+          fullWidth
+          loading={isLoading}
+          disabled={!firstName.trim() || !lastName.trim()}
+          style={styles.nextButton}
+          hapticFeedback={true}
+        />
+      </View>
+    </Animated.View>
   );
 }
 
 // Main SignUp Screen Component
-export default function SignUpScreen({ navigation }: { navigation: any }) {
+export default function SignUpScreen() {
   const [step, setStep] = useState<number>(1);
   const [firstName, setFirstName] = useState<string>('');
   const [lastName, setLastName] = useState<string>('');
   const [phoneNumber, setPhoneNumber] = useState<string>('');
-  const [countryCode, setCountryCode] = useState<string>('+91');
-  const [countryModalVisible, setCountryModalVisible] = useState<boolean>(false);
+  const [countryCode] = useState<string>('+91');
   const [otp, setOtp] = useState<string[]>(['', '', '', '', '', '']);
-  const [profileImage, setProfileImage] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(false);
   const [otpError, setOtpError] = useState<string>('');
+  const [phoneError, setPhoneError] = useState<string>('');
   const [timer, setTimer] = useState<number>(30);
   const [canResend, setCanResend] = useState<boolean>(false);
   const [signUpCreated, setSignUpCreated] = useState<boolean>(false);
   const { signUp, setActive: setSignUpActive, isLoaded } = useSignUp();
   const { user } = useUser();
   const { isSignedIn, getToken } = useAuth();
-  const [selectedCountry, setSelectedCountry] = useState<CountryItem>({ code: '+91', name: 'India', flag: '🇮🇳' });
+  const [selectedCountry] = useState<CountryItem>({ code: '+91', name: 'India', flag: '🇮🇳' });
 
   // Prevent back navigation on Android
   useEffect(() => {
@@ -436,31 +723,52 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
 
   // Monitor authentication state
   useEffect(() => {
-    console.log('SignUpScreen - Auth state changed. isSignedIn:', isSignedIn);
+    logger.debug('SignUpScreen - Auth state changed. isSignedIn:', isSignedIn);
     if (isSignedIn) {
-      console.log('SignUpScreen - User is signed in!');
+      logger.debug('SignUpScreen - User is signed in!');
     }
   }, [isSignedIn]);
 
   // Step navigation
   const goToNextStep = () => setStep((s) => s + 1);
-  // goToPrevStep removed to prevent going back to previous steps
+  const goToPrevStep = () => setStep((s) => s - 1);
+  
+  // Handle editing phone number from OTP step
+  const handleEditPhone = () => {
+    if (Platform.OS === 'ios') {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    setOtp(['', '', '', '', '', '']); // Clear OTP
+    setOtpError(''); // Clear any OTP errors
+    goToPrevStep(); // Go back to phone step
+  };
 
 
 
   // Step 2: Send OTP
   const handleSendOTP = async () => {
     if (!isLoaded) return;
+    
+    // Clear previous errors
+    setPhoneError('');
+    
+    // Validate phone number
     if (phoneNumber.length !== 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      setPhoneError('Please enter a valid 10-digit phone number');
       return;
     }
+
+    if (!/^\d+$/.test(phoneNumber)) {
+      setPhoneError('Phone number should contain only digits');
+      return;
+    }
+    
     setIsLoading(true);
     try {
       const formattedPhone = `${countryCode}${phoneNumber.replace(/^0+/, '')}`;
-      console.log('SignUpScreen - Sending OTP to:', formattedPhone);
-      console.log('SignUpScreen - SignUp object:', signUp);
-      console.log('SignUpScreen - Is loaded:', isLoaded);
+      logger.debug('SignUpScreen - Sending OTP to:', formattedPhone);
+      logger.debug('SignUpScreen - SignUp object:', signUp);
+      logger.debug('SignUpScreen - Is loaded:', isLoaded);
       
       if (!signUp) {
         console.error('SignUpScreen - SignUp object is null during OTP send');
@@ -469,15 +777,15 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
       }
       
       if (!signUpCreated) {
-        console.log('SignUpScreen - Creating sign up...');
+        logger.debug('SignUpScreen - Creating sign up...');
         await signUp.create({ phoneNumber: formattedPhone });
         setSignUpCreated(true);
-        console.log('SignUpScreen - Sign up created successfully');
+        logger.debug('SignUpScreen - Sign up created successfully');
       }
       
-      console.log('SignUpScreen - Preparing phone number verification...');
+      logger.debug('SignUpScreen - Preparing phone number verification...');
       await signUp.preparePhoneNumberVerification({ strategy: 'phone_code' });
-      console.log('SignUpScreen - OTP sent successfully');
+      logger.debug('SignUpScreen - OTP sent successfully');
       goToNextStep();
     } catch (err: unknown) {
       console.error('SignUpScreen - Error sending OTP:', err);
@@ -485,10 +793,10 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
         // @ts-ignore
         const errorMessage = err.errors?.[0]?.message || 'Failed to send OTP';
         console.error('SignUpScreen - Error message:', errorMessage);
-        Alert.alert('Error', errorMessage);
+        setPhoneError(errorMessage);
       } else {
         console.error('SignUpScreen - Unknown error type:', err);
-        Alert.alert('Error', 'Failed to send OTP');
+        setPhoneError('Failed to send OTP. Please try again.');
       }
     } finally {
       setIsLoading(false);
@@ -501,12 +809,12 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
     setOtpError('');
     try {
       const otpString = otp.join('');
-      console.log('SignUpScreen - Verifying OTP:', otpString);
-      console.log('SignUpScreen - OTP length:', otpString.length);
-      console.log('SignUpScreen - OTP array:', otp);
-      console.log('SignUpScreen - SignUp object:', signUp);
-      console.log('SignUpScreen - Is loaded:', isLoaded);
-      console.log('SignUpScreen - SignUpCreated:', signUpCreated);
+      logger.debug('SignUpScreen - Verifying OTP:', otpString);
+      logger.debug('SignUpScreen - OTP length:', otpString.length);
+      logger.debug('SignUpScreen - OTP array:', otp);
+      logger.debug('SignUpScreen - SignUp object:', signUp);
+      logger.debug('SignUpScreen - Is loaded:', isLoaded);
+      logger.debug('SignUpScreen - SignUpCreated:', signUpCreated);
       
       if (otpString.length !== 6) {
         setOtpError('Please enter complete OTP');
@@ -529,22 +837,22 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
         return;
       }
       
-      console.log('SignUpScreen - Attempting phone number verification...');
-      console.log('SignUpScreen - OTP code being sent:', otpString);
+      logger.debug('SignUpScreen - Attempting phone number verification...');
+      logger.debug('SignUpScreen - OTP code being sent:', otpString);
       
       const completeSignUp = await signUp.attemptPhoneNumberVerification({ code: otpString });
-      console.log('SignUpScreen - Verification result:', completeSignUp);
-      console.log('SignUpScreen - Verification status:', completeSignUp?.status);
-      console.log('SignUpScreen - Phone verification status:', completeSignUp?.verifications?.phoneNumber?.status);
-      console.log('SignUpScreen - Created session ID:', completeSignUp?.createdSessionId);
+      logger.debug('SignUpScreen - Verification result:', completeSignUp);
+      logger.debug('SignUpScreen - Verification status:', completeSignUp?.status);
+      logger.debug('SignUpScreen - Phone verification status:', completeSignUp?.verifications?.phoneNumber?.status);
+      logger.debug('SignUpScreen - Created session ID:', completeSignUp?.createdSessionId);
       
       // Check if phone number is verified
       const isPhoneVerified = completeSignUp?.verifications?.phoneNumber?.status === 'verified';
-      console.log('SignUpScreen - Is phone verified:', isPhoneVerified);
+      logger.debug('SignUpScreen - Is phone verified:', isPhoneVerified);
       
       if (isPhoneVerified) {
-        console.log('SignUpScreen - Phone verification successful!');
-        console.log('SignUpScreen - Missing fields:', completeSignUp?.missingFields);
+        logger.debug('SignUpScreen - Phone verification successful!');
+        logger.debug('SignUpScreen - Missing fields:', completeSignUp?.missingFields);
         
         // Set userType in Clerk metadata immediately after phone verification
         if (user) {
@@ -552,12 +860,12 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
             await user.update({
               unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
             });
-            console.log('SignUpScreen - User type set to customer after phone verification');
+            logger.debug('SignUpScreen - User type set to customer after phone verification');
             
             // Force new JWT with updated userType
             if (typeof getToken === 'function') {
               const newToken = await getToken({ template: 'my_app_token', skipCache: true });
-              console.log('SignUpScreen - New JWT with userType after phone verification:', newToken ? 'Generated' : 'Failed');
+              logger.debug('SignUpScreen - New JWT with userType after phone verification:', newToken ? 'Generated' : 'Failed');
             }
           } catch (metadataErr) {
             console.error('SignUpScreen - Error setting user type after phone verification:', metadataErr);
@@ -566,27 +874,27 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
         
         // Check if we have all required fields (phone is verified, but we still need first_name and last_name)
         if (completeSignUp?.missingFields?.includes('first_name') || completeSignUp?.missingFields?.includes('last_name')) {
-          console.log('SignUpScreen - Phone verified but missing name fields, proceeding to next step');
+          logger.debug('SignUpScreen - Phone verified but missing name fields, proceeding to next step');
           goToNextStep();
         } else if (completeSignUp?.status === 'complete') {
-          console.log('SignUpScreen - All requirements met, setting active session...');
-          console.log('SignUpScreen - Created session ID:', completeSignUp.createdSessionId);
+          logger.debug('SignUpScreen - All requirements met, setting active session...');
+          logger.debug('SignUpScreen - Created session ID:', completeSignUp.createdSessionId);
           
           // Set the active session
           if (setSignUpActive && completeSignUp.createdSessionId) {
             await setSignUpActive({ session: completeSignUp.createdSessionId });
-            console.log('SignUpScreen - Session activated successfully');
+            logger.debug('SignUpScreen - Session activated successfully');
           } else {
             console.error('SignUpScreen - setSignUpActive is not available or no session ID');
           }
           goToNextStep();
         } else {
-          console.log('SignUpScreen - Phone verified but status not complete, proceeding anyway');
+          logger.debug('SignUpScreen - Phone verified but status not complete, proceeding anyway');
           goToNextStep();
         }
       } else {
-        console.log('SignUpScreen - Phone verification failed');
-        console.log('SignUpScreen - Complete signup object:', completeSignUp);
+        logger.debug('SignUpScreen - Phone verification failed');
+        logger.debug('SignUpScreen - Complete signup object:', completeSignUp);
         setOtpError('Invalid OTP. Please try again.');
       }
     } catch (err: any) {
@@ -628,10 +936,10 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
   const handleCompleteProfile = async () => {
     setIsLoading(true);
     try {
-      console.log('SignUpScreen - Completing profile...');
-      console.log('SignUpScreen - First name:', firstName);
-      console.log('SignUpScreen - Last name:', lastName);
-      console.log('SignUpScreen - Current auth state - isSignedIn:', isSignedIn);
+      logger.debug('SignUpScreen - Completing profile...');
+      logger.debug('SignUpScreen - First name:', firstName);
+      logger.debug('SignUpScreen - Last name:', lastName);
+      logger.debug('SignUpScreen - Current auth state - isSignedIn:', isSignedIn);
       
       // Validate that both names are provided
       if (!firstName.trim() || !lastName.trim()) {
@@ -658,24 +966,24 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
           firstName: firstName.trim(),
           lastName: lastName.trim()
         });
-        console.log('SignUpScreen - Profile updated successfully');
-        console.log('SignUpScreen - SignUp status after update:', signUp.status);
+        logger.debug('SignUpScreen - Profile updated successfully');
+        logger.debug('SignUpScreen - SignUp status after update:', signUp.status);
         // Check if we need to complete the signup
         if (signUp.status === 'complete') {
-          console.log('SignUpScreen - SignUp is complete, setting active session...');
+          logger.debug('SignUpScreen - SignUp is complete, setting active session...');
           if (setSignUpActive && signUp.createdSessionId) {
             await setSignUpActive({ session: signUp.createdSessionId });
-            console.log('SignUpScreen - Session activated successfully');
+            logger.debug('SignUpScreen - Session activated successfully');
           }
         } else {
-          console.log('SignUpScreen - SignUp status is not complete:', signUp.status);
-          console.log('SignUpScreen - Missing fields:', signUp.missingFields);
+          logger.debug('SignUpScreen - SignUp status is not complete:', signUp.status);
+          logger.debug('SignUpScreen - Missing fields:', signUp.missingFields);
           // Try to complete the signup manually
           try {
-            console.log('SignUpScreen - Attempting to complete signup...');
+            logger.debug('SignUpScreen - Attempting to complete signup...');
             // Since we've already verified the phone and updated the name, 
             // we should be able to complete the signup
-            console.log('SignUpScreen - SignUp should be complete now');
+            logger.debug('SignUpScreen - SignUp should be complete now');
           } catch (completionErr) {
             console.error('SignUpScreen - Error completing signup:', completionErr);
           }
@@ -690,12 +998,12 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
             lastName: lastName.trim(),
             unsafeMetadata: { ...user.unsafeMetadata, type: 'customer' }
           });
-          console.log('SignUpScreen - Clerk user updated with name and userType');
+          logger.debug('SignUpScreen - Clerk user updated with name and userType');
           
           // Force new JWT with updated userType and name fields
           if (typeof getToken === 'function') {
             const newToken = await getToken({ template: 'my_app_token', skipCache: true });
-            console.log('SignUpScreen - New JWT with complete user data:', newToken ? 'Generated' : 'Failed');
+            logger.debug('SignUpScreen - New JWT with complete user data:', newToken ? 'Generated' : 'Failed');
             
             // Log the JWT details to verify custom fields
             if (newToken) {
@@ -712,11 +1020,11 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
       //   await user?.setProfileImage({ file: profileImage });
       // }
       
-      console.log('SignUpScreen - Profile completion successful');
-      console.log('SignUpScreen - Final auth state - isSignedIn:', isSignedIn);
+      logger.debug('SignUpScreen - Profile completion successful');
+      logger.debug('SignUpScreen - Final auth state - isSignedIn:', isSignedIn);
       Alert.alert('Success', 'Profile updated successfully!', [
         { text: 'OK', onPress: () => {
-          console.log('SignUpScreen - Profile completion alert dismissed');
+          logger.debug('SignUpScreen - Profile completion alert dismissed');
         }}
       ]);
     } catch (err: any) {
@@ -727,291 +1035,405 @@ export default function SignUpScreen({ navigation }: { navigation: any }) {
     }
   };
 
-  // Step 4: Skip profile
-  const handleSkipProfile = () => {
-    console.log('SignUpScreen - Skipping profile setup');
-    console.log('SignUpScreen - Current auth state - isSignedIn:', isSignedIn);
-    console.log('SignUpScreen - SignUp status:', signUp?.status);
-    console.log('SignUpScreen - First name:', firstName);
-    console.log('SignUpScreen - Last name:', lastName);
-    
-    // Check if names are missing
-    if (!firstName.trim() || !lastName.trim()) {
-      Alert.alert(
-        'Name Required', 
-        'Please provide both first name and last name to complete your profile.',
-        [
-          { text: 'Cancel', style: 'cancel' }
-        ]
-      );
-      return;
-    }
-    
-    // Check if we can complete the signup without name
-    if (signUp && signUp.status === 'complete') {
-      console.log('SignUpScreen - SignUp is complete, setting active session...');
-      if (setSignUpActive && signUp.createdSessionId) {
-        setSignUpActive({ session: signUp.createdSessionId }).then(() => {
-          console.log('SignUpScreen - Session activated successfully on skip');
-        }).catch(err => {
-          console.error('SignUpScreen - Error activating session on skip:', err);
-        });
-      }
-    } else {
-      console.log('SignUpScreen - SignUp status is not complete:', signUp?.status);
-      console.log('SignUpScreen - Missing fields:', signUp?.missingFields);
-    }
-    
-    Alert.alert(
-      'Profile Setup', 
-      'You can complete your profile later from the settings.',
-      [
-        { text: 'OK', onPress: () => {
-          console.log('SignUpScreen - Profile skip alert dismissed');
-          console.log('SignUpScreen - Auth state after skip - isSignedIn:', isSignedIn);
-        }}
-      ]
-    );
-  };
 
   return (
-    <SafeAreaView style={styles.container}>
-      <KeyboardAvoidingView
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.keyboardView}
+    <View style={styles.container}>
+      <LinearGradient
+        colors={[Colors.primaryLight, Colors.white, Colors.gray50]}
+        style={styles.gradientBackground}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          keyboardShouldPersistTaps="handled"
-        >
-          <View style={styles.header}>
-            {/* Back button removed to prevent going back to previous screens */}
-          </View>
-          
-          <View style={styles.content}>
-            {step === 1 && (
-              <NameStep
-                firstName={firstName}
-                lastName={lastName}
-                setFirstName={setFirstName}
-                setLastName={setLastName}
-                onNext={goToNextStep}
-              />
-            )}
-            
-            {step === 2 && (
-              <PhoneStep
-                phoneNumber={phoneNumber}
-                setPhoneNumber={setPhoneNumber}
-                countryCode={countryCode}
-                setCountryCode={setCountryCode}
-                countryModalVisible={countryModalVisible}
-                setCountryModalVisible={setCountryModalVisible}
-                onNext={handleSendOTP}
-                isLoading={isLoading}
-                selectedCountry={selectedCountry}
-                setSelectedCountry={setSelectedCountry}
-              />
-            )}
-            
-            {step === 3 && (
-              <OtpStep
-                otp={otp}
-                setOtp={setOtp}
-                onVerify={handleVerifyOTP}
-                isLoading={isLoading}
-                error={otpError}
-                resendOtp={handleResendOTP}
-                canResend={canResend}
-                timer={timer}
-              />
-            )}
-            
-            {step === 4 && (
-              <>
-                <PhotoStep
-                  profileImage={profileImage}
-                  setProfileImage={setProfileImage}
-                  onComplete={handleCompleteProfile}
-                  onSkip={handleSkipProfile}
-                  isLoading={isLoading}
-                  firstName={firstName}
-                  lastName={lastName}
-                />
-
-              </>
-            )}
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-    </SafeAreaView>
+        <SafeAreaView style={styles.safeArea}>
+          <KeyboardAvoidingView
+            behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+            style={styles.keyboardView}
+          >
+            <ScrollView 
+              contentContainerStyle={styles.scrollContent}
+              keyboardShouldPersistTaps="handled"
+              showsVerticalScrollIndicator={false}
+            >
+                <View style={styles.header}>
+                  <View style={styles.logoContainer}>
+                    <Ionicons name="bicycle" size={32} color={Colors.primary} />
+                    <Text style={styles.logoText}>Roqet</Text>
+                  </View>
+                </View>
+              
+              <View style={styles.content}>
+                {step === 1 && (
+                  <NameStep
+                    firstName={firstName}
+                    lastName={lastName}
+                    setFirstName={setFirstName}
+                    setLastName={setLastName}
+                    onNext={goToNextStep}
+                  />
+                )}
+                
+                {step === 2 && (
+                  <PhoneStep
+                    phoneNumber={phoneNumber}
+                    setPhoneNumber={setPhoneNumber}
+                    onNext={handleSendOTP}
+                    isLoading={isLoading}
+                    selectedCountry={selectedCountry}
+                    phoneError={phoneError}
+                  />
+                )}
+                
+                {step === 3 && (
+                  <OtpStep
+                    otp={otp}
+                    setOtp={setOtp}
+                    onVerify={handleVerifyOTP}
+                    isLoading={isLoading}
+                    error={otpError}
+                    resendOtp={handleResendOTP}
+                    canResend={canResend}
+                    timer={timer}
+                    phoneNumber={phoneNumber}
+                    countryCode={countryCode}
+                    onEditPhone={handleEditPhone}
+                  />
+                )}
+                
+                {step === 4 && (
+                  <CompleteStep
+                    onComplete={handleCompleteProfile}
+                    isLoading={isLoading}
+                    firstName={firstName}
+                    lastName={lastName}
+                  />
+                )}
+              </View>
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </LinearGradient>
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: Colors.white,
+  },
+  gradientBackground: {
+    flex: 1,
+  },
+  safeArea: {
+    flex: 1,
   },
   keyboardView: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
+    paddingBottom: Layout.spacing.xl,
   },
   header: {
     paddingHorizontal: Layout.spacing.lg,
-    paddingTop: Layout.spacing.md,
+    paddingTop: Layout.spacing.lg,
+    paddingBottom: Layout.spacing.md,
   },
-  backButton: {
-    alignSelf: 'flex-start',
-    padding: Layout.spacing.sm,
+  logoContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Layout.spacing.sm,
+  },
+  logoText: {
+    fontSize: Layout.fontSize.xl,
+    fontWeight: 'bold',
+    color: Colors.primary,
+    marginLeft: Layout.spacing.sm,
   },
   content: {
     flex: 1,
     paddingHorizontal: Layout.spacing.lg,
   },
   stepContainer: {
-    marginTop: 40,
+    flex: 1,
+    paddingBottom: Layout.spacing.xl,
   },
-  progress: {
+  stepHeader: {
+    marginBottom: Layout.spacing.xl,
+  },
+  progressIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Layout.spacing.md,
+  },
+  progressDot: {
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    backgroundColor: Colors.gray300,
+    marginHorizontal: 4,
+  },
+  progressDotActive: {
+    backgroundColor: Colors.primary,
+    transform: [{ scale: 1.2 }],
+  },
+  progressDotCompleted: {
+    backgroundColor: Colors.success,
+  },
+  progressLine: {
+    flex: 1,
+    height: 2,
+    backgroundColor: Colors.gray300,
+    marginHorizontal: 4,
+  },
+  progressLineCompleted: {
+    backgroundColor: Colors.success,
+  },
+  progressText: {
     color: Colors.primary,
     fontWeight: '600',
-    marginBottom: 16,
+    fontSize: Layout.fontSize.sm,
     textAlign: 'center',
+  },
+  stepContent: {
+    flex: 1,
+  },
+  titleContainer: {
+    alignItems: 'center',
+    marginBottom: Layout.spacing.xl,
+  },
+  stepIcon: {
+    marginBottom: Layout.spacing.md,
   },
   stepTitle: {
     fontSize: Layout.fontSize.xxl,
     fontWeight: 'bold',
     color: Colors.text,
-    marginBottom: 32,
     textAlign: 'center',
+    marginBottom: Layout.spacing.sm,
   },
-  countryCodeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingRight: 8,
-  },
-  countryCodeText: {
-    fontWeight: '600',
-    fontSize: 16,
-    marginRight: 4,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    width: '85%',
-    maxHeight: '70%',
-    overflow: 'hidden',
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: '600',
-    color: Colors.text,
-  },
-  modalCloseButton: {
-    padding: 4,
-  },
-  countryItem: {
-    padding: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#eee',
-  },
-  countryItemText: {
-    fontSize: 16,
-    color: Colors.text,
-  },
-  otpContainer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    marginBottom: 24,
-    marginTop: 16,
-  },
-  otpInput: {
-    width: 45,
-    height: 55,
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderRadius: 8,
-    marginHorizontal: 6,
-    fontSize: 20,
-    fontWeight: '600',
-    textAlign: 'center',
-    backgroundColor: Colors.gray50,
-  },
-  otpInputFilled: {
-    borderColor: Colors.primary,
-    backgroundColor: Colors.white,
-  },
-  otpSubtitle: {
+  stepSubtitle: {
+    fontSize: Layout.fontSize.md,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 8,
-    fontSize: 14,
+    lineHeight: 22,
+    paddingHorizontal: Layout.spacing.md,
+  },
+  inputsContainer: {
+    marginBottom: Layout.spacing.xl,
+  },
+  inputContainer: {
+    marginBottom: Layout.spacing.lg,
+  },
+  nextButton: {
+    marginTop: Layout.spacing.lg,
+  },
+  // OTP specific styles
+  otpContainer: {
+    marginBottom: Layout.spacing.xl,
+  },
+  errorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: Layout.spacing.md,
+    paddingHorizontal: Layout.spacing.md,
   },
   errorText: {
     color: Colors.error,
+    fontSize: Layout.fontSize.sm,
+    marginLeft: Layout.spacing.xs,
     textAlign: 'center',
-    marginTop: 8,
-    fontSize: 14,
   },
   resendContainer: {
     alignItems: 'center',
-    marginBottom: 8,
+    marginBottom: Layout.spacing.lg,
+  },
+  resendButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Layout.spacing.md,
+    paddingVertical: Layout.spacing.sm,
+    backgroundColor: Colors.gray50,
+    borderRadius: Layout.borderRadius.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
   },
   resendText: {
     color: Colors.primary,
     fontWeight: '600',
-    fontSize: 16,
+    fontSize: Layout.fontSize.sm,
+    marginLeft: Layout.spacing.xs,
+  },
+  timerContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
   },
   timerText: {
     color: Colors.textSecondary,
-    fontSize: 14,
+    fontSize: Layout.fontSize.sm,
+    marginLeft: Layout.spacing.xs,
   },
-  photoSubtitle: {
-    color: Colors.textSecondary,
-    textAlign: 'center',
-    marginBottom: 32,
-    fontSize: 14,
-  },
-  profileImageContainer: {
+  // Celebration styles
+  celebrationHeader: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: Layout.spacing.xl,
   },
-  profileImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-  },
-  placeholderImage: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
-    backgroundColor: Colors.gray100,
+  celebrationIcon: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    backgroundColor: Colors.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    borderWidth: 2,
-    borderColor: Colors.border,
-    borderStyle: 'dashed',
+    marginBottom: Layout.spacing.lg,
+    shadowColor: Colors.primary,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
   },
-  imageHint: {
+  celebrationTitle: {
+    fontSize: Layout.fontSize.xxl,
+    fontWeight: 'bold',
+    color: Colors.text,
+    marginBottom: Layout.spacing.sm,
+    textAlign: 'center',
+  },
+  celebrationSubtitle: {
+    fontSize: Layout.fontSize.md,
     color: Colors.textSecondary,
     textAlign: 'center',
-    marginBottom: 24,
-    fontSize: 14,
+    paddingHorizontal: Layout.spacing.lg,
+  },
+  // Profile card styles
+  profileCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Layout.borderRadius.lg,
+    padding: Layout.spacing.lg,
+    marginBottom: Layout.spacing.xl,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    shadowColor: Colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 4,
+    },
+    shadowOpacity: 0.08,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  profileInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Layout.spacing.lg,
+  },
+  profileAvatar: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    backgroundColor: Colors.primary,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Layout.spacing.md,
+  },
+  profileAvatarText: {
+    fontSize: Layout.fontSize.lg,
+    fontWeight: 'bold',
+    color: Colors.white,
+  },
+  profileDetails: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: Layout.fontSize.lg,
+    fontWeight: '600',
+    color: Colors.text,
+    marginBottom: Layout.spacing.xs,
+  },
+  profileBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.successLight,
+    paddingHorizontal: Layout.spacing.sm,
+    paddingVertical: Layout.spacing.xs,
+    borderRadius: Layout.borderRadius.sm,
+    alignSelf: 'flex-start',
+  },
+  profileBadgeText: {
+    fontSize: Layout.fontSize.xs,
+    fontWeight: '600',
+    color: Colors.success,
+    marginLeft: Layout.spacing.xs,
+  },
+  // Quick checklist styles
+  quickChecklist: {
+    borderTopWidth: 1,
+    borderTopColor: Colors.border,
+    paddingTop: Layout.spacing.md,
+  },
+  checklistRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: Layout.spacing.sm,
+  },
+  checklistText: {
+    fontSize: Layout.fontSize.sm,
+    color: Colors.text,
+    marginLeft: Layout.spacing.sm,
+    fontWeight: '500',
+  },
+  // Phone display styles
+  phoneDisplayContainer: {
+    marginBottom: Layout.spacing.lg,
+  },
+  phoneDisplayCard: {
+    backgroundColor: Colors.white,
+    borderRadius: Layout.borderRadius.md,
+    padding: Layout.spacing.md,
+    borderWidth: 1,
+    borderColor: Colors.border,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    shadowColor: Colors.shadow,
+    shadowOffset: {
+      width: 0,
+      height: 2,
+    },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  phoneDisplayInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flex: 1,
+  },
+  phoneDisplayText: {
+    fontSize: Layout.fontSize.md,
+    color: Colors.text,
+    fontWeight: '600',
+    marginLeft: Layout.spacing.sm,
+  },
+  editPhoneButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: Layout.spacing.sm,
+    paddingVertical: Layout.spacing.xs,
+    backgroundColor: Colors.gray50,
+    borderRadius: Layout.borderRadius.sm,
+    borderWidth: 1,
+    borderColor: Colors.border,
+  },
+  editPhoneText: {
+    fontSize: Layout.fontSize.sm,
+    color: Colors.primary,
+    fontWeight: '600',
+    marginLeft: Layout.spacing.xs,
   },
 });

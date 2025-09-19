@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { View, Text, StyleSheet, Image, ScrollView, ActivityIndicator, Alert, TouchableOpacity, RefreshControl } from 'react-native';
+import { View, Text, StyleSheet, Image, ScrollView, Alert, TouchableOpacity, RefreshControl } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors, TITLE_COLOR } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
@@ -7,6 +7,7 @@ import { useAuth } from '@clerk/clerk-expo';
 import { userApi, UserProfile } from '../../services/userService';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../i18n/LanguageContext';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 
 export default function PersonalDetailsScreen({ route, navigation }: any) {
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
@@ -102,13 +103,14 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Ionicons name="person-circle" size={32} color={TITLE_COLOR} />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={TITLE_COLOR} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('profile.personalDetails')}</Text>
           <View style={{ width: 32 }} />
         </View>
         <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>{t('common.loading')}</Text>
+          <LoadingSpinner size="large" text={t('common.loading')} />
         </View>
       </View>
     );
@@ -118,7 +120,9 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
     return (
       <View style={styles.container}>
         <View style={styles.header}>
-          <Ionicons name="person-circle" size={32} color={TITLE_COLOR} />
+          <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+            <Ionicons name="arrow-back" size={24} color={TITLE_COLOR} />
+          </TouchableOpacity>
           <Text style={styles.headerTitle}>{t('profile.personalDetails')}</Text>
           <View style={{ width: 32 }} />
         </View>
@@ -136,7 +140,9 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Ionicons name="person-circle" size={32} color={TITLE_COLOR} />
+        <TouchableOpacity onPress={() => navigation.goBack()} style={styles.backButton}>
+          <Ionicons name="arrow-back" size={24} color={TITLE_COLOR} />
+        </TouchableOpacity>
         <Text style={styles.headerTitle}>{t('profile.personalDetails')}</Text>
         <TouchableOpacity onPress={handleEditProfile} style={styles.editButton}>
           <Ionicons name="create-outline" size={24} color={Colors.primary} />
@@ -258,27 +264,7 @@ export default function PersonalDetailsScreen({ route, navigation }: any) {
           </View>
         </View>
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>{t('profile.rideStatistics')}</Text>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>{t('profile.totalRides')}:</Text>
-            <Text style={styles.value}>{userProfile?.totalRides || 0}</Text>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>{t('common.rating')}:</Text>
-            <View style={styles.ratingContainer}>
-              <Ionicons name="star" size={16} color={Colors.accent} />
-              <Text style={styles.ratingText}>{userProfile?.rating || 0}</Text>
-            </View>
-          </View>
-          
-          <View style={styles.detailRow}>
-            <Text style={styles.label}>{t('common.walletBalance')}:</Text>
-            <Text style={styles.value}>{t('common.currencySymbol')}{userProfile?.walletBalance || 0}</Text>
-          </View>
-        </View>
+       
       </ScrollView>
     </View>
   );
@@ -341,6 +327,9 @@ const styles = StyleSheet.create({
     marginLeft: 8,
     flex: 1,
     textAlign: 'right',
+  },
+  backButton: {
+    padding: Layout.spacing.sm,
   },
   editButton: {
     padding: Layout.spacing.sm,

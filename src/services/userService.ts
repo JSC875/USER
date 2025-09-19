@@ -1,4 +1,66 @@
 import { api } from './api';
+import Constants from 'expo-constants';
+import { logger } from '../utils/logger';
+
+// Utility function to calculate distance between two coordinates using Haversine formula
+const calculateDistance = (lat1: number, lon1: number, lat2: number, lon2: number): number => {
+  try {
+    if (!lat1 || !lon1 || !lat2 || !lon2 || 
+        lat1 === 0 || lon1 === 0 || lat2 === 0 || lon2 === 0) {
+      return 0;
+    }
+
+    const R = 6371; // Radius of the Earth in kilometers
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    const distance = R * c; // Distance in kilometers
+    
+    return Math.round(distance * 10) / 10; // Round to 1 decimal place
+  } catch (error) {
+    console.error('Error calculating distance:', error);
+    return 0;
+  }
+};
+
+// Utility function to reverse geocode coordinates to address
+const reverseGeocode = async (latitude: number, longitude: number): Promise<string> => {
+  try {
+    if (!latitude || !longitude || latitude === 0 || longitude === 0) {
+      return 'Unknown Location';
+    }
+    
+    const apiKey = Constants.expoConfig?.extra?.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY || process.env.EXPO_PUBLIC_GOOGLE_MAPS_API_KEY;
+    
+    if (!apiKey) {
+      console.warn('Google Maps API key not found for reverse geocoding');
+      return 'Unknown Location';
+    }
+    
+    const response = await fetch(
+      `https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${apiKey}`
+    );
+    
+    if (!response.ok) {
+      return 'Unknown Location';
+    }
+    
+    const data = await response.json();
+    
+    if (data.status === 'OK' && data.results && data.results.length > 0) {
+      return data.results[0].formatted_address;
+    }
+    
+    return 'Unknown Location';
+  } catch (error) {
+    console.error('Error reverse geocoding:', error);
+    return 'Unknown Location';
+  }
+};
 
 // User profile update interface
 export interface UserProfileUpdate {
@@ -90,17 +152,18 @@ class UserService {
   // Get current user profile
   async getCurrentUser(getToken: () => Promise<string | null>): Promise<UserProfile> {
     try {
-      console.log('🔄 === /api/users/me GET REQUEST ===');
-      console.log('🎯 Endpoint: /api/users/me');
-      console.log('📋 Method: GET');
-      console.log('🔐 Requires Auth: true');
+      logger.debug('🔄 === /api/users/me GET REQUEST ===');
+      logger.debug('🎯 Endpoint: /api/users/me');
+      logger.debug('📋 Method: GET');
+      logger.debug('🔐 Requires Auth: true');
       
       const response = await api.getAuth<UserProfile>('/api/users/me', getToken);
       
-      console.log('✅ === /api/users/me GET RESPONSE ===');
-      console.log('📊 Response Success:', response.success);
-      console.log('📦 Response Data:', response.data);
-      console.log('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+      if (__DEV__) {
+        logger.debug('✅ === /api/users/me GET RESPONSE ===');
+        logger.debug('📊 Response Success:', response.success);
+        logger.debug('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+      }
       
       if (!response.success) {
         throw new Error(response.message || 'Failed to fetch user profile');
@@ -120,19 +183,20 @@ class UserService {
     getToken: () => Promise<string | null>
   ): Promise<UserProfile> {
     try {
-      console.log('🔄 === /api/users/me PUT REQUEST ===');
-      console.log('🎯 Endpoint: /api/users/me');
-      console.log('📋 Method: PUT');
-      console.log('🔐 Requires Auth: true');
-      console.log('📦 Request Payload:');
-      console.log(JSON.stringify(updateData, null, 2));
+      logger.debug('🔄 === /api/users/me PUT REQUEST ===');
+      logger.debug('🎯 Endpoint: /api/users/me');
+      logger.debug('📋 Method: PUT');
+      logger.debug('🔐 Requires Auth: true');
+      logger.debug('📦 Request Payload:');
+      logger.debug(JSON.stringify(updateData, null, 2));
       
       const response = await api.putAuth<UserProfile>('/api/users/me', updateData, getToken);
       
-      console.log('✅ === /api/users/me PUT RESPONSE ===');
-      console.log('📊 Response Success:', response.success);
-      console.log('📦 Response Data:', response.data);
-      console.log('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+      if (__DEV__) {
+        logger.debug('✅ === /api/users/me PUT RESPONSE ===');
+        logger.debug('📊 Response Success:', response.success);
+        logger.debug('📏 Data Size:', JSON.stringify(response.data).length, 'characters');
+      }
       
       if (!response.success) {
         throw new Error(response.message || 'Failed to update user profile');
@@ -217,42 +281,87 @@ class UserService {
       }
       
       // Transform API response to match RideHistory interface
-      const transformedRides: RideHistory[] = response.data!.map((ride: any) => ({
-        id: ride.id,
-        userId: ride.customer?.clerkUserId || '',
-        driverId: ride.driverId,
-        pickupLocation: {
-          address: 'Pickup Location', // API doesn't provide address, using default
-          latitude: ride.pickupLat || 0,
-          longitude: ride.pickupLng || 0,
-        },
-        dropLocation: {
-          address: 'Destination', // API doesn't provide address, using default
-          latitude: ride.dropLat || 0,
-          longitude: ride.dropLng || 0,
-        },
-        status: ride.status || 'pending',
-        fare: ride.estimatedFare || 0,
-        distance: 0, // API doesn't provide distance, defaulting to 0
-        duration: 0, // API doesn't provide duration, defaulting to 0
-        rating: ride.rating,
-        createdAt: ride.requestedAt || ride.createdAt || new Date().toISOString(),
-        updatedAt: ride.updatedAt || new Date().toISOString(),
-        completedAt: ride.completedAt,
-        cancelledAt: ride.cancelledAt,
-        cancellationReason: ride.cancellationReason,
-        paymentMethod: 'cash', // Default payment method
-        paymentStatus: 'pending', // Default payment status
-        driverName: ride.driverName,
-        driverPhone: ride.driverPhone,
-        driverRating: ride.driverRating,
-        vehicleNumber: ride.vehicleNumber,
-        vehicleModel: ride.vehicleModel,
-      }));
+      const transformedRides: RideHistory[] = await Promise.all(
+        response.data!.map(async (ride: any) => {
+          
+          // Get coordinates first
+          const pickupLat = ride.pickupLat || ride.pickup?.latitude || ride.pickupLocation?.latitude || 0;
+          const pickupLng = ride.pickupLng || ride.pickup?.longitude || ride.pickupLocation?.longitude || 0;
+          const dropLat = ride.dropLat || ride.drop?.latitude || ride.dropLocation?.latitude || 0;
+          const dropLng = ride.dropLng || ride.drop?.longitude || ride.dropLocation?.longitude || 0;
+          
+          // Try to get addresses from various possible field names
+          let pickupAddress = ride.pickupAddress || 
+                             ride.pickup?.address || 
+                             ride.pickupLocation?.address || 
+                             ride.pickup_location?.address ||
+                             ride.pickupAddressText ||
+                             ride.pickupAddressName;
+          
+          let dropAddress = ride.dropAddress || 
+                           ride.drop?.address || 
+                           ride.dropLocation?.address || 
+                           ride.drop_location?.address ||
+                           ride.dropAddressText ||
+                           ride.dropAddressName;
+          
+          // If addresses are not available, try to reverse geocode coordinates
+          if (!pickupAddress && pickupLat && pickupLng) {
+            pickupAddress = await reverseGeocode(pickupLat, pickupLng);
+          }
+          
+          if (!dropAddress && dropLat && dropLng) {
+            dropAddress = await reverseGeocode(dropLat, dropLng);
+          }
+          
+          // Fallback to default values if still no address
+          pickupAddress = pickupAddress || 'Pickup Location';
+          dropAddress = dropAddress || 'Destination';
+          
+          // Calculate distance if not provided by API
+          let calculatedDistance = ride.distance || 0;
+          if (!calculatedDistance && pickupLat && pickupLng && dropLat && dropLng) {
+            calculatedDistance = calculateDistance(pickupLat, pickupLng, dropLat, dropLng);
+          }
+          
+          return {
+            id: ride.id,
+            userId: ride.customer?.clerkUserId || '',
+            driverId: ride.driverId,
+            pickupLocation: {
+              address: pickupAddress,
+              latitude: pickupLat,
+              longitude: pickupLng,
+            },
+            dropLocation: {
+              address: dropAddress,
+              latitude: dropLat,
+              longitude: dropLng,
+            },
+            status: ride.status || 'pending',
+            fare: ride.estimatedFare || ride.fare || 0,
+            distance: calculatedDistance,
+            duration: ride.duration || 0,
+            rating: ride.rating,
+            createdAt: ride.requestedAt || ride.createdAt || new Date().toISOString(),
+            updatedAt: ride.updatedAt || new Date().toISOString(),
+            completedAt: ride.completedAt,
+            cancelledAt: ride.cancelledAt,
+            cancellationReason: ride.cancellationReason,
+            paymentMethod: ride.paymentMethod || 'cash',
+            paymentStatus: ride.paymentStatus || 'pending',
+            driverName: ride.driverName,
+            driverPhone: ride.driverPhone,
+            driverRating: ride.driverRating,
+            vehicleNumber: ride.vehicleNumber,
+            vehicleModel: ride.vehicleModel,
+          };
+        })
+      );
       
       return transformedRides;
     } catch (error) {
-      console.error('Error fetching ride history:', error);
+      logger.error('Error fetching ride history:', error);
       throw error;
     }
   }

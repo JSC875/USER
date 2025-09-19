@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,23 +6,81 @@ import {
   TouchableOpacity,
   ScrollView,
   Switch,
+  Alert,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { useUser } from '@clerk/clerk-expo';
+import { logger } from '../../utils/logger';
 import { useTranslation } from 'react-i18next';
 import { useLanguage } from '../../i18n/LanguageContext';
+import NotificationPreferencesService, { NotificationPreferences } from '../../services/notificationPreferencesService';
+import NotificationService from '../../services/notificationService';
 
 export default function SettingsScreen({ navigation }: any) {
   const { user } = useUser();
   const { t } = useTranslation();
   const { currentLanguage } = useLanguage();
-  const [notifications, setNotifications] = useState(true);
-  const [locationServices, setLocationServices] = useState(true);
-  const [autoPayment, setAutoPayment] = useState(false);
-  const [shareData, setShareData] = useState(true);
+  const [preferences, setPreferences] = useState<NotificationPreferences>({
+    pushNotifications: true,
+    locationServices: true,
+    lastUpdated: Date.now(),
+  });
+  const [loading, setLoading] = useState(true);
+
+  const preferencesService = NotificationPreferencesService.getInstance();
+  const notificationService = NotificationService.getInstance();
+
+  // Load preferences on component mount
+  useEffect(() => {
+    loadPreferences();
+  }, []);
+
+  const loadPreferences = async () => {
+    try {
+      const currentPreferences = await preferencesService.getPreferences();
+      setPreferences(currentPreferences);
+    } catch (error) {
+      console.error('Error loading preferences:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePreferenceChange = async (key: keyof NotificationPreferences, value: boolean) => {
+    try {
+      const updatedPreferences = await preferencesService.updatePreference(key, value);
+      setPreferences(updatedPreferences);
+
+      // Handle notification service changes
+      if (key === 'pushNotifications') {
+        await notificationService.onNotificationPreferenceChanged(value);
+        
+        if (value) {
+          Alert.alert(
+            t('common.success', 'Success'),
+            t('common.notificationsEnabled', 'Notifications have been enabled. You will now receive ride updates and important alerts.'),
+            [{ text: t('common.ok', 'OK') }]
+          );
+        } else {
+          Alert.alert(
+            t('common.notificationsDisabled', 'Notifications Disabled'),
+            t('common.notificationsDisabledMessage', 'You will no longer receive push notifications. You can re-enable them anytime in settings.'),
+            [{ text: t('common.ok', 'OK') }]
+          );
+        }
+      }
+    } catch (error) {
+      console.error('Error updating preference:', error);
+      Alert.alert(
+        t('common.error', 'Error'),
+        t('common.errorUpdatingSettings', 'Failed to update settings. Please try again.'),
+        [{ text: t('common.ok', 'OK') }]
+      );
+    }
+  };
 
   const getUserName = () => {
     if (user?.firstName && user?.lastName) {
@@ -60,32 +118,6 @@ export default function SettingsScreen({ navigation }: any) {
 
   const settingSections = [
     {
-      title: t('profile.account', 'Account'),
-      items: [
-        {
-          icon: 'person-outline',
-          title: t('common.personalInformation'),
-          subtitle: t('common.updateProfileDetails'),
-          action: () => navigation.navigate('PersonalDetails', {
-            name: getUserName(),
-            email: getUserEmail(),
-            phone: getUserPhone(),
-            gender: '',
-            emergencyName: '',
-            emergencyPhone: '',
-            photo: getUserPhoto(),
-          }),
-        },
-        {
-          icon: 'shield-checkmark-outline',
-          title: t('common.privacySecurity'),
-          subtitle: t('common.managePrivacySettings'),
-          action: () => navigation.navigate('PrivacySecurity'),
-        },
-        
-      ],
-    },
-    {
       title: t('profile.preferences', 'Preferences'),
       items: [
         {
@@ -99,24 +131,8 @@ export default function SettingsScreen({ navigation }: any) {
           title: t('common.pushNotifications'),
           subtitle: t('common.receiveRideUpdates'),
           toggle: true,
-          value: notifications,
-          onToggle: setNotifications,
-        },
-        {
-          icon: 'location-outline',
-          title: t('common.locationServices'),
-          subtitle: t('common.allowLocationAccess'),
-          toggle: true,
-          value: locationServices,
-          onToggle: setLocationServices,
-        },
-        {
-          icon: 'card-outline',
-          title: t('common.autoPayment'),
-          subtitle: t('common.automaticallyPayForRides'),
-          toggle: true,
-          value: autoPayment,
-          onToggle: setAutoPayment,
+          value: preferences.pushNotifications,
+          onToggle: (value: boolean) => handlePreferenceChange('pushNotifications', value),
         },
       ],
     },
@@ -124,22 +140,10 @@ export default function SettingsScreen({ navigation }: any) {
       title: t('support.helpSupport', 'Support'),
       items: [
         {
-          icon: 'help-circle-outline',
-          title: t('common.helpCenter'),
-          subtitle: t('common.getHelpWithAccount'),
-          action: () => console.log('Help Center'),
-        },
-        {
-          icon: 'chatbubble-outline',
-          title: t('common.contactSupport'),
-          subtitle: t('common.chatWithSupportTeam'),
-          action: () => console.log('Contact Support'),
-        },
-        {
           icon: 'star-outline',
           title: t('common.rateApp'),
           subtitle: t('common.shareYourFeedback'),
-          action: () => console.log('Rate App'),
+          action: () => logger.debug('Rate App'),
         },
       ],
     },
@@ -150,21 +154,13 @@ export default function SettingsScreen({ navigation }: any) {
           icon: 'document-text-outline',
           title: t('common.termsOfService'),
           subtitle: t('common.readTermsAndConditions'),
-          action: () => console.log('Terms'),
-        },
-        {
-          icon: 'shield-outline',
-          title: t('common.privacyPolicy'),
-          subtitle: t('common.learnHowWeProtectData'),
-          action: () => console.log('Privacy Policy'),
+          action: () => logger.debug('Terms'),
         },
         {
           icon: 'share-outline',
           title: t('common.dataSharing'),
           subtitle: t('common.controlDataSharing'),
-          toggle: true,
-          value: shareData,
-          onToggle: setShareData,
+          action: () => logger.debug('Data Sharing'),
         },
       ],
     },
@@ -201,6 +197,26 @@ export default function SettingsScreen({ navigation }: any) {
     </TouchableOpacity>
   );
 
+  if (loading) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.header}>
+          <TouchableOpacity
+            onPress={() => navigation.goBack()}
+            style={styles.backButton}
+          >
+            <Ionicons name="arrow-back" size={24} color={Colors.text} />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>{t('navigation.settings')}</Text>
+          <View style={styles.placeholder} />
+        </View>
+        <View style={styles.loadingContainer}>
+          <Text style={styles.loadingText}>{t('common.loading', 'Loading...')}</Text>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       {/* Header */}
@@ -224,6 +240,7 @@ export default function SettingsScreen({ navigation }: any) {
             </View>
           </View>
         ))}
+
 
         {/* Bottom Margin */}
         <View style={styles.bottomMargin} />
@@ -335,5 +352,14 @@ const styles = StyleSheet.create({
   },
   bottomMargin: {
     height: Layout.spacing.xl,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  loadingText: {
+    fontSize: Layout.fontSize.md,
+    color: Colors.textSecondary,
   },
 });

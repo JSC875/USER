@@ -1,13 +1,14 @@
 import { apiConfig, isDevelopment, isProduction } from '../config/environment';
 import { getUserIdFromJWT, getUserTypeFromJWT } from '../utils/jwtDecoder';
+import { logger } from '../utils/logger';
 
 // Conditional logging function
 const log = (message: string, data?: any) => {
   if (isDevelopment) {
     if (data) {
-      console.log(message, data);
+      logger.debug(message, data);
     } else {
-      console.log(message);
+      logger.debug(message);
     }
   }
 };
@@ -169,35 +170,17 @@ class ApiService {
     const method = config.method || 'GET';
 
     if (isDevelopment) {
-      // Enhanced logging for detailed debugging
-      log('🔍 === DETAILED API REQUEST LOG ===');
-      log(`📍 Base URL: ${this.baseUrl}`);
+      // Simplified logging for debugging
+      log('🔍 === API REQUEST LOG ===');
       log(`🎯 Endpoint: ${endpoint}`);
-      log(`🔗 Full URL: ${url}`);
       log(`📋 Method: ${method}`);
-      log(`⏱️ Timeout: ${timeout}ms`);
-      log(`🔄 Retry Attempts: ${retryAttempts}`);
-      log(`⏳ Retry Delay: ${retryDelay}ms`);
       log(`🏗️ Environment: ${isProduction ? 'production' : 'development'}`);
       
-      // Log headers with token info
-      log('📨 Headers:');
-      Object.entries(headers).forEach(([key, value]) => {
-        if (key === 'Authorization') {
-          const token = value.replace('Bearer ', '');
-          log(`  ${key}: Bearer ${token.substring(0, 20)}...${token.substring(token.length - 10)}`);
-          log(`  🔑 Token Length: ${token.length} characters`);
-        } else {
-          log(`  ${key}: ${value}`);
-        }
-      });
-      
-      // Log request body if present
-      if (config.body) {
-        log('📦 Request Body:');
-        log(JSON.stringify(config.body, null, 2));
-      } else {
-        log('📦 Request Body: undefined');
+      // Log token info only
+      const authHeader = headers['Authorization'];
+      if (authHeader) {
+        const token = authHeader.replace('Bearer ', '');
+        log(`🔑 Token Length: ${token.length} characters`);
       }
       
       log('🔍 === END REQUEST LOG ===');
@@ -232,14 +215,9 @@ class ApiService {
         }
 
         if (isDevelopment) {
-          log('📡 === DETAILED API RESPONSE LOG ===');
-          log(`📍 Base URL: ${this.baseUrl}`);
+          log('📡 === API RESPONSE LOG ===');
           log(`🎯 Endpoint: ${endpoint}`);
-          log(`🔗 Full URL: ${url}`);
-          log(`📋 Method: ${method}`);
           log(`✅ Status: ${response.status} ${response.statusText}`);
-          log(`📊 Response Headers:`, Object.fromEntries(response.headers.entries()));
-          log(`📦 Response Data:`, responseData);
           log(`📏 Response Size: ${responseText.length} characters`);
           log('📡 === END RESPONSE LOG ===');
         }

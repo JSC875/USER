@@ -7,13 +7,13 @@ import {
   TextInput,
   TouchableOpacity,
   Alert,
-  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import { initializePayment, PaymentOptions } from '../../utils/razorpay';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 import { getRazorpayKey, logRazorpayConfig, isUsingLiveKeys, getPaymentWarningMessage } from '../../config/razorpay';
 import { testRazorpayKeyConfiguration } from '../../utils/razorpayKeyTest';
 import { paymentService } from '../../services/paymentService';
@@ -411,8 +411,7 @@ export default function LivePaymentTestScreen({ navigation }: any) {
 
       {isLoading && (
         <View style={styles.loadingOverlay}>
-          <ActivityIndicator size="large" color={Colors.primary} />
-          <Text style={styles.loadingText}>Processing Payment...</Text>
+          <LoadingSpinner size="large" text="Processing Payment..." />
         </View>
       )}
     </SafeAreaView>

@@ -22,6 +22,7 @@ export const Images = {
   ICON_ANIMATION: require('../../assets/images/iconAnimation.jpg'),
   ICON_ANIMATION_1: require('../../assets/images/iconAnimation1.png'),
   SCOOTER_1: require('../../assets/images/scoooter1.jpg'),
+  RICKSHAW: require('../../assets/images/rickshaw.png'),
   
   // Appacella logos (keeping for reference)
   APPACELLA_LOGO_BLACK: require('../../assets/images/appacella-logo-black.png'),

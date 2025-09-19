@@ -8,8 +8,8 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useNotifications } from '../store/NotificationContext';
 
 // Auth Screens
+import AppSplashScreen from '../screens/auth/AppSplashScreen';
 import SplashScreen from '../screens/auth/SplashScreen';
-import OnboardingScreen from '../screens/auth/OnboardingScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import SignUpScreen from '../screens/auth/SignUpScreen';
 import OTPVerificationScreen from '../screens/auth/OTPVerificationScreen';
@@ -145,14 +145,14 @@ function AuthNavigator() {
     >
       <Stack.Screen 
         name="Splash" 
-        component={SplashScreen}
+        component={AppSplashScreen}
         options={{
           gestureEnabled: false,
         }}
       />
       <Stack.Screen 
         name="Onboarding" 
-        component={OnboardingScreen}
+        component={SplashScreen}
         options={{
           gestureEnabled: false,
         }}
@@ -265,16 +265,44 @@ function MainNavigator() {
       <Stack.Screen name="TermsCondition" component={TermsConditionScreen} />
       
       {/* Ride Flow */}
-      <Stack.Screen name="FindingDriver" component={FindingDriverScreen} />
-      <Stack.Screen name="LiveTracking" component={LiveTrackingScreen} />
-      <Stack.Screen name="RideInProgress" component={RideInProgressScreen} />
-      <Stack.Screen name="Chat" component={ChatScreen} />
+      <Stack.Screen 
+        name="FindingDriver" 
+        component={FindingDriverScreen} 
+        options={{
+          gestureEnabled: false,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="LiveTracking" 
+        component={LiveTrackingScreen} 
+        options={{
+          gestureEnabled: false,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="RideInProgress" 
+        component={RideInProgressScreen} 
+        options={{
+          gestureEnabled: false,
+          headerShown: false,
+        }}
+      />
+      <Stack.Screen 
+        name="Chat" 
+        component={ChatScreen} 
+        options={{
+          gestureEnabled: false,
+          headerShown: false,
+        }}
+      />
       <Stack.Screen name="RidePayment" component={RidePaymentScreen as any} />
       <Stack.Screen name="WebViewPayment" component={WebViewPaymentScreen as any} />
       <Stack.Screen name="PostRidePayment" component={PostRidePaymentScreen as any} />
 
       <Stack.Screen name="RideSummary" component={RideSummaryScreen} />
-      <Stack.Screen name="RideDetails" component={RideDetailsScreen} />
+      <Stack.Screen name="RideDetails" component={RideDetailsScreen as any} />
       <Stack.Screen name="RateDriver" component={require('../screens/ride/RateDriverScreen').default} />
       
       {/* Profile Flow */}

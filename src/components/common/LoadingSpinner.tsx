@@ -1,27 +1,46 @@
 
 import React from 'react';
-import { View, ActivityIndicator, Text, StyleSheet } from 'react-native';
+import { View, Text, StyleSheet, ActivityIndicator } from 'react-native';
+import LottieView from 'lottie-react-native';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 
 interface LoadingSpinnerProps {
-  size?: 'small' | 'large';
-  color?: string;
+  size?: 'small' | 'large' | 'tiny';
   text?: string;
   overlay?: boolean;
+  color?: string;
 }
 
 export default function LoadingSpinner({
   size = 'large',
-  color = Colors.primary,
   text,
   overlay = false,
+  color = Colors.primary,
 }: LoadingSpinnerProps) {
   const containerStyle = overlay ? styles.overlayContainer : styles.container;
+  
+  // For tiny size, use ActivityIndicator instead of Lottie
+  if (size === 'tiny') {
+    return (
+      <ActivityIndicator 
+        size="small" 
+        color={color} 
+        style={styles.tinySpinner}
+      />
+    );
+  }
+
+  const animationSize = size === 'small' ? 60 : 120;
 
   return (
     <View style={containerStyle}>
-      <ActivityIndicator size={size} color={color} />
+      <LottieView
+        source={require('../../../assets/lottie/loader.json')}
+        autoPlay
+        loop
+        style={[styles.animation, { width: animationSize, height: animationSize }]}
+      />
       {text && <Text style={styles.text}>{text}</Text>}
     </View>
   );
@@ -44,10 +63,16 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     zIndex: 1000,
   },
+  animation: {
+    alignSelf: 'center',
+  },
   text: {
     marginTop: Layout.spacing.md,
     fontSize: Layout.fontSize.md,
     color: Colors.textSecondary,
     textAlign: 'center',
+  },
+  tinySpinner: {
+    margin: 0,
   },
 });

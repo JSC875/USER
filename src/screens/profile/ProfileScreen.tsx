@@ -10,11 +10,12 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { Ionicons } from '@expo/vector-icons';
+import { LinearGradient } from 'expo-linear-gradient';
 import { useAuth, useUser } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
+import { logger } from '../../utils/logger';
 import { useFocusEffect } from '@react-navigation/native';
-import { useRoute } from '@react-navigation/native';
 import { userApi } from '../../services/userService';
 import { useTranslation } from 'react-i18next';
 
@@ -27,31 +28,25 @@ const getProfileOptions = (t: any) => [
   },
   {
     id: '1',
-    title: t('payment.paymentMethods'),
-    icon: 'wallet-outline',
-    screen: 'Payment',
-  },
-  {
-    id: '2',
     title: t('common.privacySecurity'),
     icon: 'shield-checkmark-outline',
     screen: 'PrivacySecurity',
   },
   {
-    id: '3',
+    id: '2',
     title: t('common.settings'),
     icon: 'settings-outline',
     screen: 'Settings',
   },
   {
-    id: '4',
+    id: '3',
     title: t('common.about'),
     icon: 'information-circle-outline',
     screen: 'About',
   },
 ];
 
-export default function ProfileScreen({ navigation, route }: any) {
+export default function ProfileScreen({ navigation }: any) {
   const { signOut, getToken } = useAuth();
   const { user } = useUser();
   const { t } = useTranslation();
@@ -60,10 +55,7 @@ export default function ProfileScreen({ navigation, route }: any) {
     return user?.imageUrl || 'https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?w=150&h=150&fit=crop&crop=face';
   };
 
-  const [profilePhoto, setProfilePhoto] = useState(getUserPhoto());
-  const [activeTab, setActiveTab] = useState<'methods' | 'history'>(
-    route.params?.initialTab === 'history' ? 'history' : 'methods'
-  );
+  const [profilePhoto] = useState(getUserPhoto());
   const [userProfile, setUserProfile] = useState<any>(null);
   const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
@@ -73,18 +65,18 @@ export default function ProfileScreen({ navigation, route }: any) {
       const fetchUserProfile = async () => {
         // Prevent multiple simultaneous calls
         if (isLoadingProfile) {
-          console.log('⏳ Profile loading already in progress, skipping...');
+          logger.debug('⏳ Profile loading already in progress, skipping...');
           return;
         }
 
         try {
           setIsLoadingProfile(true);
-          console.log('🔄 Loading user profile for Profile tab...');
+          logger.debug('🔄 Loading user profile for Profile tab...');
           
           const profile = await userApi.getCurrentUser(getToken);
           setUserProfile(profile);
           
-          console.log('✅ User profile loaded for Profile tab:', profile);
+          logger.debug('✅ User profile loaded for Profile tab:', profile);
         } catch (error) {
           console.error('❌ Error loading user profile for Profile tab:', error);
         } finally {
@@ -94,15 +86,7 @@ export default function ProfileScreen({ navigation, route }: any) {
 
       fetchUserProfile();
 
-      if (route?.params?.updatedPhoto) {
-        setProfilePhoto(route.params.updatedPhoto);
-      }
-      if (route?.params?.updatedProfile) {
-        // Refresh profile data if updated
-        console.log('Profile updated:', route.params.updatedProfile);
-        setUserProfile(route.params.updatedProfile);
-      }
-    }, [route?.params?.updatedPhoto, route?.params?.updatedProfile])
+    }, [])
   );
 
   const handleOptionPress = (screen: string) => {
@@ -120,8 +104,6 @@ export default function ProfileScreen({ navigation, route }: any) {
       navigation.navigate('EditProfile');
     } else if (screen === 'History') {
       navigation.navigate('History');
-    } else if (screen === 'Payment') {
-      navigation.navigate('Payment');
     } else if (screen === 'Settings') {
       navigation.navigate('Settings');
     } else if (screen === 'About') {
@@ -129,24 +111,24 @@ export default function ProfileScreen({ navigation, route }: any) {
     } else if (screen === 'PrivacySecurity') {
       navigation.navigate('PrivacySecurity');
     } else {
-      console.log(`Navigate to ${screen}`);
+      logger.debug(`Navigate to ${screen}`);
     }
   };
 
   const handleSignOut = async () => {
     Alert.alert(
-      'Sign Out',
-      'Are you sure you want to sign out?',
+      'Log Out',
+      'Are you sure you want to Logout?',
       [
         { text: 'Cancel', style: 'cancel' },
         {
-          text: 'Sign Out',
+          text: 'Log Out',
           style: 'destructive',
           onPress: async () => {
             try {
               await signOut();
             } catch (error) {
-              console.error('Error signing out:', error);
+              console.error('Error log out:', error);
             }
           },
         },
@@ -191,99 +173,112 @@ export default function ProfileScreen({ navigation, route }: any) {
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
         {/* Profile Info */}
         <View style={styles.profileCard}>
-          <View style={styles.profileInfo}>
-            <View style={styles.profilePhotoWrapper}>
-              <Image
-                source={{ uri: profilePhoto }}
-                style={styles.profilePhoto}
-              />
+          {/* Profile Header with Gradient Background */}
+          <LinearGradient
+            colors={['#667eea', '#764ba2']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.profileHeader}
+          >
+            <View style={styles.profileInfo}>
+              <View style={styles.profilePhotoWrapper}>
+                <Image
+                  source={{ uri: profilePhoto }}
+                  style={styles.profilePhoto}
+                />
+                <View style={styles.photoStatusIndicator} />
+              </View>
+              <View style={styles.profileDetails}>
+                <Text style={styles.profileName}>{getUserName()}</Text>
+                <View style={styles.verificationBadge}>
+                  <Ionicons name="checkmark-circle" size={16} color={Colors.success} />
+                  <Text style={styles.verificationText}>Verified</Text>
+                </View>
+                {getUserEmail() && (
+                  <View style={styles.contactInfo}>
+                    <Ionicons name="mail-outline" size={14} color={Colors.textSecondary} />
+                    <Text style={styles.profileEmail}>{getUserEmail()}</Text>
+                  </View>
+                )}
+                {getUserPhone() && (
+                  <View style={styles.contactInfo}>
+                    <Ionicons name="call-outline" size={14} color={Colors.textSecondary} />
+                    <Text style={styles.profilePhone}>{getUserPhone()}</Text>
+                  </View>
+                )}
+                <TouchableOpacity style={styles.rideHistoryBadge} onPress={() => navigation.navigate('History')}>
+                  <Ionicons name="bicycle" size={16} color={Colors.white} />
+                  <Text style={styles.rideHistoryText}>{userProfile?.totalRides || 0} Rides</Text>
+                </TouchableOpacity>
+              </View>
             </View>
-            <View style={styles.profileDetails}>
-              <Text style={styles.profileName}>{getUserName()}</Text>
-              {getUserEmail() && (
-                <Text style={styles.profileEmail}>{getUserEmail()}</Text>
-              )}
-              {getUserPhone() && (
-                <Text style={styles.profilePhone}>{getUserPhone()}</Text>
-              )}
-            </View>
-            <TouchableOpacity style={styles.editButton} onPress={() => navigation.navigate('EditProfile', {
-              name: getUserName(),
-              email: getUserEmail(),
-              phone: getUserPhone(),
-            })}>
-              <Ionicons name="pencil" size={20} color={Colors.primary} />
-            </TouchableOpacity>
-          </View>
-
-                     <View style={styles.statsContainer}>
-             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('History')}>
-               <Text style={styles.statValue}>{userProfile?.totalRides || 0}</Text>
-               <Text style={styles.statLabel}>{t('ride.rideHistory')}</Text>
-             </TouchableOpacity>
-             <View style={styles.statDivider} />
-             <View style={styles.statItem}>
-               <Text style={styles.statValue}>{userProfile?.rating ? userProfile.rating.toFixed(1) : '0.0'}</Text>
-               <Text style={styles.statLabel}>{t('common.rating')}</Text>
-             </View>
-             <View style={styles.statDivider} />
-             <TouchableOpacity style={styles.statItem} onPress={() => navigation.navigate('Payment', { initialTab: 'history' })}>
-               <Text style={styles.statValue}>₹{userProfile?.walletBalance || 0}</Text>
-               <Text style={styles.statLabel}>{t('payment.walletBalance')}</Text>
-             </TouchableOpacity>
-           </View>
+          </LinearGradient>
         </View>
 
         {/* Quick Actions */}
         <View style={styles.quickActions}>
           <Text style={styles.sectionTitle}>{t('home.quickActions')}</Text>
-          <View style={styles.actionGridRow}>
-            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('ComingSoon')}>
-              <View style={styles.actionIcon}>
-                <Ionicons name="time" size={24} color={Colors.primary} />
-              </View>
-              <Text style={styles.actionText}>{`${t('home.scheduleRide')}\n`}</Text>
+          <View style={styles.actionsContainer}>
+            <TouchableOpacity style={styles.primaryAction} onPress={() => navigation.navigate('ComingSoon')}>
+              <LinearGradient
+                colors={['#9ca3af', '#6b7280']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.primaryActionGradient}
+              >
+                <View style={styles.primaryActionContent}>
+                  <View style={styles.primaryActionIcon}>
+                    <Ionicons name="time" size={24} color={Colors.white} />
+                  </View>
+                  <View style={styles.primaryActionText}>
+                    <Text style={styles.primaryActionTitle}>{t('home.scheduleRide')}</Text>
+                    <Text style={styles.primaryActionSubtitle}>Coming Soon</Text>
+                  </View>
+                  <Ionicons name="arrow-forward" size={20} color={Colors.white} />
+                </View>
+              </LinearGradient>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('History')}>
-              <View style={styles.actionIcon}>
-                <Ionicons name="receipt" size={24} color={Colors.accent} />
-              </View>
-              <Text style={styles.actionText}>{`${t('ride.rideHistory')}\n`}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.getParent()?.navigate('Offers')}>
-              <View style={styles.actionIcon}>
-                <Ionicons name="gift" size={24} color={Colors.coral} />
-              </View>
-              <Text style={styles.actionText}>{`${t('home.viewOffers')}\n`}</Text>
-            </TouchableOpacity>
-            <TouchableOpacity style={styles.actionButtonGrid} onPress={() => navigation.navigate('HelpSupport')}>
-              <View style={styles.actionIcon}>
-                <Ionicons name="help-circle" size={24} color={Colors.info} />
-              </View>
-              <Text style={styles.actionText}>{`${t('support.getSupport')}\n`}</Text>
-            </TouchableOpacity>
+            
+            <View style={styles.secondaryActions}>
+              <TouchableOpacity style={styles.secondaryAction} onPress={() => navigation.getParent()?.navigate('Offers')}>
+                <View style={styles.secondaryActionIcon}>
+                  <Ionicons name="gift" size={20} color={Colors.coral} />
+                </View>
+                <Text style={styles.secondaryActionText}>{t('home.viewOffers')}</Text>
+              </TouchableOpacity>
+              
+              <TouchableOpacity style={styles.secondaryAction} onPress={() => navigation.navigate('HelpSupport')}>
+                <View style={styles.secondaryActionIcon}>
+                  <Ionicons name="help-circle" size={20} color={Colors.info} />
+                </View>
+                <Text style={styles.secondaryActionText}>{t('support.getSupport')}</Text>
+              </TouchableOpacity>
+            </View>
           </View>
-          
-          {/* Developer tools moved to About screen */}
         </View>
 
         {/* Menu Options */}
         <View style={styles.menuContainer}>
-          {getProfileOptions(t).map((option) => (
+          {getProfileOptions(t).map((option, index) => (
             <TouchableOpacity
               key={option.id}
-              style={styles.menuItem}
+              style={[
+                styles.menuItem,
+                index === getProfileOptions(t).length - 1 && styles.lastMenuItem
+              ]}
               onPress={() => handleOptionPress(option.screen)}
             >
-              <View style={styles.menuItemLeft}>
-                <Ionicons
-                  name={option.icon as any}
-                  size={24}
-                  color={Colors.gray600}
-                />
+              <View style={styles.menuItemContent}>
+                <View style={styles.menuIconWrapper}>
+                  <Ionicons
+                    name={option.icon as any}
+                    size={20}
+                    color={Colors.primary}
+                  />
+                </View>
                 <Text style={styles.menuItemText}>{option.title}</Text>
               </View>
-              <Ionicons name="chevron-forward" size={20} color={Colors.gray400} />
+              <Ionicons name="chevron-forward" size={18} color={Colors.gray400} />
             </TouchableOpacity>
           ))}
         </View>
@@ -292,8 +287,12 @@ export default function ProfileScreen({ navigation, route }: any) {
 
         {/* Logout */}
         <TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
-          <Ionicons name="log-out-outline" size={24} color={Colors.error} />
-          <Text style={styles.logoutText}>{t('auth.logout')}</Text>
+          <View style={styles.logoutContent}>
+            <View style={styles.logoutIconWrapper}>
+              <Ionicons name="log-out-outline" size={20} color={Colors.error} />
+            </View>
+            <Text style={styles.logoutText}>{t('auth.logout')}</Text>
+          </View>
         </TouchableOpacity>
       </ScrollView>
     </SafeAreaView>
@@ -328,174 +327,275 @@ const styles = StyleSheet.create({
     paddingBottom: Layout.buttonHeight + Layout.spacing.xl + Layout.spacing.lg, // Increased padding for tab bar
   },
   profileCard: {
-    backgroundColor: Colors.gray100, // light grey card
+    backgroundColor: Colors.white,
     margin: Layout.spacing.lg,
-    borderRadius: Layout.borderRadius.lg,
-    padding: Layout.spacing.lg,
+    borderRadius: 20,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: 'hidden',
+  },
+  profileHeader: {
+    padding: Layout.spacing.lg,
+    paddingBottom: Layout.spacing.xl,
   },
   profileInfo: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: Layout.spacing.lg,
+    alignItems: 'flex-start',
   },
   profilePhotoWrapper: {
-    width: 88,
-    height: 88,
-    borderRadius: 44,
-    backgroundColor: Colors.gray300, // slightly darker grey
+    width: 100,
+    height: 100,
+    borderRadius: 50,
+    backgroundColor: Colors.white,
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: Layout.spacing.md,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+    position: 'relative',
   },
   profilePhoto: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    width: 90,
+    height: 90,
+    borderRadius: 45,
+  },
+  photoStatusIndicator: {
+    position: 'absolute',
+    bottom: 2,
+    right: 2,
+    width: 20,
+    height: 20,
+    borderRadius: 10,
+    backgroundColor: Colors.success,
+    borderWidth: 3,
+    borderColor: Colors.white,
   },
   profileDetails: {
     flex: 1,
+    paddingTop: Layout.spacing.xs,
   },
   profileName: {
-    fontSize: Layout.fontSize.lg,
+    fontSize: Layout.fontSize.xl,
     fontWeight: 'bold',
-    color: Colors.text,
+    color: Colors.white,
+    marginBottom: Layout.spacing.xs,
+  },
+  verificationBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: Layout.spacing.sm,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: Layout.spacing.sm,
+  },
+  verificationText: {
+    fontSize: Layout.fontSize.xs,
+    color: Colors.white,
+    fontWeight: '600',
+    marginLeft: 4,
+  },
+  contactInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginBottom: Layout.spacing.xs,
   },
   profileEmail: {
     fontSize: Layout.fontSize.sm,
-    color: Colors.textSecondary,
-    marginBottom: Layout.spacing.xs,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginLeft: Layout.spacing.xs,
   },
   profilePhone: {
     fontSize: Layout.fontSize.sm,
-    color: Colors.textSecondary,
+    color: 'rgba(255, 255, 255, 0.9)',
+    marginLeft: Layout.spacing.xs,
   },
-  editButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: Colors.gray50,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  statsContainer: {
+  rideHistoryBadge: {
     flexDirection: 'row',
-    justifyContent: 'space-around',
-    paddingTop: Layout.spacing.lg,
-    borderTopWidth: 1,
-    borderTopColor: Colors.borderLight,
-  },
-  statItem: {
     alignItems: 'center',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: Layout.spacing.sm,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    marginTop: Layout.spacing.sm,
   },
-  statValue: {
-    fontSize: Layout.fontSize.lg,
-    fontWeight: 'bold',
-    color: Colors.text,
-  },
-  statLabel: {
+  rideHistoryText: {
     fontSize: Layout.fontSize.sm,
-    color: Colors.textSecondary,
-    marginTop: Layout.spacing.xs,
-  },
-  statDivider: {
-    width: 1,
-    height: 40,
-    backgroundColor: Colors.borderLight,
+    color: Colors.white,
+    fontWeight: '600',
+    marginLeft: 6,
   },
   quickActions: {
-    backgroundColor: Colors.gray100, // match card
+    backgroundColor: Colors.white,
     marginHorizontal: Layout.spacing.lg,
     marginBottom: Layout.spacing.lg,
-    borderRadius: Layout.borderRadius.lg,
+    borderRadius: 20,
     padding: Layout.spacing.lg,
     shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
   },
   sectionTitle: {
     fontSize: Layout.fontSize.lg,
     fontWeight: 'bold',
     color: Colors.text,
-    marginBottom: Layout.spacing.md,
+    marginBottom: Layout.spacing.lg,
   },
-  actionGridRow: {
+  actionsContainer: {
+    gap: Layout.spacing.md,
+  },
+  primaryAction: {
+    borderRadius: 16,
+    overflow: 'hidden',
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  primaryActionGradient: {
+    padding: Layout.spacing.lg,
+  },
+  primaryActionContent: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
-    marginBottom: 12,
-  },
-  actionButtonGrid: {
-    flex: 1,
     alignItems: 'center',
-    marginHorizontal: 6,
   },
-  actionIcon: {
+  primaryActionIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: Colors.gray50,
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: Layout.spacing.sm,
+    marginRight: Layout.spacing.md,
   },
-  actionText: {
+  primaryActionText: {
+    flex: 1,
+  },
+  primaryActionTitle: {
+    fontSize: Layout.fontSize.lg,
+    fontWeight: 'bold',
+    color: Colors.white,
+    marginBottom: 2,
+  },
+  primaryActionSubtitle: {
     fontSize: Layout.fontSize.sm,
-    fontWeight: '600',
-    color: Colors.text,
+    color: 'rgba(255, 255, 255, 0.8)',
   },
-  menuContainer: {
-    backgroundColor: Colors.gray100, // match card
-    marginHorizontal: Layout.spacing.lg,
-    marginBottom: Layout.spacing.lg,
-    borderRadius: Layout.borderRadius.lg,
+  secondaryActions: {
+    flexDirection: 'row',
+    gap: Layout.spacing.md,
+  },
+  secondaryAction: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: Colors.gray50,
+    borderRadius: 16,
+    padding: Layout.spacing.md,
+  },
+  secondaryActionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.white,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Layout.spacing.sm,
     shadowColor: Colors.shadow,
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  secondaryActionText: {
+    fontSize: Layout.fontSize.sm,
+    fontWeight: '600',
+    color: Colors.text,
+    flex: 1,
+  },
+  menuContainer: {
+    backgroundColor: Colors.white,
+    marginHorizontal: Layout.spacing.lg,
+    marginBottom: Layout.spacing.lg,
+    borderRadius: 20,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    overflow: 'hidden',
   },
   menuItem: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
     paddingHorizontal: Layout.spacing.lg,
-    paddingVertical: Layout.spacing.md,
+    paddingVertical: Layout.spacing.lg,
     borderBottomWidth: 1,
     borderBottomColor: Colors.borderLight,
   },
-  menuItemLeft: {
+  lastMenuItem: {
+    borderBottomWidth: 0,
+  },
+  menuItemContent: {
     flexDirection: 'row',
     alignItems: 'center',
+    flex: 1,
+  },
+  menuIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.primary + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Layout.spacing.md,
   },
   menuItemText: {
-    marginLeft: Layout.spacing.md,
     fontSize: Layout.fontSize.md,
     color: Colors.text,
+    fontWeight: '500',
   },
   logoutButton: {
+    backgroundColor: Colors.white,
+    marginHorizontal: Layout.spacing.lg,
+    marginBottom: Layout.spacing.xl + Layout.spacing.xl,
+    borderRadius: 20,
+    paddingVertical: Layout.spacing.lg,
+    shadowColor: Colors.shadow,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.15,
+    shadowRadius: 16,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: Colors.error + '20',
+  },
+  logoutContent: {
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    backgroundColor: Colors.white,
-    marginHorizontal: Layout.spacing.lg,
-    marginBottom: Layout.spacing.xl + Layout.spacing.xl, // Much more bottom margin for better spacing
-    borderRadius: Layout.borderRadius.lg,
-    paddingVertical: Layout.spacing.md,
-    shadowColor: Colors.shadow,
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+  },
+  logoutIconWrapper: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: Colors.error + '15',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginRight: Layout.spacing.md,
   },
   logoutText: {
-    marginLeft: Layout.spacing.sm,
     fontSize: Layout.fontSize.md,
     fontWeight: '600',
     color: Colors.error,

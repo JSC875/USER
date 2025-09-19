@@ -1,11 +1,12 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, Dimensions, ActivityIndicator, Alert, ToastAndroid, Platform, TextInput, Button, Modal, Keyboard } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Dimensions, Alert, ToastAndroid, Platform, TextInput, Button, Modal, Keyboard } from 'react-native';
 import MapView, { Region, PROVIDER_GOOGLE, Circle } from 'react-native-maps';
 import { Ionicons, MaterialIcons } from '@expo/vector-icons';
 import Constants from 'expo-constants';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import * as Location from 'expo-location';
+import LoadingSpinner from '../../components/common/LoadingSpinner';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 // Removed unused imports for booking functionality
 
@@ -430,7 +431,7 @@ export default function DropPinLocationScreen({ navigation, route }: any) {
             </View>
             <View>
               <Text style={styles.selectedAddressTitle}>
-                {isFetching ? <ActivityIndicator size="small" color={Colors.primary} /> : locationName}
+                {isFetching ? <LoadingSpinner size="small" /> : locationName}
               </Text>
               <Text style={styles.selectedAddressSubtitle} numberOfLines={1}>
                 {isFetching ? 'Fetching address...' : address || 'not found'}

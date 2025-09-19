@@ -8,8 +8,6 @@ import {
   Platform,
   ScrollView,
   Alert,
-  Modal,
-  TouchableWithoutFeedback,
   BackHandler,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -18,19 +16,15 @@ import { useSignIn } from '@clerk/clerk-expo';
 import { Colors } from '../../constants/Colors';
 import { Layout } from '../../constants/Layout';
 import Button from '../../components/common/Button';
-import Input from '../../components/common/Input';
+import PhoneInput from '../../components/common/PhoneInput';
 import Logo from '../../components/common/Logo';
 
-const COUNTRY_CODES = [
-  { code: '+91', label: 'IN', flag: '🇮🇳' },
-  { code: '+1', label: 'US', flag: '🇺🇸' },
-];
+const INDIA_COUNTRY = { code: '+91', name: 'India', flag: '🇮🇳' };
 
 export default function LoginScreen({ navigation }: any) {
-  const [selectedCountry, setSelectedCountry] = useState(COUNTRY_CODES[0]);
-  const [showDropdown, setShowDropdown] = useState(false);
   const [phoneNumber, setPhoneNumber] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [phoneError, setPhoneError] = useState('');
   const { signIn, setActive, isLoaded } = useSignIn();
 
   // Prevent back navigation on Android
@@ -45,31 +39,43 @@ export default function LoginScreen({ navigation }: any) {
   const handleSendOTP = async () => {
     if (!isLoaded) return;
 
-    // US: 10 digits, IN: 10 digits (can be customized if needed)
+    // Clear previous errors
+    setPhoneError('');
+
+    // Validate phone number
     if (phoneNumber.length !== 10) {
-      Alert.alert('Error', 'Please enter a valid 10-digit phone number');
+      setPhoneError('Please enter a valid 10-digit phone number');
+      return;
+    }
+
+    if (!/^\d+$/.test(phoneNumber)) {
+      setPhoneError('Phone number should contain only digits');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      // Format phone number for Clerk (add selected country code)
-      const formattedPhone = `${selectedCountry.code}${phoneNumber}`;
+      // Format phone number for Clerk (add country code)
+      const formattedPhone = `${INDIA_COUNTRY.code}${phoneNumber}`;
+      
       // Start the sign-in process using the phone number method
       const { supportedFirstFactors } = await signIn.create({
         identifier: formattedPhone,
       });
+      
       // Find the phone number factor
       const phoneNumberFactor = supportedFirstFactors?.find((factor: any) => {
         return factor.strategy === 'phone_code';
       }) as any;
+      
       if (phoneNumberFactor) {
         // Prepare the phone number verification
         await signIn.prepareFirstFactor({
           strategy: 'phone_code',
           phoneNumberId: phoneNumberFactor.phoneNumberId,
         });
+        
         navigation.replace('OTPVerification', {
           phoneNumber: formattedPhone,
           isSignIn: true,
@@ -77,7 +83,7 @@ export default function LoginScreen({ navigation }: any) {
       }
     } catch (err: any) {
       console.error('Error:', err);
-      Alert.alert('Error', err.errors?.[0]?.message || 'Failed to send OTP');
+      setPhoneError(err.errors?.[0]?.message || 'Failed to send OTP. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -87,43 +93,6 @@ export default function LoginScreen({ navigation }: any) {
     navigation.replace('SignUp');
   };
 
-  const renderCountryCodeSelector = () => (
-    <View style={{ flexDirection: 'row', alignItems: 'center' }}>
-      <TouchableOpacity
-        style={styles.countryCodeButton}
-        onPress={() => setShowDropdown(true)}
-        activeOpacity={0.7}
-      >
-        <Text style={styles.countryCodeText}>{selectedCountry.flag}</Text>
-        <Ionicons name={showDropdown ? 'chevron-up' : 'chevron-down'} size={16} color={Colors.gray400} />
-      </TouchableOpacity>
-      <Modal
-        visible={showDropdown}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowDropdown(false)}
-      >
-        <TouchableWithoutFeedback onPress={() => setShowDropdown(false)}>
-          <View style={styles.modalOverlay} />
-        </TouchableWithoutFeedback>
-        <View style={styles.modalContent}>
-          <Text style={styles.modalTitle}>Select Country Code</Text>
-          {COUNTRY_CODES.map((item) => (
-            <TouchableOpacity
-              key={item.code}
-              style={styles.modalItem}
-              onPress={() => {
-                setSelectedCountry(item);
-                setShowDropdown(false);
-              }}
-            >
-              <Text style={styles.modalItemText}>{item.flag} {item.label} {item.code}</Text>
-            </TouchableOpacity>
-          ))}
-        </View>
-      </Modal>
-    </View>
-  );
 
   return (
     <SafeAreaView style={styles.container}>
@@ -143,14 +112,13 @@ export default function LoginScreen({ navigation }: any) {
           </View>
 
           <View style={styles.form}>
-            <Input
+            <PhoneInput
               label="Mobile Number"
-              placeholder="Enter your 10-digit mobile number"
               value={phoneNumber}
               onChangeText={setPhoneNumber}
-              keyboardType="phone-pad"
-              maxLength={10}
-              leftElement={renderCountryCodeSelector()}
+              country={INDIA_COUNTRY}
+              error={phoneError}
+              showCountrySelector={false}
             />
 
             <Button
@@ -268,53 +236,5 @@ const styles = StyleSheet.create({
   linkText: {
     color: Colors.primary,
     fontWeight: '600',
-  },
-  countryCodeButton: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: Layout.spacing.md,
-    borderWidth: 1,
-    borderColor: Colors.border,
-    borderRadius: Layout.borderRadius.md,
-  },
-  countryCodeText: {
-    fontSize: Layout.fontSize.md,
-    color: Colors.text,
-    marginRight: Layout.spacing.sm,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-  },
-  modalContent: {
-    position: 'absolute',
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: Colors.white,
-    borderTopLeftRadius: Layout.borderRadius.lg,
-    borderTopRightRadius: Layout.borderRadius.lg,
-    padding: Layout.spacing.xl,
-    paddingBottom: Layout.spacing.xl + 20,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: -2 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 10,
-  },
-  modalTitle: {
-    fontSize: Layout.fontSize.lg,
-    fontWeight: 'bold',
-    color: Colors.text,
-    marginBottom: Layout.spacing.lg,
-    textAlign: 'center',
-  },
-  modalItem: {
-    paddingVertical: Layout.spacing.md,
-    alignItems: 'center',
-  },
-  modalItemText: {
-    fontSize: Layout.fontSize.md,
-    color: Colors.text,
   },
 });
