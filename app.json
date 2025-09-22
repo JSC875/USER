@@ -2,7 +2,7 @@
   "expo": {
     "name": "Roqet-app",
     "slug": "user-app",
-    "version": "1.0.0",
+    "version": "1.0.1",
     "orientation": "portrait",
     "icon": "./assets/images/roqetlogo.jpg",
     "userInterfaceStyle": "light",
@@ -19,6 +19,7 @@
     },
     "android": {
       "package": "com.roqet.roqetapp",
+      "versionCode": 2,
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/roqetlogo.jpg",
         "backgroundColor": "#ffffff"
