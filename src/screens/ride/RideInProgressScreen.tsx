@@ -116,13 +116,22 @@ export default function RideInProgressScreen({ navigation, route }: any) {
 
     isAnimating.value = true;
     
+    // Create worklets for logging that run on JS thread
+    const logLatitudeComplete = () => {
+      logger.debug('Latitude animation completed');
+    };
+    
+    const logLongitudeComplete = () => {
+      logger.debug('Longitude animation completed');
+    };
+    
     // Animate latitude
     animatedLatitude.value = withTiming(
       newLocation.latitude,
       { duration: 5000, easing: Easing.inOut(Easing.cubic) },
       (finished) => {
         if (finished) {
-          logger.debug('Latitude animation completed');
+          runOnJS(logLatitudeComplete)();
         }
       }
     );
@@ -133,7 +142,7 @@ export default function RideInProgressScreen({ navigation, route }: any) {
       { duration: 5000, easing: Easing.inOut(Easing.cubic) },
       (finished) => {
         if (finished) {
-          logger.debug('Longitude animation completed');
+          runOnJS(logLongitudeComplete)();
           isAnimating.value = false;
         }
       }
