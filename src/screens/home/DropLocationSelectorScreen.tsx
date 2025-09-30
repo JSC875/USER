@@ -908,7 +908,11 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
             <View style={{ flex: 1, justifyContent: 'center' }}>
               {/* Pickup Location */}
               <TouchableOpacity 
-                onPress={() => { setEditing('current'); setCurrentLocationQuery(''); setSearchQuery(''); }} 
+                onPress={() => { 
+                  setEditing('current'); 
+                  setCurrentLocationQuery(currentLocation?.address || currentLocation?.name || ''); 
+                  setSearchQuery(currentLocation?.address || currentLocation?.name || ''); 
+                }} 
                 activeOpacity={0.7}
                 style={{
                   paddingVertical: 10,
@@ -983,8 +987,8 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
               <TouchableOpacity 
                 onPress={() => { 
                   setEditing('drop'); 
-                  setDropLocationQuery('');
-                  setSearchQuery('');
+                  setDropLocationQuery(dropLocation?.address || dropLocation?.name || ''); 
+                  setSearchQuery(dropLocation?.address || dropLocation?.name || '');
                   
                   setTimeout(() => {
                     if (dropInputRef.current) {
