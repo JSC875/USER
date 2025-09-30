@@ -243,7 +243,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
                   onPress: async () => {
                     const newLocation = await getCurrentLocationReliably();
                     if (newLocation && validateLocationForRebook(newLocation, 'pickup').isValid) {
-                      navigation.replace('RideOptions', {
+                      navigation.navigate('RideOptions', {
                         pickup: newLocation,
                         drop: route.params.destination,
                         forWhom,
@@ -269,7 +269,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
             return;
           }
           
-          navigation.replace('RideOptions', {
+          navigation.navigate('RideOptions', {
             pickup: pickupLocation,
             drop: dropParam,
             forWhom,
@@ -770,7 +770,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
               onPress: async () => {
                 const newLocation = await getCurrentLocationReliably();
                 if (newLocation && validateLocationForRebook(newLocation, 'pickup').isValid) {
-                  navigation.replace('RideOptions', {
+                  navigation.navigate('RideOptions', {
                     pickup: newLocation,
                     drop: location,
                     forWhom,
@@ -796,7 +796,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
         return;
       }
       
-      navigation.replace('RideOptions', {
+                  navigation.navigate('RideOptions', {
         pickup: pickupLocation,
         drop: location,
         forWhom,
@@ -812,7 +812,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
       if (route.params?.type === 'pickup') {
         logger.debug('🔄 Navigating back to RideOptions with updated pickup:', location);
         logger.debug('📍 Original drop preserved:', route.params?.drop);
-        navigation.replace('RideOptions', {
+                  navigation.navigate('RideOptions', {
           pickup: location,
           drop: route.params?.drop, // Use original drop from route params, don't change it
           forWhom,
@@ -1008,7 +1008,7 @@ export default function DropLocationSelectorScreen({ navigation, route }: any) {
                     autoFocus={true}
                     onSubmitEditing={() => {
                       if (dropLocation) {
-                        navigation.replace('RideOptions', {
+                        navigation.navigate('RideOptions', {
                           pickup: currentLocation,
                           drop: dropLocation,
                           forWhom,
